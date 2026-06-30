@@ -1,0 +1,112 @@
+{
+  "$id": "https://spec/element.schema.json",
+  "type": "object",
+  "required": ["id", "tag", "styles"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "tag": { "type": "string", "minLength": 1 },
+    "content": { "type": ["string", "null"] },
+    "styles": { "type": "object", "additionalProperties": { "type": "string" } },
+    "attributes": { "type": "object", "additionalProperties": { "type": "string" } },
+    "children": { "$ref": "#/definitions/elementArray" },
+    "animations": { "$ref": "#/definitions/animationArray" },
+    "events": { "$ref": "#/definitions/eventArray" },
+    "triggers": { "$ref": "#/definitions/triggerArray" },
+    "autoRemove": {
+      "type": "object",
+      "properties": {
+        "delay": { "type": "integer", "minimum": 0 },
+        "exitAnimation": { "$ref": "#/definitions/animation" }
+      },
+      "required": ["delay"]
+    },
+    "position": {
+      "type": "object",
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+      "required": ["x", "y"]
+    },
+    "size": {
+      "type": "object",
+      "properties": { "width": { "type": "number" }, "height": { "type": "number" } },
+      "required": ["width", "height"]
+    },
+    "animationIn": { "type": "string" },
+    "animationDuration": { "type": "number" },
+    "autoRemoveDelay": { "type": "number" }
+  },
+  "definitions": {
+    "elementArray": {
+      "type": "array",
+      "items": { "$ref": "https://spec/element.schema.json" }
+    },
+    "animation": {
+      "type": "object",
+      "required": ["name", "duration", "keyframes"],
+      "properties": {
+        "name": { "type": "string" },
+        "duration": { "type": "integer", "minimum": 0 },
+        "easing": { "type": "string" },
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["offset", "styles"],
+            "properties": {
+              "offset": { "type": "number", "minimum": 0, "maximum": 1 },
+              "styles": { "type": "object", "additionalProperties": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "animationArray": { "type": "array", "items": { "$ref": "#/definitions/animation" } },
+    "eventArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string" },
+          "handler": { "type": "string" },
+          "sound": { "$ref": "#/definitions/sound" }
+        }
+      }
+    },
+    "sound": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1 },
+        "loop": { "type": "boolean" }
+      }
+    },
+    "triggerArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["on", "actions"],
+        "properties": {
+          "on": { "type": "string", "enum": ["countdown.complete", "click", "mounted"] },
+          "actions": { "type": "array", "items": { "$ref": "#/definitions/action" } }
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["scene.activate", "element.show", "element.hide", "element.update", "element.delete", "variables.update", "sound.play"]
+        },
+        "target": { "type": "string" },
+        "channelId": { "type": "string" },
+        "updates": { "type": "object" },
+        "variables": { "type": "object" },
+        "sound": { "$ref": "#/definitions/sound" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

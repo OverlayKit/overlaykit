@@ -1,0 +1,39 @@
+/* OverlayKit — Creative Output theme tokens (--ds-*)
+ * ----------------------------------------------------
+ * SEPARATE namespace from app chrome. Overlay / output components read ONLY
+ * --ds-* so a show theme can re-skin the broadcast layer without ever touching
+ * the operating UI. This file ships a sensible DEFAULT theme ("Broadcast");
+ * runtime themes (esports, corporate, podcast, podcast…) override these on a
+ * scoped selector or inline <style> shipped inside the activated scene.
+ *
+ * Runtime contract — every theme defines this exact set (see editor tokens.ts):
+ *   --ds-font --ds-text --ds-muted --ds-accent --ds-accent-2 --ds-grad
+ *   --ds-surface --ds-surface-2 --ds-border --ds-radius --ds-shadow --ds-glow
+ *   --ds-on-accent  + motion: --ds-dur-* --ds-ease-* --ds-stagger
+ */
+
+:root {
+  /* Default output theme — "Broadcast": polished, professional, readable */
+  --ds-font: 'Inter', system-ui, sans-serif;
+  --ds-text: #f4f7fb;
+  --ds-muted: rgba(244, 247, 251, 0.62);
+  --ds-accent: #22d3ee;
+  --ds-accent-2: #7c3aed;
+  --ds-grad: linear-gradient(135deg, #7c3aed 0%, #22d3ee 100%); /* @kind color */
+  --ds-surface: linear-gradient(180deg, rgba(18, 24, 38, 0.94) 0%, rgba(11, 15, 23, 0.96) 100%); /* @kind color */
+  --ds-surface-2: rgba(255, 255, 255, 0.06);
+  --ds-border: rgba(34, 211, 238, 0.28);
+  --ds-radius: 14px;
+  --ds-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  --ds-glow: rgba(34, 211, 238, 0.4);
+  --ds-on-accent: #06121a;
+
+  /* Output motion (broadcast feel) */
+  --ds-dur-fast: 140ms; /* @kind other */
+  --ds-dur-base: 300ms; /* @kind other */
+  --ds-dur-slow: 520ms; /* @kind other */
+  --ds-ease-entrance: cubic-bezier(.22, 1, .36, 1); /* @kind other */
+  --ds-ease-exit: cubic-bezier(.4, 0, 1, 1); /* @kind other */
+  --ds-ease-emphasis: cubic-bezier(.2, .8, .2, 1); /* @kind other */
+  --ds-stagger: 70ms; /* @kind other */
+}

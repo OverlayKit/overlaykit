@@ -1,0 +1,26 @@
+{
+  "$id": "https://spec/scene.schema.json",
+  "type": "object",
+  "required": ["id", "name", "elements"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "elements": {
+      "type": "array",
+      "items": { "$ref": "https://spec/element.schema.json" }
+    },
+    "backgroundMusic": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1 },
+        "loop": { "type": "boolean" },
+        "preload": { "type": "boolean" }
+      },
+      "required": ["url"]
+    },
+    "orientation": { "type": "string", "enum": ["landscape", "portrait"] },
+    "meta": { "type": "object" }
+  },
+  "additionalProperties": false
+}

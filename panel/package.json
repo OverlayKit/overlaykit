@@ -1,0 +1,22 @@
+{
+  "name": "@overlaykit/panel",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Dynamic control panel: auto-generates a typed form from the variables active in a channel's scene",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "eslint src --ext .ts,.vue"
+  },
+  "dependencies": {
+    "vue": "^3.3.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "vite": "^7.1.12"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,22 @@
+/* OverlayKit Design System — global entry point.
+ *
+ * Consumers link THIS file. It is a manifest of @imports only — no rules here.
+ * Everything reachable from here ships to consumers (tokens + @font-face).
+ *
+ * Direction: "Hybrid Studio OS" — a calm, low-glare operating UI (--app-* /
+ * semantic tokens) alongside an expressive, themeable creative-output layer
+ * (--ds-*). The two namespaces never re-skin each other.
+ *
+ * Source of truth: the OverlayKit design-token files in this package.
+ * (8c42fbd9). Token files below are vendored verbatim; do not hand-edit values
+ * here — re-sync from the design project instead. App-specific baseline styling
+ * lives in the sibling ./app-base.css (opt-in, not part of this manifest).
+ */
+
+@import url('./tokens/fonts.css');
+@import url('./tokens/colors.css');
+@import url('./tokens/typography.css');
+@import url('./tokens/spacing.css');
+@import url('./tokens/motion.css');
+@import url('./tokens/semantic.css');
+@import url('./tokens/output-theme.css');

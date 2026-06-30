@@ -1,0 +1,23 @@
+{
+  "name": "@overlaykit/ui",
+  "version": "0.1.0",
+  "description": "OverlayKit UI kit: Vue 3 controls shared by the editor and live panel.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./components/*": "./components/*"
+  },
+  "files": [
+    "index.ts",
+    "components",
+    "shims-vue.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  }
+}

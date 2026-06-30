@@ -1,0 +1,75 @@
+/* OverlayKit — Color primitives & app-chrome surfaces
+ * ------------------------------------------------------
+ * Two palettes live here:
+ *   1. APP CHROME (--app-*)  — the operating UI. Cool blue-black, low-glare,
+ *      one controlled accent. NEVER re-skinned by show themes.
+ *   2. PRIMITIVE RAMPS       — raw neutral / purple / cyan steps for building.
+ *
+ * Show-theme (creative output) tokens use the separate --ds-* namespace so a
+ * theme can never accidentally re-skin the tool itself. See output-theme.css.
+ */
+
+:root {
+  /* ---- Neutral ramp (cool, slightly blue near-black) ---- */
+  --neutral-950: #0b0f17;  /* app void / deepest background */
+  --neutral-900: #121826;  /* panels, sidebars */
+  --neutral-850: #161d2c;  /* toolbars */
+  --neutral-800: #1a2234;  /* raised cards, rows */
+  --neutral-750: #212b40;  /* hover surface */
+  --neutral-700: #2a3343;  /* hairline borders / dividers */
+  --neutral-600: #3a465c;  /* strong border / disabled fill */
+  --neutral-500: #5a6781;  /* faint icon */
+  --neutral-400: #94a3b8;  /* muted / secondary text (slate) */
+  --neutral-300: #c3ccda;  /* tertiary text */
+  --neutral-200: #e5e7eb;  /* primary text (off-white) */
+  --neutral-100: #f3f5f9;  /* highest-contrast text / inverse bg */
+
+  /* ---- Brand purple ---- */
+  --purple-700: #6d28d9;
+  --purple-600: #7c3aed;  /* brand core */
+  --purple-500: #9333ea;  /* brand bright (legacy editor accent) */
+  --purple-400: #a855f7;
+  --purple-300: #c4a7ff;  /* purple text on dark */
+
+  /* ---- Accent cyan ---- */
+  --cyan-500: #06b6d4;
+  --cyan-400: #22d3ee;  /* the ONE app accent: selection, focus, active */
+  --cyan-300: #67e8f9;
+  --cyan-200: #a5f3fc;
+
+  /* ---- State hues ---- */
+  --red-live: #ef4444;     /* LIVE / recording — strong, never noisy */
+  --red-600: #dc2626;      /* destructive action */
+  --red-700: #b91c1c;      /* destructive pressed */
+  --green-500: #22c55e;    /* connected / published (bright) */
+  --green-700: #166534;    /* success deep fill */
+  --amber-500: #f59e0b;    /* draft / offline / warning */
+  --amber-300: #fcd34d;
+
+  /* ====================================================== */
+  /* APP CHROME — semantic surfaces (operating UI)          */
+  /* ====================================================== */
+  --app-bg:        var(--neutral-950);  /* editor body / void */
+  --app-panel:     var(--neutral-900);  /* sidebars, inspector, panels */
+  --app-bar:       var(--neutral-850);  /* top status bar, toolbars */
+  --app-raised:    var(--neutral-800);  /* cards, palette items, rows */
+  --app-hover:     var(--neutral-750);  /* row / button hover */
+  --app-line:      var(--neutral-700);  /* hairlines, dividers */
+  --app-line-strong: var(--neutral-600);
+
+  --app-ink:       var(--neutral-200);  /* primary text */
+  --app-ink-bright:var(--neutral-100);  /* emphasized text */
+  --app-muted:     var(--neutral-400);  /* secondary / hint text */
+  --app-faint:     var(--neutral-500);  /* disabled / placeholder */
+
+  --app-accent:        var(--cyan-400); /* active selection, focus ring */
+  --app-accent-quiet:  rgba(34, 211, 238, 0.14);
+  --app-accent-line:   rgba(34, 211, 238, 0.40);
+  --app-brand:         var(--purple-500);
+  --app-brand-2:       var(--cyan-400);
+  --app-on-accent:     #06121a;
+
+  /* Selected-row treatment (cyan-tinted charcoal, per editor) */
+  --app-selected-bg:   #0e2b33;
+  --app-selected-line: var(--cyan-400);
+}

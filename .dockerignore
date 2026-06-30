@@ -1,0 +1,18 @@
+# Keep the build context small + clean (node_modules is reinstalled in-image).
+**/node_modules
+**/dist
+**/.vite
+.git
+.github
+e2e/test-results
+e2e/screenshots
+e2e/.e2e-data
+.e2e-data
+.test-data
+server/.test-data
+**/*.log
+tmp
+**/.DS_Store
+**/.env
+**/.env.local
+**/.env.*.local

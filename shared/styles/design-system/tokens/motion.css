@@ -1,0 +1,82 @@
+/* OverlayKit — Motion tokens
+ * ----------------------------
+ * Motion explains state; it never delays the operator. App chrome is calm and
+ * never bounces by default. Broadcast output may be expressive but governed.
+ *
+ * Human controls (Feel / Speed / Energy / Stagger) map onto these tokens — the
+ * raw cubic-beziers are never the primary UX. See the Motion System panel.
+ *
+ * These are timing/easing values — intentionally outside the
+ * color/spacing/radius/shadow/font taxonomy, hence `@kind other`.
+ */
+
+:root {
+  /* ---- App-chrome durations (fast, never sluggish) ---- */
+  --dur-fast: 120ms;   /* @kind other */ /* drawer close, toggles */
+  --dur-base: 200ms;   /* @kind other */ /* drawer open, dirty-state, color transitions */
+  --dur-slow: 320ms;   /* @kind other */ /* publish success, connection-state */
+
+  /* ---- Broadcast-output durations (more room for personality) ---- */
+  --dur-enter: 480ms;  /* @kind other */ /* component entrance on stream */
+  --dur-exit:  220ms;  /* @kind other */ /* component exit */
+  --dur-emph:  280ms;  /* @kind other */ /* score pop, bar grow */
+  --dur-pulse: 2000ms; /* @kind other */ /* controlled live pulse loop (1.4–2.8s) */
+
+  /* ---- Easing (default app posture: smooth, no overshoot) ---- */
+  --ease-entrance: cubic-bezier(.22, 1, .36, 1);   /* @kind other */ /* arrivals */
+  --ease-exit:     cubic-bezier(.4, 0, 1, 1);       /* @kind other */ /* exits */
+  --ease-emphasis: cubic-bezier(.2, .8, .2, 1);     /* @kind other */ /* pops (no bounce) */
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);      /* @kind other */ /* UI transitions */
+
+  /* Energetic overshoot — broadcast output ONLY, never app chrome */
+  --ease-overshoot: cubic-bezier(.34, 1.56, .64, 1); /* @kind other */
+
+  /* ---- Sequence stagger (list / leaderboard reveal) ---- */
+  --stagger: 70ms; /* @kind other */
+
+  /* ---- Motion-feel presets (operator-facing) ----
+     Map a single selector to a full duration+ease set. */
+  /* Calm     — smooth, slower, no bounce */
+  --feel-calm-fast: 180ms;  /* @kind other */
+  --feel-calm-base: 360ms;  /* @kind other */
+  --feel-calm-slow: 680ms;  /* @kind other */
+  --feel-calm-stagger: 90ms;  /* @kind other */
+  /* Snappy   — fast, precise */
+  --feel-snappy-fast: 100ms; /* @kind other */
+  --feel-snappy-base: 220ms; /* @kind other */
+  --feel-snappy-slow: 380ms; /* @kind other */
+  --feel-snappy-stagger: 50ms; /* @kind other */
+  /* Energetic — elastic, expressive */
+  --feel-energetic-fast: 100ms; /* @kind other */
+  --feel-energetic-base: 240ms; /* @kind other */
+  --feel-energetic-slow: 420ms; /* @kind other */
+  --feel-energetic-stagger: 60ms; /* @kind other */
+  /* Broadcast — polished, professional */
+  --feel-broadcast-fast: 140ms; /* @kind other */
+  --feel-broadcast-base: 300ms; /* @kind other */
+  --feel-broadcast-slow: 520ms; /* @kind other */
+  --feel-broadcast-stagger: 70ms; /* @kind other */
+}
+
+/* Reduced motion: first-class. Honors OS preference AND the runtime kill switch
+   ([data-motion="off"] / flags.motion=false). Durations near-instant, no loops. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms; /* @kind other */
+    --dur-base: 1ms; /* @kind other */
+    --dur-slow: 1ms; /* @kind other */
+    --dur-enter: 1ms; /* @kind other */
+    --dur-exit: 1ms; /* @kind other */
+    --dur-emph: 1ms; /* @kind other */
+    --stagger: 0ms; /* @kind other */
+  }
+}
+[data-motion="off"] {
+  --dur-fast: 1ms; /* @kind other */
+  --dur-base: 1ms; /* @kind other */
+  --dur-slow: 1ms; /* @kind other */
+  --dur-enter: 1ms; /* @kind other */
+  --dur-exit: 1ms; /* @kind other */
+  --dur-emph: 1ms; /* @kind other */
+  --stagger: 0ms; /* @kind other */
+}

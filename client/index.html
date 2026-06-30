@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OverlayKit - Overlay System</title>
+    <style>
+      /* OBS safety net: the overlay must be fully transparent with no page chrome
+         so the browser source composites cleanly over the scene. */
+      html, body { margin: 0; padding: 0; background: transparent; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

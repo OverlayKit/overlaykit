@@ -1,0 +1,114 @@
+[
+  {
+    "id": "alerts-chime",
+    "name": "Campana",
+    "category": "alerts",
+    "url": "/sounds/alerts/chime.wav",
+    "durationMs": 900,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "alerts-ding",
+    "name": "Ding",
+    "category": "alerts",
+    "url": "/sounds/alerts/ding.wav",
+    "durationMs": 650,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "alerts-notify",
+    "name": "Notificación",
+    "category": "alerts",
+    "url": "/sounds/alerts/notify.wav",
+    "durationMs": 460,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "stingers-applause",
+    "name": "Aplausos",
+    "category": "stingers",
+    "url": "/sounds/stingers/applause.wav",
+    "durationMs": 900,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "stingers-fail",
+    "name": "Error",
+    "category": "stingers",
+    "url": "/sounds/stingers/fail.wav",
+    "durationMs": 800,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "stingers-success",
+    "name": "Éxito",
+    "category": "stingers",
+    "url": "/sounds/stingers/success.wav",
+    "durationMs": 800,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "stingers-coin",
+    "name": "Moneda",
+    "category": "stingers",
+    "url": "/sounds/stingers/coin.wav",
+    "durationMs": 390,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "stingers-levelup",
+    "name": "Subir de nivel",
+    "category": "stingers",
+    "url": "/sounds/stingers/levelup.wav",
+    "durationMs": 790,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "transitions-swipe",
+    "name": "Swipe",
+    "category": "transitions",
+    "url": "/sounds/transitions/swipe.wav",
+    "durationMs": 260,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "transitions-whoosh",
+    "name": "Whoosh",
+    "category": "transitions",
+    "url": "/sounds/transitions/whoosh.wav",
+    "durationMs": 600,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "ui-blip",
+    "name": "Blip",
+    "category": "ui",
+    "url": "/sounds/ui/blip.wav",
+    "durationMs": 110,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "ui-click",
+    "name": "Click",
+    "category": "ui",
+    "url": "/sounds/ui/click.wav",
+    "durationMs": 45,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "ui-pop",
+    "name": "Pop",
+    "category": "ui",
+    "url": "/sounds/ui/pop.wav",
+    "durationMs": 120,
+    "attribution": "CC0 (synthesized)"
+  },
+  {
+    "id": "ui-tick",
+    "name": "Tick",
+    "category": "ui",
+    "url": "/sounds/ui/tick.wav",
+    "durationMs": 30,
+    "attribution": "CC0 (synthesized)"
+  }
+]

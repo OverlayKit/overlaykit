@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2020", "useDefineForClassFields": true, "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"], "skipLibCheck": true,
+    "moduleResolution": "bundler", "allowImportingTsExtensions": true,
+    "resolveJsonModule": true, "isolatedModules": true, "noEmit": true, "jsx": "preserve",
+    "strict": true, "noUnusedLocals": true, "noUnusedParameters": true, "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"], "@overlaykit/renderer/*": ["../shared/*"], "@overlaykit/ui": ["../shared/ui/index.ts"], "@overlaykit/ui/*": ["../shared/ui/*"] }
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
+}

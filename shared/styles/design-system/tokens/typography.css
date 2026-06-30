@@ -1,0 +1,45 @@
+/* OverlayKit — Typography tokens
+ * --------------------------------
+ * Inter everywhere in the operating UI. Display fonts are reserved for creative
+ * output themes (see output-theme.css), never the app chrome.
+ */
+
+:root {
+  /* ---- Families ---- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-display: 'Inter', var(--font-sans);   /* app default; output themes override --ds-font */
+
+  /* Tabular numerals — timers, scores, live counters, layer counts */
+  --num-feature: 'tnum' 1, 'cv01' 1; /* @kind other */
+
+  /* ---- Weights ---- */
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold:600;
+  --weight-bold:    700;
+  --weight-heavy:   750;
+
+  /* ---- Type scale (rem on 16px base) ---- */
+  --text-display:  2.5rem;   /* 40px — page / hero h1 */
+  --text-h1:       2rem;     /* 32px */
+  --text-h2:       1.5rem;   /* 24px */
+  --text-h3:       1.125rem; /* 18px */
+  --text-body-lg:  1rem;     /* 16px */
+  --text-body:     0.875rem; /* 14px — app default body */
+  --text-sm:       0.8125rem;/* 13px — dense rows, inputs */
+  --text-xs:       0.6875rem;/* 11px — hints, captions */
+  --text-label:    0.75rem;  /* 12px — uppercase section labels */
+
+  /* ---- Line heights ---- */
+  --leading-tight:  1.15;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+
+  /* ---- Letter spacing ---- */
+  --tracking-display: -0.03em;
+  --tracking-tight:   -0.02em;
+  --tracking-normal:  0;
+  --tracking-label:   0.08em;   /* uppercase micro-labels */
+  --tracking-wide:    0.06em;
+}

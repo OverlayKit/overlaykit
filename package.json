@@ -1,0 +1,64 @@
+{
+  "name": "overlaykit",
+  "version": "0.1.0",
+  "description": "Open-source overlay runtime, editor, and live control panel for OBS and XSplit.",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "protocol",
+    "shared",
+    "shared/ui",
+    "server",
+    "client",
+    "editor",
+    "panel",
+    "landing"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently --names \"server,overlay,editor,panel,landing\" --prefix-colors \"green,cyan,magenta,blue,gray\" \"npm:server:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\" \"npm:landing:dev\"",
+    "dev:core": "concurrently --names \"server,overlay,editor,panel\" --prefix-colors \"green,cyan,magenta,blue\" \"npm:server:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\"",
+    "server:dev": "npm run dev --workspace server",
+    "client:dev": "npm run dev --workspace client",
+    "editor:dev": "npm run dev --workspace editor",
+    "panel:dev": "npm run dev --workspace panel",
+    "landing:dev": "npm run dev --workspace landing",
+    "build": "npm run build --workspaces --if-present",
+    "server:build": "npm run build --workspace server",
+    "client:build": "npm run build --workspace client",
+    "editor:build": "npm run build --workspace editor",
+    "panel:build": "npm run build --workspace panel",
+    "landing:build": "npm run build --workspace landing",
+    "start": "npm run start --workspace server",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present",
+    "check": "npm run lint && npm run type-check && npm run test"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.55.1",
+    "sass": "^1.97.1",
+    "ws": "^8.18.3"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.52.5",
+    "@rollup/rollup-linux-arm64-gnu": "4.52.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-vue": "^9.33.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.9.3",
+    "vue-eslint-parser": "^9.4.3",
+    "vue-tsc": "^3.3.5"
+  }
+}

@@ -1,0 +1,9 @@
+/* Shared design tokens (brand, surfaces, spacing). Imported once here so every
+   editor component can reference --brand / --brand-2 / --app-* etc. */
+@import '../../shared/styles/tokens.css';
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}

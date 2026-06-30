@@ -1,0 +1,25 @@
+{
+  "name": "@overlaykit/protocol",
+  "version": "0.1.0",
+  "description": "Shared OverlayKit protocol types for elements, scenes, variables, and WebSocket messages.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./element": "./src/element.ts",
+    "./scene": "./src/scene.ts",
+    "./messages": "./src/messages.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

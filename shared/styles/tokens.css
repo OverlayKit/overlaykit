@@ -1,0 +1,29 @@
+/**
+ * OverlayKit — shared design tokens (compatibility bridge).
+ *
+ * This file used to hand-define a small flat-charcoal palette. It now re-exports
+ * the canonical OverlayKit Design System ("Hybrid Studio OS") vendored under
+ * ./design-system/, so every consumer inherits the polished cool blue-black
+ * surfaces, real Inter webfont, semantic + state tokens, motion tokens, and the
+ * themeable --ds-* output namespace.
+ *
+ * Existing code references a handful of legacy token names (--brand, --brand-2,
+ * --danger, --success, --app-surface). Those are aliased onto the new tokens
+ * below so adoption is a no-break swap; new code should prefer the design-system
+ * names (--app-brand, --state-danger, --app-raised, …). The legacy 4-step
+ * --space-* scale had zero var() references and is superseded by the new
+ * 4px-base scale in design-system/tokens/spacing.css.
+ *
+ * @import rules must come first, so the legacy aliases follow in a second :root.
+ */
+@import './design-system/styles.css';
+
+:root {
+  /* ---- Legacy aliases → design-system tokens (back-compat) ---- */
+  --app-surface: var(--app-raised);  /* old single "surface" → raised card */
+
+  --brand:   var(--app-brand);       /* purple — the ONE editor accent */
+  --brand-2: var(--app-brand-2);     /* cyan — gradient end + active outlines */
+  --danger:  var(--state-danger);    /* reserved STRICTLY for destructive actions */
+  --success: var(--state-success);   /* success toasts / confirmations */
+}

@@ -1,0 +1,24 @@
+@import '../../shared/styles/design-system/styles.css';
+@import '../../shared/styles/design-system/app-base.css';
+
+:root {
+  --bg: var(--app-bg);
+  --surface: var(--app-panel);
+  --line: var(--app-line);
+  --ink: var(--app-ink);
+  --muted: var(--app-muted);
+  --accent: var(--app-brand);
+  --accent-2: var(--app-brand-2);
+  /* extras for cleaner subsequent tweaks */
+  --raised: var(--app-raised);
+  --hover: var(--app-hover);
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,102 @@
+/* OverlayKit — Operating-UI baseline (opt-in)
+ * ---------------------------------------------
+ * NOT part of the token manifest (styles.css). Apps that render the operating
+ * UI (editor, panel, dashboard, landing, play) import this AFTER styles.css to
+ * get a consistent, token-driven baseline: Inter body type, cool blue-black
+ * surface, calm focus rings, and quiet scrollbars. It sets foundations only —
+ * it never styles product components, which own their own scoped CSS.
+ *
+ * The creative output overlay (client) does NOT import this: overlays are
+ * transparent and fully payload-driven, and read only the --ds-* namespace.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  font-feature-settings: var(--num-feature);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings track tight per the type spec; let apps own sizes/weights. */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Calm, accessible focus — one cyan ring, never a glow. Mouse users keep a
+   clean surface; keyboard users get the ring via :focus-visible. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* Small section micro-labels: uppercase, wide-tracked, cyan. */
+.app-section-label {
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--app-accent);
+  font-weight: var(--weight-semibold);
+}
+
+/* Tabular numerals for timers / scores / live counts. */
+.app-tnum {
+  font-feature-settings: var(--num-feature);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quiet, on-brand scrollbars in the operating UI. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--app-line-strong);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-pill);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--app-faint);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}

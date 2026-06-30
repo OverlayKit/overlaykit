@@ -1,0 +1,10 @@
+/* OverlayKit — Webfonts
+ *
+ * Inter is the operating-UI typeface (app chrome, overlays' default body).
+ * Loaded from Google Fonts. Inter ships a `tnum` feature used for timers,
+ * scores and live counters; the app applies it via --app-num-feature.
+ *
+ * No font substitution was needed — Inter is the real, documented family.
+ * Mono fallback for advanced/code surfaces uses the platform ui-monospace stack.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..800;1,14..32,400..700&display=swap');
