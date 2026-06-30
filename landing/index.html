@@ -4,55 +4,145 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OverlayKit - Open-source overlays for OBS</title>
-    <meta name="description" content="OverlayKit is an open-source overlay runtime, editor, and live control panel for OBS and XSplit." />
+    <meta
+      name="description"
+      content="OverlayKit is an open-source overlay runtime, visual editor, and live control panel for OBS and XSplit."
+    />
   </head>
   <body>
-    <header class="nav">
-      <a class="brand" href="/">OverlayKit</a>
+    <header class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="OverlayKit home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>OverlayKit</span>
+      </a>
       <nav>
+        <a href="#preview">Preview</a>
         <a href="#runtime">Runtime</a>
         <a href="#quickstart">Quickstart</a>
         <a href="https://github.com/OverlayKit/overlaykit" rel="noopener">GitHub</a>
       </nav>
     </header>
-    <main>
-      <section class="hero">
+
+    <main id="top">
+      <section id="preview" class="hero-show" aria-label="OverlayKit live preview">
+        <div class="hero-stage" data-preview-root>
+          <div class="feed" aria-hidden="true">
+            <div class="feed-grid"></div>
+            <div class="feed-bars">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="feed-figure"></div>
+          </div>
+
+          <div class="scene scoreboard" data-scoreboard>
+            <span class="team">NOVA</span>
+            <strong class="score score-home app-tnum" data-score-home>12</strong>
+            <span class="live-dot">LIVE</span>
+            <strong class="score score-away app-tnum" data-score-away>08</strong>
+            <span class="team">ATLAS</span>
+          </div>
+
+          <div class="scene clock app-tnum" data-clock>
+            <span>Local</span>
+            <strong data-clock-face>22:14:08</strong>
+          </div>
+
+          <div class="scene lower-third" data-lower-third>
+            <span>Now on stream</span>
+            <strong data-lower-title>Grand Finals</strong>
+            <em data-lower-subtitle>OverlayKit runtime · channel main</em>
+          </div>
+
+          <div class="scene alert" data-alert>
+            <span>New supporter</span>
+            <strong>mika.dev</strong>
+            <em>triggered a live alert</em>
+          </div>
+
+          <div class="scene marker" data-marker>
+            <span>Scene</span>
+            <strong data-marker-label>Broadcast</strong>
+          </div>
+
+          <div class="scene ticker" data-ticker>
+            <div class="ticker-track">
+              <span>Lower thirds</span>
+              <span>Theme swaps</span>
+              <span>Live variables</span>
+              <span>Sound triggers</span>
+              <span>OBS browser source</span>
+              <span>Lower thirds</span>
+              <span>Theme swaps</span>
+            </div>
+          </div>
+
+          <div class="theme-meter" aria-hidden="true">
+            <span data-theme-label>Broadcast</span>
+            <i><b data-timeline-progress></b></i>
+          </div>
+        </div>
+
         <div class="hero-copy">
-          <p class="eyebrow">MIT open source - self-hosted</p>
-          <h1>Design overlays once. Render them live in OBS.</h1>
-          <p class="lead">OverlayKit gives streamers and operators a local visual editor, a live control panel, and a browser-source runtime that all speak the same protocol.</p>
+          <p class="eyebrow app-section-label">MIT open source · self-hosted</p>
+          <h1>OverlayKit</h1>
+          <p class="hero-line">Design broadcast graphics once. Run them live in OBS.</p>
+          <p class="lead">
+            A local editor, control panel, and browser-source runtime for stream overlays that
+            move together through one protocol.
+          </p>
           <div class="actions">
             <a class="button primary" href="https://github.com/OverlayKit/overlaykit" rel="noopener">View on GitHub</a>
             <a class="button" href="#quickstart">Run locally</a>
           </div>
         </div>
-        <div class="product-shot" aria-label="OverlayKit editor preview">
-          <div class="shot-top"><span></span><span></span><span></span><strong>main</strong></div>
-          <div class="shot-canvas">
-            <div class="scoreboard"><b>TEAM A</b><strong>12</strong><span>LIVE</span><strong>08</strong><b>TEAM B</b></div>
-            <div class="lower-third"><span>NOW PLAYING</span><b>{{ currentTrack }}</b></div>
-            <div class="panel-card"><small>Panel</small><label>title</label><div class="input">Grand Finals</div><button>Publish</button></div>
-          </div>
+      </section>
+
+      <section id="runtime" class="runtime-band">
+        <div class="section-head">
+          <p class="app-section-label">Runtime architecture</p>
+          <h2>Editor, panel, and OBS URL share the same motion language.</h2>
+        </div>
+        <div class="runtime-grid">
+          <article>
+            <span>01</span>
+            <h3>Visual editor</h3>
+            <p>Compose scenes, lower thirds, scoreboards, tickers, alerts, and reusable collections.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Live panel</h3>
+            <p>Operate variables, visibility, sounds, and scene activation while the overlay stays on air.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>OBS browser source</h3>
+            <p>Render the production view at <code>/production?channel=main&amp;transparent=true</code>.</p>
+          </article>
         </div>
       </section>
-      <section id="runtime" class="band">
-        <h2>One protocol from editor to production</h2>
-        <div class="grid">
-          <article><h3>Editor</h3><p>Compose scenes visually and save reusable collections.</p></article>
-          <article><h3>Panel</h3><p>Operate live variables, components, scenes, and sounds.</p></article>
-          <article><h3>OBS URL</h3><p>Use the production browser source at <code>/production?channel=main&transparent=true</code>.</p></article>
-        </div>
-      </section>
+
       <section id="quickstart" class="quickstart">
-        <h2>Quickstart</h2>
+        <div>
+          <p class="app-section-label">Quickstart</p>
+          <h2>Clone, run, add the OBS URL.</h2>
+        </div>
         <pre><code>git clone https://github.com/OverlayKit/overlaykit.git
 cd overlaykit
 npm install
 npm run dev:core</code></pre>
-        <p>Open the editor on <code>http://localhost:5174</code>, the panel on <code>http://localhost:5181/?channel=main</code>, and OBS on <code>http://localhost:5173/production?channel=main&transparent=true</code>.</p>
+        <div class="links">
+          <a href="http://localhost:5174">Editor · localhost:5174</a>
+          <a href="http://localhost:5181/?channel=main">Panel · localhost:5181</a>
+          <a href="http://localhost:5183/production?channel=main&amp;transparent=true">OBS URL · localhost:5183</a>
+        </div>
       </section>
     </main>
-    <footer>MIT Licensed - github.com/OverlayKit/overlaykit</footer>
+
+    <footer>
+      <span>MIT Licensed</span>
+      <a href="https://github.com/OverlayKit/overlaykit" rel="noopener">github.com/OverlayKit/overlaykit</a>
+    </footer>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
