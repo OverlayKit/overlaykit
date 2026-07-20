@@ -8,6 +8,7 @@
     "protocol",
     "shared",
     "shared/ui",
+    "tools/governance",
     "server",
     "client",
     "editor",
@@ -38,7 +39,11 @@
     "test:unit": "npm run test:unit --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "format": "npm run format --workspaces --if-present",
-    "check": "npm run lint && npm run type-check && npm run test"
+    "check": "npm run lint && npm run type-check && npm run test",
+    "governance:compile": "npm run compile --workspace @overlaykit/governance-host",
+    "governance:verify": "npm run verify --workspace @overlaykit/governance-host",
+    "governance:check": "npm run check --workspace @overlaykit/governance-host && npm run governance:verify",
+    "governance:record": "npm run record --workspace @overlaykit/governance-host --"
   },
   "dependencies": {
     "monaco-editor": "^0.55.1",

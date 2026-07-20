@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0001",
+  "title": "Development governance is a deterministic contract",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "architecture",
+    "change-control",
+    "evidence",
+    "identity",
+    "memory",
+    "quality"
+  ],
+  "context": "OverlayKit is developed by humans and delegated agents across sessions and repositories. Prose guidance, remembered conventions, and green checks are useful but cannot by themselves prove which law was active, whether an enforcement claim was real, or whether evidence belongs to the current law.",
+  "decision": "OverlayKit governance is represented by immutable accepted decisions, an active profile, and a registry of observable enforcement mechanisms. A pure compiler validates those inputs and emits a canonical GovernancePlan with a planHash. Evidence is recorded separately as GovernanceRuns bound to the current plan and manifest, then projected onto the plan; evidence may observe the law but may never redefine it.",
+  "consequences": [
+    "The same contract inputs must compile byte-for-byte to the same semantic plan and planHash.",
+    "An enforced gate is invalid unless it is bound to a recognized, locally verifiable enforcement mechanism.",
+    "A passed gate is invalid when the run producer does not match the mechanism class and locator compiled into the plan.",
+    "Accepted decision files remain byte-identical; a later accepted decision derives supersession without editing history.",
+    "Product changes require a typed change contract with claims, success criteria, and definition-of-done evidence.",
+    "Agent activity must identify a delegated human principal registered in the active profile.",
+    "Hashes establish integrity and freshness; authenticity requires a trusted external signature or attestation.",
+    "Missing, stale, or invalid evidence can never be interpreted as passed."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "law-is-compiled",
+      "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
+    },
+    {
+      "kind": "rule",
+      "id": "evidence-cannot-redefine-law",
+      "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
+    },
+    {
+      "kind": "rule",
+      "id": "accepted-decisions-are-immutable",
+      "statement": "An accepted decision is never edited or deleted; a successor decision derives supersession."
+    },
+    {
+      "kind": "rule",
+      "id": "claims-are-typed",
+      "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "agents-are-delegated",
+      "statement": "An agent identity has no independent project authority and must name its human principal."
+    },
+    {
+      "kind": "rule",
+      "id": "done-is-observed",
+      "statement": "A change is ready only when every enforced gate passed and every enforced artifact is present for the current planHash and manifestHash."
+    },
+    {
+      "kind": "gate",
+      "id": "governance-contract",
+      "description": "The deterministic governance host validates and verifies the stored plan and manifest.",
+      "tier": "enforced",
+      "boundTo": "ci:governance"
+    },
+    {
+      "kind": "gate",
+      "id": "change-contract",
+      "description": "Typed change contracts satisfy their schema and epistemic invariants.",
+      "tier": "enforced",
+      "boundTo": "ci:governance"
+    },
+    {
+      "kind": "gate",
+      "id": "quality",
+      "description": "Lint, type-check, and automated tests pass.",
+      "tier": "enforced",
+      "boundTo": "ci:quality"
+    },
+    {
+      "kind": "gate",
+      "id": "build",
+      "description": "Every buildable workspace builds successfully.",
+      "tier": "enforced",
+      "boundTo": "ci:build"
+    },
+    {
+      "kind": "gate",
+      "id": "independent-review",
+      "description": "A reviewer other than the last producer approves the change.",
+      "tier": "deferred",
+      "boundTo": "github:independent-review"
+    },
+    {
+      "kind": "gate",
+      "id": "signed-identity",
+      "description": "Commits carry an identity signature trusted by the repository root of trust.",
+      "tier": "deferred",
+      "boundTo": "github:signed-commits"
+    },
+    {
+      "kind": "artifact",
+      "id": "governance-plan",
+      "description": "Canonical plan.json and manifest.json generated from the contract.",
+      "tier": "enforced",
+      "producedBy": "repo:governance-compiler"
+    },
+    {
+      "kind": "artifact",
+      "id": "change-contract-artifact",
+      "description": "A typed change contract containing scope, claims, criteria, and definition of done.",
+      "tier": "enforced",
+      "producedBy": "repo:governance-compiler"
+    },
+    {
+      "kind": "artifact",
+      "id": "review-record",
+      "description": "An independent review attached to the proposed change.",
+      "tier": "deferred",
+      "producedBy": "github:independent-review"
+    }
+  ]
+}

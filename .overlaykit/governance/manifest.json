@@ -1,0 +1,20 @@
+{
+  "changes": {
+    "CHG-0001": "d0a889386a313cc9d685a1b094f47354b68da0d9a8360125f019c9079fbbcab8"
+  },
+  "contentHash": "d6000aff89198e554ea94a4d75445af2c18478c7403b38a34c7524cf258b08ab",
+  "decisions": {
+    "ADR-0001": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b"
+  },
+  "mechanismsHash": "d2157c08c44312e41dad93aaf11f8ceda59ca1fe87016915ae05b3d3c5c945d4",
+  "planHash": "67dafa3a952dd84969b25ae353a27730b78578477318e71ff994978a54000cd0",
+  "profileHash": "6acc9cb837d70a9006191fb668c268843d8753040421ed0252c3f1252caed320",
+  "schemas": {
+    "change.schema.json": "91314899ee4d317e27fb55c9b2e78c662990f5d2acd74bca891c211055b0833e",
+    "decision.schema.json": "aa6ac1d5b17864252d6392f035ddf1379d9b3395c87cf6d18d1da8922a6685f4",
+    "mechanisms.schema.json": "f64c26faf63bc43efb343cb20068488cfbc7e3af4760a5cda6572f99b5040f77",
+    "profile.schema.json": "195fa4f53d5d91f734781be6c3fc4fecd8b873b43c0dfef1692e19b233b6ae8d",
+    "run.schema.json": "b78b46e0ed88c18fab6a7851c8f83c98f14fedba48d87c9b56674f7eaa1e69be"
+  },
+  "schemaVersion": "overlaykit-governance-manifest/v1"
+}

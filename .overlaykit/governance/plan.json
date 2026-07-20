@@ -1,0 +1,233 @@
+{
+  "actors": [
+    {
+      "id": "@rodrigoteamx",
+      "kind": "human",
+      "principal": null,
+      "roles": [
+        "owner",
+        "maintainer",
+        "reviewer"
+      ]
+    },
+    {
+      "id": "codex",
+      "kind": "agent",
+      "principal": "@rodrigoteamx",
+      "roles": [
+        "author",
+        "investigator",
+        "producer"
+      ]
+    },
+    {
+      "id": "github-actions",
+      "kind": "ci",
+      "principal": "@rodrigoteamx",
+      "roles": [
+        "evidence-producer",
+        "gate-runner"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "description": "A typed change contract containing scope, claims, criteria, and definition of done.",
+      "id": "change-contract-artifact",
+      "kind": "artifact",
+      "producedBy": "repo:governance-compiler",
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "description": "Canonical plan.json and manifest.json generated from the contract.",
+      "id": "governance-plan",
+      "kind": "artifact",
+      "producedBy": "repo:governance-compiler",
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "description": "An independent review attached to the proposed change.",
+      "id": "review-record",
+      "kind": "artifact",
+      "producedBy": "github:independent-review",
+      "sourceDecision": "ADR-0001",
+      "tier": "deferred"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "bootstrap-authority",
+      "source": "user-directive:2026-07-20",
+      "statement": "The initial contract is accepted directly by the project owner before external review enforcement exists."
+    },
+    {
+      "id": "single-maintainer-bootstrap",
+      "source": "github-org-observation:2026-07-20",
+      "statement": "The organization currently has one human maintainer available to approve governance changes."
+    }
+  ],
+  "decisions": [
+    {
+      "contentHash": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0001",
+      "supersededBy": null,
+      "title": "Development governance is a deterministic contract"
+    }
+  ],
+  "engineVersion": "overlaykit-governance-host/v1",
+  "gates": [
+    {
+      "boundTo": "ci:build",
+      "description": "Every buildable workspace builds successfully.",
+      "id": "build",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "boundTo": "ci:governance",
+      "description": "Typed change contracts satisfy their schema and epistemic invariants.",
+      "id": "change-contract",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "boundTo": "ci:governance",
+      "description": "The deterministic governance host validates and verifies the stored plan and manifest.",
+      "id": "governance-contract",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "boundTo": "github:independent-review",
+      "description": "A reviewer other than the last producer approves the change.",
+      "id": "independent-review",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "deferred"
+    },
+    {
+      "boundTo": "ci:quality",
+      "description": "Lint, type-check, and automated tests pass.",
+      "id": "quality",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "enforced"
+    },
+    {
+      "boundTo": "github:signed-commits",
+      "description": "Commits carry an identity signature trusted by the repository root of trust.",
+      "id": "signed-identity",
+      "kind": "gate",
+      "outcome": null,
+      "sourceDecision": "ADR-0001",
+      "tier": "deferred"
+    }
+  ],
+  "mechanisms": [
+    {
+      "enforcementCapable": true,
+      "expectedCommand": "npm run build",
+      "id": "ci:build",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "workspace-builds"
+    },
+    {
+      "enforcementCapable": true,
+      "expectedCommand": "npm run governance:check",
+      "id": "ci:governance",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "governance-contract"
+    },
+    {
+      "enforcementCapable": true,
+      "expectedCommand": "npm run check",
+      "id": "ci:quality",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "source-quality"
+    },
+    {
+      "enforcementCapable": false,
+      "expectedCommand": null,
+      "id": "github:independent-review",
+      "kind": "github-ruleset",
+      "locator": "github://OverlayKit/overlaykit/rulesets/main",
+      "subject": "pull-request-review"
+    },
+    {
+      "enforcementCapable": false,
+      "expectedCommand": null,
+      "id": "github:signed-commits",
+      "kind": "github-ruleset",
+      "locator": "github://OverlayKit/overlaykit/rulesets/main",
+      "subject": "commit-authenticity"
+    },
+    {
+      "enforcementCapable": true,
+      "expectedCommand": "npm run compile --workspace @overlaykit/governance-host",
+      "id": "repo:governance-compiler",
+      "kind": "local-command",
+      "locator": "package.json#scripts.governance:compile",
+      "subject": "governance-plan"
+    }
+  ],
+  "mechanismsHash": "d2157c08c44312e41dad93aaf11f8ceda59ca1fe87016915ae05b3d3c5c945d4",
+  "planHash": "67dafa3a952dd84969b25ae353a27730b78578477318e71ff994978a54000cd0",
+  "profileHash": "6acc9cb837d70a9006191fb668c268843d8753040421ed0252c3f1252caed320",
+  "profileName": "overlaykit-oss",
+  "profileVersion": "1.0.0",
+  "rules": [
+    {
+      "id": "accepted-decisions-are-immutable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "An accepted decision is never edited or deleted; a successor decision derives supersession."
+    },
+    {
+      "id": "agents-are-delegated",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "An agent identity has no independent project authority and must name its human principal."
+    },
+    {
+      "id": "claims-are-typed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
+    },
+    {
+      "id": "done-is-observed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "A change is ready only when every enforced gate passed and every enforced artifact is present for the current planHash and manifestHash."
+    },
+    {
+      "id": "evidence-cannot-redefine-law",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
+    },
+    {
+      "id": "law-is-compiled",
+      "kind": "rule",
+      "sourceDecision": "ADR-0001",
+      "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
+    }
+  ],
+  "schemasHash": "b5b8baec5e57cc4ba512063af4b0248e5b1769e5606596389a2db4df9574b814",
+  "schemaVersion": "overlaykit-governance-plan/v1"
+}

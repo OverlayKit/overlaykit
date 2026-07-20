@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "overlaykit-governance-profile/v1",
+  "name": "overlaykit-oss",
+  "version": "1.0.0",
+  "decisionIds": ["ADR-0001"],
+  "gates": [],
+  "artifacts": [],
+  "actors": [
+    {
+      "kind": "human",
+      "id": "@rodrigoteamx",
+      "principal": null,
+      "roles": ["owner", "maintainer", "reviewer"]
+    },
+    {
+      "kind": "agent",
+      "id": "codex",
+      "principal": "@rodrigoteamx",
+      "roles": ["author", "investigator", "producer"]
+    },
+    {
+      "kind": "ci",
+      "id": "github-actions",
+      "principal": "@rodrigoteamx",
+      "roles": ["evidence-producer", "gate-runner"]
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "bootstrap-authority",
+      "statement": "The initial contract is accepted directly by the project owner before external review enforcement exists.",
+      "source": "user-directive:2026-07-20"
+    },
+    {
+      "id": "single-maintainer-bootstrap",
+      "statement": "The organization currently has one human maintainer available to approve governance changes.",
+      "source": "github-org-observation:2026-07-20"
+    }
+  ]
+}

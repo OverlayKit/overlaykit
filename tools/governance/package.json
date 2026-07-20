@@ -1,0 +1,27 @@
+{
+  "name": "@overlaykit/governance-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "npm run lint && npm run type-check && npm run test",
+    "compile": "tsx src/cli.ts compile --write",
+    "verify": "tsx src/cli.ts verify",
+    "record": "tsx src/cli.ts record",
+    "observe": "tsx src/cli.ts observe",
+    "lint": "eslint src tests --ext .ts",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
+  }
+}

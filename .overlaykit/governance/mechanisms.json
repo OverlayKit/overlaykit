@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "overlaykit-governance-mechanisms/v1",
+  "mechanisms": [
+    {
+      "id": "repo:governance-compiler",
+      "kind": "local-command",
+      "locator": "package.json#scripts.governance:compile",
+      "subject": "governance-plan",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run compile --workspace @overlaykit/governance-host"
+    },
+    {
+      "id": "ci:governance",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "governance-contract",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run governance:check"
+    },
+    {
+      "id": "ci:quality",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "source-quality",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run check"
+    },
+    {
+      "id": "ci:build",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "workspace-builds",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run build"
+    },
+    {
+      "id": "github:independent-review",
+      "kind": "github-ruleset",
+      "locator": "github://OverlayKit/overlaykit/rulesets/main",
+      "subject": "pull-request-review",
+      "enforcementCapable": false,
+      "expectedCommand": null
+    },
+    {
+      "id": "github:signed-commits",
+      "kind": "github-ruleset",
+      "locator": "github://OverlayKit/overlaykit/rulesets/main",
+      "subject": "commit-authenticity",
+      "enforcementCapable": false,
+      "expectedCommand": null
+    }
+  ]
+}
