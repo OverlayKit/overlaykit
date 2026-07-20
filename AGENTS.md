@@ -7,11 +7,14 @@ Before changing product code, an agent must:
 1. Run `npm run governance:verify`.
 2. Read `.overlaykit/governance/plan.json`.
 3. Identify the active change contract and its ADRs.
-4. State its agent identity and human principal.
-5. Classify relevant claims as facts, inferences, assumptions, or unknowns.
+4. Identify the active product specifications and acceptance criteria.
+5. State its agent identity and human principal.
+6. Classify relevant claims as facts, inferences, assumptions, or unknowns.
 
 Facts and inferences require evidence. Blocking unknowns stop an approved or implemented change.
-An agent must not edit or delete an accepted decision. It creates a successor decision instead.
+An agent must not edit or delete an accepted decision or specification. It creates an explicit
+successor instead. Product behavior is not inferred from conversational memory when an active
+`SPEC-*` record exists.
 
 The agent may produce evidence, but it cannot approve its own authority, change gate definitions in
 a run, reinterpret stale evidence as current, or claim completion while an enforced gate or artifact

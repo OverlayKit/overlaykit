@@ -6,11 +6,13 @@ import {
   type CompiledArtifact,
   type CompiledDecision,
   type CompiledGate,
+  type CompiledSpecification,
   type DecisionRecord,
   type GovernancePlan,
   type GovernanceProfile,
   type GovernanceRule,
   type LoadedContract,
+  type SpecificationRecord,
 } from './types.js';
 import { validateContract } from './validator.js';
 
@@ -38,13 +40,47 @@ function collectLineage(
   return lineage;
 }
 
+function collectSpecificationLineage(
+  profile: GovernanceProfile,
+  specificationsById: Map<string, SpecificationRecord>,
+): Set<string> {
+  const lineage = new Set<string>();
+
+  for (const currentId of profile.specificationIds ?? []) {
+    let id: string | null = currentId;
+
+    while (id !== null) {
+      if (lineage.has(id)) {
+        break;
+      }
+
+      lineage.add(id);
+      const record = specificationsById.get(id);
+      invariant(
+        record !== undefined,
+        'SPECIFICATION_NOT_FOUND',
+        `Missing specification lineage ${id}`,
+      );
+      id = record.specification.supersedes;
+    }
+  }
+
+  return lineage;
+}
+
 function compileProfileHash(
   contract: LoadedContract,
-  selectedRecords: DecisionRecord[],
+  selectedDecisions: DecisionRecord[],
+  selectedSpecifications: SpecificationRecord[],
 ): string {
   const decisionHashes = Object.fromEntries(
-    selectedRecords
+    selectedDecisions
       .map((record) => [record.decision.id, record.contentHash] as const)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+  const specificationHashes = Object.fromEntries(
+    selectedSpecifications
+      .map((record) => [record.specification.id, record.contentHash] as const)
       .sort(([left], [right]) => left.localeCompare(right)),
   );
 
@@ -52,6 +88,7 @@ function compileProfileHash(
     profile: {
       ...contract.profile,
       decisionIds: [...contract.profile.decisionIds].sort(),
+      specificationIds: [...(contract.profile.specificationIds ?? [])].sort(),
       gates: [...contract.profile.gates].sort(compareById),
       artifacts: [...contract.profile.artifacts].sort(compareById),
       actors: [...contract.profile.actors].sort(compareById),
@@ -59,17 +96,24 @@ function compileProfileHash(
       trustAnchors: [...contract.profile.trustAnchors].sort(compareById),
     },
     decisionHashes,
+    specificationHashes,
     mechanismsHash: contract.mechanismsHash,
     schemasHash: contract.schemasHash,
   });
 }
 
 export function compileGovernance(contract: LoadedContract): GovernancePlan {
-  const { decisionsById, supersededBy } = validateContract(
+  const {
+    decisionsById,
+    specificationsById,
+    supersededBy,
+    specificationSupersededBy,
+  } = validateContract(
     contract.decisions,
     contract.profile,
     contract.mechanisms,
     contract.changes,
+    contract.specifications,
   );
 
   const lineageIds = collectLineage(contract.profile, decisionsById);
@@ -89,6 +133,33 @@ export function compileGovernance(contract: LoadedContract): GovernancePlan {
       contentHash: record.contentHash,
     };
   });
+  const specificationLineageIds = collectSpecificationLineage(
+    contract.profile,
+    specificationsById,
+  );
+  const specificationLineageRecords = [...specificationLineageIds]
+    .map((id) => specificationsById.get(id))
+    .filter((record): record is SpecificationRecord => record !== undefined)
+    .sort((left, right) =>
+      left.specification.id.localeCompare(right.specification.id),
+    );
+  const specifications: CompiledSpecification[] = specificationLineageRecords.map(
+    (record) => {
+      const specification = record.specification;
+      const successor = specificationSupersededBy.get(specification.id) ?? null;
+      return {
+        id: specification.id,
+        title: specification.title,
+        declaredStatus: specification.status,
+        effectiveStatus: successor === null ? specification.status : 'superseded',
+        supersededBy: successor,
+        contentHash: record.contentHash,
+        requirementIds: specification.requirements.map(({ id }) => id).sort(),
+        userStoryIds: specification.userStories.map(({ id }) => id).sort(),
+        workflowIds: specification.workflows.map(({ id }) => id).sort(),
+      };
+    },
+  );
 
   const rules: GovernanceRule[] = [];
   const gates: CompiledGate[] = contract.profile.gates.map((gate) => ({
@@ -124,7 +195,11 @@ export function compileGovernance(contract: LoadedContract): GovernancePlan {
   gates.sort(compareById);
   artifacts.sort(compareById);
 
-  const profileHash = compileProfileHash(contract, lineageRecords);
+  const profileHash = compileProfileHash(
+    contract,
+    lineageRecords,
+    specificationLineageRecords,
+  );
   const planWithoutHash = {
     schemaVersion: PLAN_SCHEMA_VERSION,
     engineVersion: ENGINE_VERSION,
@@ -135,6 +210,7 @@ export function compileGovernance(contract: LoadedContract): GovernancePlan {
     schemasHash: contract.schemasHash,
     mechanisms: [...contract.mechanisms.mechanisms].sort(compareById),
     decisions,
+    specifications,
     rules,
     gates: gates.map(({ outcome: _outcome, ...gate }) => gate),
     artifacts,

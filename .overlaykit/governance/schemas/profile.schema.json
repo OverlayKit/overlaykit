@@ -15,7 +15,9 @@
     "trustAnchors"
   ],
   "properties": {
-    "schemaVersion": { "const": "overlaykit-governance-profile/v1" },
+    "schemaVersion": {
+      "enum": ["overlaykit-governance-profile/v1", "overlaykit-governance-profile/v2"]
+    },
     "name": { "type": "string", "minLength": 1 },
     "version": {
       "type": "string",
@@ -26,6 +28,11 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^ADR-[0-9]{4}$" }
+    },
+    "specificationIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^SPEC-[0-9]{4}$" }
     },
     "gates": {
       "type": "array",
@@ -49,6 +56,19 @@
       "items": { "$ref": "#/$defs/trustAnchor" }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": { "const": "overlaykit-governance-profile/v2" }
+        }
+      },
+      "then": {
+        "required": ["specificationIds"],
+        "properties": { "specificationIds": {} }
+      }
+    }
+  ],
   "$defs": {
     "tier": {
       "enum": ["enforced", "advisory", "convention", "deferred"]

@@ -3,7 +3,8 @@
 This directory is a contract, not a collection of mutable notes.
 
 - `decisions/` contains immutable ADR records. An accepted record is never edited.
-- `profile.json` selects the accepted decisions that currently govern.
+- `specifications/` contains immutable, typed product stories, requirements, and workflows.
+- `profile.json` selects the accepted decisions and specifications that currently govern.
 - `profile.json` also declares external trust anchors; observations cannot choose their own trust.
 - `mechanisms.json` names the concrete mechanisms a gate may bind to.
 - `changes/` contains typed change contracts with claims, criteria, and evidence.
@@ -18,6 +19,11 @@ npm run governance:check
 npm run governance:verify:signatures
 npm run governance:ruleset:plan -- --out artifacts/github-ruleset-plan.json
 ```
+
+Accepted specifications are normative only while selected by the active profile. Their full content
+hashes are included in the profile, plan, and manifest, so changing a requirement or acceptance
+criterion invalidates prior evidence. Version-two non-governance changes must name the specifications
+that authorize their scope.
 
 The compiler has no clock, network, or mutable state. Evidence is represented separately as a
 governance run and is current only when its `profileHash`, `planHash`, and `manifestHash` match the

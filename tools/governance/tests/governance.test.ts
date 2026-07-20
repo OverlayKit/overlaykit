@@ -6,6 +6,8 @@ import { observeRun } from '../src/projector.js';
 import {
   ENGINE_VERSION,
   RUN_SCHEMA_VERSION,
+  type ChangeContract,
+  type ChangeRecord,
   type DecisionRecord,
   type GovernanceDecision,
   type GovernanceManifest,
@@ -13,6 +15,8 @@ import {
   type GovernanceRun,
   type LoadedContract,
   type MechanismRegistry,
+  type ProductSpecification,
+  type SpecificationRecord,
 } from '../src/types.js';
 
 function decision(
@@ -43,12 +47,84 @@ function record(value: GovernanceDecision): DecisionRecord {
   };
 }
 
-function profile(decisionIds: string[]): GovernanceProfile {
+function specification(id: string): ProductSpecification {
   return {
-    schemaVersion: 'overlaykit-governance-profile/v1',
+    schemaVersion: 'overlaykit-product-specification/v1',
+    id,
+    title: `Specification ${id}`,
+    status: 'accepted',
+    date: '2026-07-20',
+    supersedes: null,
+    scope: 'Test scope',
+    summary: 'Test summary',
+    actors: [{ id: 'owner', label: 'Owner', description: 'Owns the test.' }],
+    terms: [{ id: 'show', name: 'Show', definition: 'Test workspace.' }],
+    requirements: [
+      {
+        id: 'REQ-DOM-001',
+        category: 'domain',
+        statement: 'A show exists.',
+        verification: 'Test assertion.',
+      },
+    ],
+    userStories: [
+      {
+        id: 'US-001',
+        actor: 'owner',
+        need: 'create a show',
+        outcome: 'a show exists',
+        surface: 'shows',
+        preconditions: [],
+        acceptanceCriteria: [
+          {
+            id: 'AC-001',
+            given: 'no show',
+            when: 'one is created',
+            then: 'it exists',
+            verification: 'Test assertion.',
+          },
+        ],
+      },
+    ],
+    workflows: [
+      {
+        id: 'WF-001',
+        title: 'Create show',
+        actors: ['owner'],
+        steps: ['Create it.'],
+        invariants: ['REQ-DOM-001'],
+      },
+    ],
+    outOfScope: [],
+  };
+}
+
+function specificationRecord(value: ProductSpecification): SpecificationRecord {
+  return {
+    specification: value,
+    contentHash: value.id.padEnd(64, '1').slice(0, 64),
+    path: `.overlaykit/governance/specifications/${value.id}.json`,
+  };
+}
+
+function changeRecord(value: ChangeContract): ChangeRecord {
+  return {
+    change: value,
+    contentHash: value.id.padEnd(64, '2').slice(0, 64),
+    path: `.overlaykit/governance/changes/${value.id}.json`,
+  };
+}
+
+function profile(
+  decisionIds: string[],
+  specificationIds: string[] = [],
+): GovernanceProfile {
+  return {
+    schemaVersion: 'overlaykit-governance-profile/v2',
     name: 'test',
     version: '1.0.0',
     decisionIds,
+    specificationIds,
     gates: [],
     artifacts: [],
     actors: [
@@ -88,11 +164,14 @@ function contract(
   decisions: DecisionRecord[],
   activeIds: string[],
   registry = mechanisms,
+  specifications: SpecificationRecord[] = [],
+  activeSpecificationIds = specifications.map(({ specification }) => specification.id),
 ): LoadedContract {
   return {
     decisions,
+    specifications,
     changes: [],
-    profile: profile(activeIds),
+    profile: profile(activeIds, activeSpecificationIds),
     mechanisms: registry,
     schemas: { 'test.schema.json': 'a'.repeat(64) },
     schemasHash: 'b'.repeat(64),
@@ -163,6 +242,71 @@ describe('deterministic compiler', () => {
     expect(left.rules.map((rule) => rule.id)).toEqual(['rule-a', 'rule-b']);
   });
 
+  it('binds accepted specifications to deterministic plan and profile hashes', () => {
+    const item = record(decision('ADR-0001'));
+    const first = specificationRecord(specification('SPEC-0001'));
+    const secondValue = specification('SPEC-0002');
+    secondValue.requirements[0]!.id = 'REQ-DOM-002';
+    secondValue.userStories[0]!.id = 'US-002';
+    secondValue.userStories[0]!.acceptanceCriteria[0]!.id = 'AC-002';
+    secondValue.workflows[0]!.id = 'WF-002';
+    secondValue.workflows[0]!.invariants = ['REQ-DOM-002'];
+    const second = specificationRecord(secondValue);
+
+    const left = compileGovernance(
+      contract([item], ['ADR-0001'], mechanisms, [first, second], [
+        'SPEC-0002',
+        'SPEC-0001',
+      ]),
+    );
+    const right = compileGovernance(
+      contract([item], ['ADR-0001'], mechanisms, [second, first], [
+        'SPEC-0001',
+        'SPEC-0002',
+      ]),
+    );
+
+    expect(left.planHash).toBe(right.planHash);
+    expect(left.specifications.map(({ id }) => id)).toEqual(['SPEC-0001', 'SPEC-0002']);
+    expect(left.specifications[0]).toEqual(
+      expect.objectContaining({
+        requirementIds: ['REQ-DOM-001'],
+        userStoryIds: ['US-001'],
+        workflowIds: ['WF-001'],
+      }),
+    );
+  });
+
+  it('derives specification supersession without mutating the accepted predecessor', () => {
+    const item = record(decision('ADR-0001'));
+    const previous = specificationRecord(specification('SPEC-0001'));
+    const successorValue = specification('SPEC-0002');
+    successorValue.supersedes = 'SPEC-0001';
+    const successor = specificationRecord(successorValue);
+    const plan = compileGovernance(
+      contract(
+        [item],
+        ['ADR-0001'],
+        mechanisms,
+        [previous, successor],
+        ['SPEC-0002'],
+      ),
+    );
+
+    expect(plan.specifications).toEqual([
+      expect.objectContaining({
+        id: 'SPEC-0001',
+        effectiveStatus: 'superseded',
+        supersededBy: 'SPEC-0002',
+      }),
+      expect.objectContaining({
+        id: 'SPEC-0002',
+        effectiveStatus: 'accepted',
+        supersededBy: null,
+      }),
+    ]);
+  });
+
   it('fails closed when enforced is not bound to a real mechanism', () => {
     const item = record(
       decision('ADR-0001', [
@@ -190,6 +334,88 @@ describe('deterministic compiler', () => {
       principal: '@missing',
       roles: ['author'],
     };
+
+    expect(() => compileGovernance(invalidContract)).toThrowError(GovernanceError);
+  });
+
+  it('fails when a version-two product change omits its specification', () => {
+    const item = record(decision('ADR-0001'));
+    const invalidContract = contract([item], ['ADR-0001']);
+    invalidContract.changes = [
+      changeRecord({
+        schemaVersion: 'overlaykit-governance-change/v2',
+        id: 'CHG-0001',
+        title: 'Ungoverned product change',
+        status: 'proposed',
+        changeClass: 'product',
+        risk: 'medium',
+        owner: '@owner',
+        decisions: ['ADR-0001'],
+        specifications: [],
+        claims: [
+          {
+            kind: 'assumption',
+            statement: 'The change is useful.',
+            evidence: null,
+            blocking: false,
+          },
+        ],
+        successCriteria: [
+          { id: 'SC-001', statement: 'It works.', verification: 'Automated test.' },
+        ],
+        definitionOfDone: [
+          { id: 'DOD-001', statement: 'Tests pass.', evidence: 'npm test' },
+        ],
+      }),
+    ];
+
+    expect(() => compileGovernance(invalidContract)).toThrowError(GovernanceError);
+  });
+
+  it('fails when a product change references an unknown specification', () => {
+    const item = record(decision('ADR-0001'));
+    const invalidContract = contract([item], ['ADR-0001']);
+    invalidContract.changes = [
+      changeRecord({
+        schemaVersion: 'overlaykit-governance-change/v2',
+        id: 'CHG-0001',
+        title: 'Unknown specification',
+        status: 'proposed',
+        changeClass: 'product',
+        risk: 'medium',
+        owner: '@owner',
+        decisions: ['ADR-0001'],
+        specifications: ['SPEC-9999'],
+        claims: [
+          {
+            kind: 'assumption',
+            statement: 'The missing specification exists.',
+            evidence: null,
+            blocking: false,
+          },
+        ],
+        successCriteria: [
+          { id: 'SC-001', statement: 'It works.', verification: 'Automated test.' },
+        ],
+        definitionOfDone: [
+          { id: 'DOD-001', statement: 'Tests pass.', evidence: 'npm test' },
+        ],
+      }),
+    ];
+
+    expect(() => compileGovernance(invalidContract)).toThrowError(GovernanceError);
+  });
+
+  it('fails when a user story references an undeclared actor', () => {
+    const item = record(decision('ADR-0001'));
+    const invalidValue = specification('SPEC-0001');
+    invalidValue.userStories[0]!.actor = 'missing-actor';
+    const invalidContract = contract(
+      [item],
+      ['ADR-0001'],
+      mechanisms,
+      [specificationRecord(invalidValue)],
+    );
 
     expect(() => compileGovernance(invalidContract)).toThrowError(GovernanceError);
   });
@@ -231,6 +457,20 @@ describe('manifest', () => {
 
     current.decisions['ADR-0001'] = 'f'.repeat(64);
     expect(immutabilityViolations(base, current)).toEqual(['decision:ADR-0001']);
+  });
+
+  it('detects changed or removed accepted specifications', () => {
+    const item = record(decision('ADR-0001'));
+    const selected = specificationRecord(specification('SPEC-0001'));
+    const baseContract = contract([item], ['ADR-0001'], mechanisms, [selected]);
+    const base = buildManifest(baseContract, compileGovernance(baseContract));
+    const currentContract = contract([item], ['ADR-0001'], mechanisms, [selected]);
+    const current = buildManifest(currentContract, compileGovernance(currentContract));
+
+    current.specifications['SPEC-0001'] = 'f'.repeat(64);
+    expect(immutabilityViolations(base, current)).toEqual([
+      'specification:SPEC-0001',
+    ]);
   });
 });
 

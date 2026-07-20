@@ -14,11 +14,13 @@ import type {
   GovernanceRun,
   LoadedContract,
   MechanismRegistry,
+  ProductSpecification,
 } from './types.js';
 
 const GOVERNANCE_PATH = join('.overlaykit', 'governance');
 const SCHEMA_FILES = {
   decision: 'decision.schema.json',
+  specification: 'specification.schema.json',
   change: 'change.schema.json',
   profile: 'profile.schema.json',
   mechanisms: 'mechanisms.schema.json',
@@ -28,6 +30,7 @@ const SCHEMA_FILES = {
 
 interface SchemaValidators {
   decision: ValidateFunction<GovernanceDecision>;
+  specification: ValidateFunction<ProductSpecification>;
   change: ValidateFunction<ChangeContract>;
   profile: ValidateFunction<GovernanceProfile>;
   mechanisms: ValidateFunction<MechanismRegistry>;
@@ -70,6 +73,7 @@ function compileSchemas(schemaDirectory: string): {
 
   const validators: SchemaValidators = {
     decision: ajv.compile<GovernanceDecision>(schemas.decision),
+    specification: ajv.compile<ProductSpecification>(schemas.specification),
     change: ajv.compile<ChangeContract>(schemas.change),
     profile: ajv.compile<GovernanceProfile>(schemas.profile),
     mechanisms: ajv.compile<MechanismRegistry>(schemas.mechanisms),
@@ -133,6 +137,23 @@ export function loadContract(repoRoot: string): LoadedContract {
     });
 
   const changeDirectory = join(governanceDirectory, 'changes');
+  const specificationDirectory = join(governanceDirectory, 'specifications');
+  const specifications = readdirSync(specificationDirectory)
+    .filter((filename) => filename.endsWith('.json'))
+    .sort()
+    .map((filename) => {
+      const path = join(specificationDirectory, filename);
+      const raw = readFileSync(path, 'utf8');
+      const specification = JSON.parse(raw) as unknown;
+      assertSchema(validators.specification, specification, relative(repoRoot, path));
+
+      return {
+        specification,
+        contentHash: sha256(raw),
+        path: relative(repoRoot, path),
+      };
+    });
+
   const changes = readdirSync(changeDirectory)
     .filter((filename) => filename.endsWith('.json'))
     .sort()
@@ -177,6 +198,7 @@ export function loadContract(repoRoot: string): LoadedContract {
 
   return {
     decisions,
+    specifications,
     changes,
     profile,
     mechanisms,

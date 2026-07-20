@@ -238,6 +238,7 @@ function compileCommand(repoRoot: string, args: ParsedArgs): void {
       profile: `${plan.profileName}@${plan.profileVersion}`,
       planHash: plan.planHash,
       decisions: plan.decisions.length,
+      specifications: plan.specifications.length,
       gates: plan.gates.length,
       artifacts: plan.artifacts.length,
     })}\n`,

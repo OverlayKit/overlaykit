@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0004",
+  "title": "OverlayKit is a secure show-centered production studio",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "authentication",
+    "domain-model",
+    "information-architecture",
+    "integrations",
+    "production-runtime",
+    "user-experience"
+  ],
+  "context": "The extracted OSS repository exposes separate editor, panel, and production applications. Collection and channel concepts cross authoring and runtime boundaries, while controls are inferred from implementation details. This duplicates navigation, obscures whether an action affects a saved document or the live output, and provides no secure default for Studio access, OBS outputs, or control devices.",
+  "decision": "OverlayKit will present one authenticated Studio organized around Shows. Shows contain saved Scenes; Scenes contain version-pinned Component Instances derived from reusable Component Definitions or immutable Templates. The Production surface maintains explicit Preview and Program buses, and Take promotes the prepared Preview snapshot to Program. Runtime changes never mutate saved source documents without an explicit save-back command. Components declare typed operator controls that feed the Production surface and a vendor-neutral Control API. OBS and devices authenticate with separate, revocable, least-privilege tokens. The initial Linux Stream Deck path is a Bitfocus Companion adapter over that API rather than hardware-specific logic in the core.",
+  "consequences": [
+    "Show becomes the user-visible workspace; collection disappears and channel remains an internal transport concern.",
+    "Studio consolidates Shows, Production, Scenes, Library, Settings, and Integrations under one application shell.",
+    "Editor sends saved work to Preview by default; direct Program operation is optional and must name its target.",
+    "The Production surface derives controls from component contracts instead of inspecting arbitrary variables.",
+    "OBS browser sources use read-only output tokens and never receive an interactive user session.",
+    "Device adapters consume the same typed action catalog and state feedback as the Studio.",
+    "Cloud tenancy, marketplace, trivia, and hosted account behavior remain outside the OSS product model."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "show-is-the-workspace",
+      "statement": "Every saved scene, production session, output, and show-local control belongs to an explicit Show."
+    },
+    {
+      "kind": "rule",
+      "id": "studio-is-one-shell",
+      "statement": "Authoring, production, library, security, and integrations share one authenticated Studio shell; the headless OBS output remains separate."
+    },
+    {
+      "kind": "rule",
+      "id": "preview-precedes-program",
+      "statement": "The default production workflow prepares Preview and promotes it to Program through an explicit Take command."
+    },
+    {
+      "kind": "rule",
+      "id": "runtime-does-not-mutate-source",
+      "statement": "Preview and Program state never overwrite a saved Scene or Component Definition without an explicit save-back command."
+    },
+    {
+      "kind": "rule",
+      "id": "operator-controls-are-declared",
+      "statement": "A component exposes operator capabilities through typed control definitions rather than inferred variables or arbitrary implementation access."
+    },
+    {
+      "kind": "rule",
+      "id": "credentials-are-purpose-scoped",
+      "statement": "Studio sessions, OBS output tokens, and device tokens are separate, revocable credentials with least-privilege scopes."
+    },
+    {
+      "kind": "rule",
+      "id": "hardware-is-an-adapter",
+      "statement": "Hardware and third-party controller support integrates through the vendor-neutral Control API and never defines the core production command model."
+    }
+  ]
+}

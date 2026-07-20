@@ -2,6 +2,7 @@
 
 - Change ID:
 - Active ADRs:
+- Active specifications and user stories:
 - Change class:
 - Risk:
 

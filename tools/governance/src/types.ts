@@ -1,6 +1,6 @@
-export const ENGINE_VERSION = 'overlaykit-governance-host/v1' as const;
-export const PLAN_SCHEMA_VERSION = 'overlaykit-governance-plan/v1' as const;
-export const MANIFEST_SCHEMA_VERSION = 'overlaykit-governance-manifest/v1' as const;
+export const ENGINE_VERSION = 'overlaykit-governance-host/v2' as const;
+export const PLAN_SCHEMA_VERSION = 'overlaykit-governance-plan/v2' as const;
+export const MANIFEST_SCHEMA_VERSION = 'overlaykit-governance-manifest/v2' as const;
 export const RUN_SCHEMA_VERSION = 'overlaykit-governance-run/v1' as const;
 export const GITHUB_EVIDENCE_SCHEMA_VERSION =
   'overlaykit-governance-github-evidence/v1' as const;
@@ -55,6 +55,86 @@ export interface DecisionRecord {
   path: string;
 }
 
+export type SpecificationStatus = 'proposed' | 'accepted' | 'rejected' | 'deprecated';
+
+export interface ProductActor {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface ProductTerm {
+  id: string;
+  name: string;
+  definition: string;
+}
+
+export interface ProductRequirement {
+  id: string;
+  category: 'domain' | 'navigation' | 'security' | 'runtime' | 'integration';
+  statement: string;
+  verification: string;
+}
+
+export interface StoryAcceptanceCriterion {
+  id: string;
+  given: string;
+  when: string;
+  then: string;
+  verification: string;
+}
+
+export interface ProductUserStory {
+  id: string;
+  actor: string;
+  need: string;
+  outcome: string;
+  surface:
+    | 'setup'
+    | 'login'
+    | 'shows'
+    | 'production'
+    | 'scenes'
+    | 'editor'
+    | 'library'
+    | 'settings'
+    | 'output'
+    | 'integration';
+  preconditions: string[];
+  acceptanceCriteria: StoryAcceptanceCriterion[];
+}
+
+export interface ProductWorkflow {
+  id: string;
+  title: string;
+  actors: string[];
+  steps: string[];
+  invariants: string[];
+}
+
+export interface ProductSpecification {
+  schemaVersion: 'overlaykit-product-specification/v1';
+  id: string;
+  title: string;
+  status: SpecificationStatus;
+  date: string;
+  supersedes: string | null;
+  scope: string;
+  summary: string;
+  actors: ProductActor[];
+  terms: ProductTerm[];
+  requirements: ProductRequirement[];
+  userStories: ProductUserStory[];
+  workflows: ProductWorkflow[];
+  outOfScope: string[];
+}
+
+export interface SpecificationRecord {
+  specification: ProductSpecification;
+  contentHash: string;
+  path: string;
+}
+
 export type ClaimKind = 'fact' | 'inference' | 'assumption' | 'unknown';
 export type ChangeStatus = 'proposed' | 'approved' | 'implemented' | 'rejected';
 export type ChangeRisk = 'low' | 'medium' | 'high' | 'critical';
@@ -79,7 +159,7 @@ export interface DefinitionOfDoneItem {
 }
 
 export interface ChangeContract {
-  schemaVersion: 'overlaykit-governance-change/v1';
+  schemaVersion: 'overlaykit-governance-change/v1' | 'overlaykit-governance-change/v2';
   id: string;
   title: string;
   status: ChangeStatus;
@@ -87,6 +167,7 @@ export interface ChangeContract {
   risk: ChangeRisk;
   owner: string;
   decisions: string[];
+  specifications?: string[];
   claims: ChangeClaim[];
   successCriteria: SuccessCriterion[];
   definitionOfDone: DefinitionOfDoneItem[];
@@ -161,10 +242,11 @@ export interface GitHubTrustAnchor {
 export type TrustAnchor = GitHubTrustAnchor;
 
 export interface GovernanceProfile {
-  schemaVersion: 'overlaykit-governance-profile/v1';
+  schemaVersion: 'overlaykit-governance-profile/v1' | 'overlaykit-governance-profile/v2';
   name: string;
   version: string;
   decisionIds: string[];
+  specificationIds?: string[];
   gates: GovernanceGateDefinition[];
   artifacts: RequiredArtifact[];
   actors: GovernanceActor[];
@@ -201,6 +283,18 @@ export interface CompiledDecision {
   contentHash: string;
 }
 
+export interface CompiledSpecification {
+  id: string;
+  title: string;
+  declaredStatus: SpecificationStatus;
+  effectiveStatus: SpecificationStatus | 'superseded';
+  supersededBy: string | null;
+  contentHash: string;
+  requirementIds: string[];
+  userStoryIds: string[];
+  workflowIds: string[];
+}
+
 export interface GovernanceRule {
   id: string;
   statement: string;
@@ -226,6 +320,7 @@ export interface GovernancePlan {
   schemasHash: string;
   mechanisms: EnforcementMechanism[];
   decisions: CompiledDecision[];
+  specifications: CompiledSpecification[];
   rules: GovernanceRule[];
   gates: CompiledGate[];
   artifacts: CompiledArtifact[];
@@ -238,6 +333,7 @@ export interface GovernancePlan {
 export interface GovernanceManifest {
   schemaVersion: typeof MANIFEST_SCHEMA_VERSION;
   decisions: Record<string, string>;
+  specifications: Record<string, string>;
   changes: Record<string, string>;
   schemas: Record<string, string>;
   profileHash: string;
@@ -425,6 +521,7 @@ export interface GitHubObservation {
 
 export interface LoadedContract {
   decisions: DecisionRecord[];
+  specifications: SpecificationRecord[];
   changes: ChangeRecord[];
   profile: GovernanceProfile;
   mechanisms: MechanismRegistry;
