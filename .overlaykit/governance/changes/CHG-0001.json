@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v1",
   "id": "CHG-0001",
   "title": "Bootstrap deterministic development governance",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "governance",
   "risk": "high",
   "owner": "@rodrigoteamx",
