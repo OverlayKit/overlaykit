@@ -1,0 +1,513 @@
+{
+  "schemaVersion": "overlaykit-product-specification/v1",
+  "id": "SPEC-0001",
+  "title": "Secure show authoring and live production",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "scope": "The OSS Studio, local authentication, show and scene authoring, reusable components, Preview and Program operation, OBS outputs, and Linux production control integrations.",
+  "summary": "OverlayKit OSS is a single-instance, secure-by-default production studio in which authenticated users create Shows, compose Scenes from reusable Components or Templates, prepare content in Preview, promote it to Program, render Program through tokenized OBS outputs, and operate the same typed controls from Studio or Linux-compatible control adapters.",
+  "actors": [
+    {
+      "id": "owner",
+      "label": "Owner",
+      "description": "Bootstraps and secures the local instance, manages users, outputs, and integrations."
+    },
+    {
+      "id": "designer",
+      "label": "Designer",
+      "description": "Creates scenes, components, templates, and operator-facing control definitions."
+    },
+    {
+      "id": "producer",
+      "label": "Producer",
+      "description": "Prepares Preview, operates controls, and decides what is promoted to Program."
+    },
+    {
+      "id": "linux-operator",
+      "label": "Linux operator",
+      "description": "Controls production from a Stream Deck-compatible Linux workflow without depending on the official Elgato desktop application."
+    }
+  ],
+  "terms": [
+    {
+      "id": "show",
+      "name": "Show",
+      "definition": "The top-level user workspace that owns scenes, production state, outputs, and show-local configuration."
+    },
+    {
+      "id": "scene",
+      "name": "Scene",
+      "definition": "A saved source document describing a composition of component instances."
+    },
+    {
+      "id": "component-definition",
+      "name": "Component Definition",
+      "definition": "A reusable, versioned visual behavior with declared properties and operator controls."
+    },
+    {
+      "id": "component-instance",
+      "name": "Component Instance",
+      "definition": "A version-pinned placement of a component definition inside a scene with scene-specific values and geometry."
+    },
+    {
+      "id": "template",
+      "name": "Template",
+      "definition": "An immutable starter that creates an independent scene or component definition when selected."
+    },
+    {
+      "id": "preview",
+      "name": "Preview",
+      "definition": "A mutable runtime snapshot prepared off air for inspection and adjustment."
+    },
+    {
+      "id": "program",
+      "name": "Program",
+      "definition": "The authoritative on-air runtime snapshot rendered by live outputs."
+    },
+    {
+      "id": "take",
+      "name": "Take",
+      "definition": "The explicit command that atomically promotes the prepared Preview snapshot to Program."
+    },
+    {
+      "id": "control-definition",
+      "name": "Control Definition",
+      "definition": "A typed and labeled operator capability declared by a component, such as text, number, toggle, selection, color, or action."
+    },
+    {
+      "id": "output",
+      "name": "Output",
+      "definition": "A read-only, tokenized rendering endpoint for OBS or another browser-source consumer."
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-DOM-001",
+      "category": "domain",
+      "statement": "Show is the top-level user-visible workspace and owns scenes, production state, outputs, and show-local settings.",
+      "verification": "Domain model tests and route-level authorization tests prove every owned resource resolves through a Show."
+    },
+    {
+      "id": "REQ-DOM-002",
+      "category": "domain",
+      "statement": "A Scene is a saved source document and remains distinct from Preview and Program runtime snapshots.",
+      "verification": "Persistence and production state-machine tests prove independent scene and runtime revisions."
+    },
+    {
+      "id": "REQ-DOM-003",
+      "category": "domain",
+      "statement": "Component Definitions are reusable and versioned; each Scene stores version-pinned Component Instances.",
+      "verification": "Component library tests prove a later definition revision does not silently change an existing scene instance."
+    },
+    {
+      "id": "REQ-DOM-004",
+      "category": "domain",
+      "statement": "Selecting a Template creates an independent Scene or Component Definition and never mutates the Template.",
+      "verification": "Template clone tests compare source and derived resource hashes before and after edits."
+    },
+    {
+      "id": "REQ-DOM-005",
+      "category": "domain",
+      "statement": "Collection is removed from the user vocabulary and channel identifiers remain internal transport details.",
+      "verification": "UI copy, public route, and API contract tests contain no collection or channel workflow exposed to users."
+    },
+    {
+      "id": "REQ-DOM-006",
+      "category": "domain",
+      "statement": "Components declare typed Control Definitions; Studio and integrations consume the same definitions and allowed commands.",
+      "verification": "Contract tests generate equivalent Studio and integration action catalogs from one component definition."
+    },
+    {
+      "id": "REQ-NAV-001",
+      "category": "navigation",
+      "statement": "Shows, Production, Scenes, Editor, Library, Security, Outputs, and Integrations are surfaces within one authenticated Studio shell.",
+      "verification": "Router tests and responsive navigation E2E tests cover the complete application hierarchy."
+    },
+    {
+      "id": "REQ-NAV-002",
+      "category": "navigation",
+      "statement": "Opening a Show leads to Production by default, with Scenes and Show Settings available as sibling destinations.",
+      "verification": "Navigation E2E tests assert the default route and stable show context."
+    },
+    {
+      "id": "REQ-NAV-003",
+      "category": "navigation",
+      "statement": "Editor presents library, canvas, and inspector as one composition workflow and uses Send to Preview as its primary production command.",
+      "verification": "Editor workflow E2E tests create, save, and send a scene without changing applications or exposing channel identifiers."
+    },
+    {
+      "id": "REQ-NAV-004",
+      "category": "navigation",
+      "statement": "Production presents a scene rundown, Preview and Program monitors, an explicit Take command, and contextual component controls on one surface.",
+      "verification": "Production workflow E2E tests complete load, adjust, take, and visibility operations from one route."
+    },
+    {
+      "id": "REQ-SEC-001",
+      "category": "security",
+      "statement": "First run requires creation of a local Owner, and Studio has no anonymous authenticated-area fallback.",
+      "verification": "First-run and route-guard integration tests reject Studio access until owner setup and login complete."
+    },
+    {
+      "id": "REQ-SEC-002",
+      "category": "security",
+      "statement": "Interactive access uses server-managed secure sessions and role checks for Owner, Producer, and Designer capabilities.",
+      "verification": "Session, CSRF, logout, expiry, and role-matrix integration tests."
+    },
+    {
+      "id": "REQ-SEC-003",
+      "category": "security",
+      "statement": "OBS Outputs use revocable, rotatable, read-only tokens and never receive an interactive user session.",
+      "verification": "Output authorization tests prove read-only scope, rotation invalidation, and absence of session credentials."
+    },
+    {
+      "id": "REQ-SEC-004",
+      "category": "security",
+      "statement": "Control devices use revocable tokens restricted to a Show and explicit action scopes.",
+      "verification": "Device authorization tests reject cross-show, undeclared, expired, and revoked actions."
+    },
+    {
+      "id": "REQ-SEC-005",
+      "category": "security",
+      "statement": "The default server binding is local-only; LAN exposure requires explicit configuration and secure proxy guidance.",
+      "verification": "Configuration tests assert the default bind address and deployment documentation check."
+    },
+    {
+      "id": "REQ-RUN-001",
+      "category": "runtime",
+      "statement": "Production maintains explicit Preview and Program snapshots with independently observable revisions.",
+      "verification": "State-machine and websocket tests assert isolated revisions and reconnect snapshots."
+    },
+    {
+      "id": "REQ-RUN-002",
+      "category": "runtime",
+      "statement": "Take atomically promotes the complete Preview snapshot to Program and exposes success or failure to every operator.",
+      "verification": "Concurrent production tests prove atomic promotion, idempotency, and shared acknowledgement."
+    },
+    {
+      "id": "REQ-RUN-003",
+      "category": "runtime",
+      "statement": "Every runtime mutation names Preview or Program; Preview is the default and direct Program mode is an explicit Show setting.",
+      "verification": "Command validation and production UI tests reject ambiguous targets and verify direct-mode configuration."
+    },
+    {
+      "id": "REQ-RUN-004",
+      "category": "runtime",
+      "statement": "Runtime edits never alter a saved Scene unless an authorized user executes an explicit save-back command.",
+      "verification": "Persistence tests compare saved scene revisions across runtime operations and explicit save-back."
+    },
+    {
+      "id": "REQ-INT-001",
+      "category": "integration",
+      "statement": "A vendor-neutral Control API publishes a typed action catalog, executes authorized commands, and streams state feedback.",
+      "verification": "Control API contract tests cover discovery, execution, authorization, idempotency, and feedback."
+    },
+    {
+      "id": "REQ-INT-002",
+      "category": "integration",
+      "statement": "The first Linux Stream Deck path is a Bitfocus Companion adapter over the Control API; hardware-specific behavior does not enter the core runtime.",
+      "verification": "Adapter contract tests run against the same catalog fixtures as Studio and contain no core dependency on an Elgato SDK."
+    }
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "actor": "owner",
+      "need": "bootstrap the instance with an owner identity",
+      "outcome": "the Studio is secure before any project data can be accessed",
+      "surface": "setup",
+      "preconditions": ["The instance has no registered owner."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-001",
+          "given": "a fresh OverlayKit instance",
+          "when": "a visitor requests any Studio route",
+          "then": "the visitor is restricted to owner setup until valid credentials are created",
+          "verification": "E2E: first-run owner bootstrap and guarded routes."
+        },
+        {
+          "id": "AC-002",
+          "given": "an owner already exists",
+          "when": "an anonymous visitor requests setup",
+          "then": "the visitor cannot create another bootstrap owner",
+          "verification": "Integration: setup endpoint closes after bootstrap."
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "actor": "owner",
+      "need": "sign in and end my session",
+      "outcome": "only authenticated people can reach Studio capabilities",
+      "surface": "login",
+      "preconditions": ["Owner setup is complete."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-003",
+          "given": "valid owner credentials",
+          "when": "the owner signs in",
+          "then": "the server creates a secure session and redirects to Shows",
+          "verification": "E2E: login, session cookie attributes, and redirect."
+        },
+        {
+          "id": "AC-004",
+          "given": "an authenticated Studio session",
+          "when": "the user signs out or the session expires",
+          "then": "protected requests are rejected and the session cannot be reused",
+          "verification": "Integration: logout and expiry invalidate the server session."
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "actor": "producer",
+      "need": "create, open, duplicate, and archive Shows",
+      "outcome": "each production has a clear workspace and lifecycle",
+      "surface": "shows",
+      "preconditions": ["The producer has Show management permission."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-005",
+          "given": "the Shows surface",
+          "when": "the producer creates a Show with valid metadata",
+          "then": "OverlayKit opens that Show on its Production surface with isolated resources",
+          "verification": "E2E: create Show and verify ownership boundaries."
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "actor": "designer",
+      "need": "create a Scene from a blank canvas or a Template",
+      "outcome": "I can start authoring at the right level of reuse",
+      "surface": "scenes",
+      "preconditions": ["A Show exists and the designer can edit it."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-006",
+          "given": "a Show Scenes surface",
+          "when": "the designer chooses blank or a Template",
+          "then": "a new independent Scene is created in that Show and opens in Editor",
+          "verification": "E2E: blank and template scene creation."
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "actor": "designer",
+      "need": "compose and save a Scene",
+      "outcome": "the visual source remains editable and can be prepared for production",
+      "surface": "editor",
+      "preconditions": ["An editable Scene exists."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-007",
+          "given": "an open Scene in Editor",
+          "when": "the designer adds, arranges, configures, and saves component instances",
+          "then": "the Scene revision persists without changing Preview or Program",
+          "verification": "E2E: editor composition and isolated save."
+        },
+        {
+          "id": "AC-008",
+          "given": "a saved Scene",
+          "when": "the designer selects Send to Preview",
+          "then": "Preview receives a runtime snapshot and Program remains unchanged",
+          "verification": "E2E: editor-to-preview handoff."
+        }
+      ]
+    },
+    {
+      "id": "US-006",
+      "actor": "designer",
+      "need": "create or derive reusable Components and declare their controls",
+      "outcome": "visual behavior can be reused safely across Scenes and operated without editing code",
+      "surface": "library",
+      "preconditions": ["The designer can manage the Component Library."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-009",
+          "given": "a custom selection or Component Template",
+          "when": "the designer saves a Component Definition",
+          "then": "the Library stores a versioned definition that can be inserted into Scenes",
+          "verification": "E2E: create, version, and reuse a component."
+        },
+        {
+          "id": "AC-010",
+          "given": "a Component Definition",
+          "when": "the designer declares typed controls",
+          "then": "invalid control types and paths are rejected and valid controls appear in Production",
+          "verification": "Contract and E2E: control schema validation and generated operator UI."
+        }
+      ]
+    },
+    {
+      "id": "US-007",
+      "actor": "producer",
+      "need": "load Scenes in Preview, adjust their controls, and Take them to Program",
+      "outcome": "I can operate a live Show from one predictable surface",
+      "surface": "production",
+      "preconditions": ["The Show has at least one saved Scene and the producer can operate it."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-011",
+          "given": "a saved Scene in the Production rundown",
+          "when": "the producer loads it",
+          "then": "Preview renders the Scene and exposes only its declared controls",
+          "verification": "E2E: rundown load and contextual controls."
+        },
+        {
+          "id": "AC-012",
+          "given": "a prepared Preview snapshot",
+          "when": "the producer executes Take",
+          "then": "Program atomically matches Preview and all connected operators receive acknowledgement",
+          "verification": "E2E and concurrency: Take promotion and feedback."
+        },
+        {
+          "id": "AC-013",
+          "given": "Preview or Program runtime changes",
+          "when": "the producer leaves Production without save-back",
+          "then": "the saved Scene revision remains unchanged",
+          "verification": "Integration: runtime isolation from saved source."
+        }
+      ]
+    },
+    {
+      "id": "US-008",
+      "actor": "owner",
+      "need": "create and rotate a protected OBS Output URL",
+      "outcome": "OBS can render Program without access to Studio or write capabilities",
+      "surface": "output",
+      "preconditions": ["A Show exists and the owner can manage Outputs."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-014",
+          "given": "a Show Output configuration",
+          "when": "the owner creates an OBS Output",
+          "then": "OverlayKit issues a read-only URL that renders Program with transparent output support",
+          "verification": "E2E: tokenized OBS render and scope denial."
+        },
+        {
+          "id": "AC-015",
+          "given": "an existing Output token",
+          "when": "the owner rotates or revokes it",
+          "then": "the previous URL stops receiving Program and cannot be reused",
+          "verification": "Integration: output token rotation and revocation."
+        }
+      ]
+    },
+    {
+      "id": "US-009",
+      "actor": "owner",
+      "need": "issue a scoped device credential",
+      "outcome": "a controller can operate one Show without inheriting my user session",
+      "surface": "integration",
+      "preconditions": ["The owner can manage Show integrations."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-016",
+          "given": "a Show Integration configuration",
+          "when": "the owner creates a device token with selected action scopes",
+          "then": "the token can execute only those actions for that Show and is shown only once",
+          "verification": "Integration: least-privilege device token lifecycle."
+        }
+      ]
+    },
+    {
+      "id": "US-010",
+      "actor": "linux-operator",
+      "need": "bind Stream Deck buttons to production actions and receive state feedback on Linux",
+      "outcome": "I can control Scenes, Take, component visibility, values, and actions from my production desk",
+      "surface": "integration",
+      "preconditions": ["Bitfocus Companion is available and a scoped OverlayKit device token exists."],
+      "acceptanceCriteria": [
+        {
+          "id": "AC-017",
+          "given": "a connected Companion module",
+          "when": "the operator browses OverlayKit actions",
+          "then": "the module lists the authorized Show, Scenes, controls, visibility commands, Take, and trigger actions",
+          "verification": "Adapter contract: action discovery from the Control API catalog."
+        },
+        {
+          "id": "AC-018",
+          "given": "a bound controller action",
+          "when": "production state changes from Studio or another device",
+          "then": "the button receives current state feedback and executes commands against its explicit target",
+          "verification": "Adapter integration: bidirectional state and command execution."
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "WF-001",
+      "title": "Secure first run",
+      "actors": ["owner"],
+      "steps": [
+        "Open a fresh instance.",
+        "Create the initial Owner through the one-time setup surface.",
+        "Authenticate and enter the Shows surface.",
+        "Configure explicit LAN exposure only when required."
+      ],
+      "invariants": ["REQ-SEC-001", "REQ-SEC-002", "REQ-SEC-005"]
+    },
+    {
+      "id": "WF-002",
+      "title": "Author a reusable Scene",
+      "actors": ["designer"],
+      "steps": [
+        "Open or create a Show.",
+        "Create a blank Scene or derive one from a Template.",
+        "Compose version-pinned Component Instances in Editor.",
+        "Create reusable Component Definitions and typed controls when needed.",
+        "Save the Scene and send a runtime snapshot to Preview."
+      ],
+      "invariants": [
+        "REQ-DOM-002",
+        "REQ-DOM-003",
+        "REQ-DOM-004",
+        "REQ-DOM-006",
+        "REQ-NAV-003"
+      ]
+    },
+    {
+      "id": "WF-003",
+      "title": "Operate Preview and Program",
+      "actors": ["producer"],
+      "steps": [
+        "Open the Show Production surface.",
+        "Load a saved Scene from the rundown into Preview.",
+        "Adjust declared controls and visibility in Preview.",
+        "Inspect Preview and execute Take.",
+        "Observe Program and connected Output health.",
+        "Optionally save runtime state back through an explicit authorized command."
+      ],
+      "invariants": [
+        "REQ-NAV-004",
+        "REQ-RUN-001",
+        "REQ-RUN-002",
+        "REQ-RUN-003",
+        "REQ-RUN-004"
+      ]
+    },
+    {
+      "id": "WF-004",
+      "title": "Control production from Linux",
+      "actors": ["owner", "linux-operator"],
+      "steps": [
+        "Create a Show-scoped device token with selected actions.",
+        "Configure the OverlayKit Companion adapter with that credential.",
+        "Discover actions and bind them to controller buttons.",
+        "Execute commands and receive state feedback from the Control API.",
+        "Rotate or revoke the device token when access changes."
+      ],
+      "invariants": ["REQ-SEC-004", "REQ-INT-001", "REQ-INT-002"]
+    }
+  ],
+  "outOfScope": [
+    "Cloud multi-tenancy, hosted account management, billing, marketplace, trivia, and analytics.",
+    "An official Elgato plugin as the initial Linux integration path.",
+    "Automatic persistence of Preview or Program mutations into saved Scenes.",
+    "Exposing transport channel identifiers as a primary user workflow.",
+    "A public unauthenticated Studio, Editor, or Production control surface."
+  ]
+}

@@ -3,23 +3,31 @@
     "CHG-0001": "1938307f8f7b4f1a3c3124b118bc99b0e06ef6424bd5495fb7941f064d9cc05b",
     "CHG-0002": "300531dad25e61370a6bff5a0f10bb476ac02d79bedcaa77ced5763fdc3fe2cf",
     "CHG-0003": "a34c08bed93dd69c2e831ba6871298ee1e7a4ed0d8101e323d1a731a0a3540d2",
-    "CHG-0004": "0138a69457aca261f12da5eaf091fddc536bf7c2487879eb8b386932a435f0f7"
+    "CHG-0004": "0138a69457aca261f12da5eaf091fddc536bf7c2487879eb8b386932a435f0f7",
+    "CHG-0005": "f29900dd49d300f9b68f3c1280d7b49bc1883bc8f4606f89b175b6539e8d6490",
+    "CHG-0006": "05f64eee817fe76741f04241a319f963c7cbdb5342066c2aadb841662ee4378e"
   },
-  "contentHash": "dc84dcb71ede411651fecb04b1c9e0ea15bc003542edae4657b4acfddc46a10c",
+  "contentHash": "e4448ee2f1ef502b49c4510229a3f9bafeb1f602a55b0559eb7e0de54140382c",
   "decisions": {
     "ADR-0001": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b",
-    "ADR-0002": "828b33d7262b11255fb0e3dbe121d6d378295743322279e213f3bde0084be0f3"
+    "ADR-0002": "828b33d7262b11255fb0e3dbe121d6d378295743322279e213f3bde0084be0f3",
+    "ADR-0003": "6c38ca8507ca5ce03f06dca89c4fdfb7a7f1fcb0fada11cd9f3958b6dd20f580",
+    "ADR-0004": "69f0500e8ec1fa52ee80fdf1ea149cdf53cfc457d1e36f64bcc5a1aa141e7c11"
   },
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "c6a195779434b3410e0314ff7a9726ff95480556a816b434df507cd6a39dac21",
-  "profileHash": "032309b4a8b391d030eaf0c4840a40f7285cebbe33369995959fe619649ca8c0",
+  "planHash": "f123b9a06bc4eba0cd4f5ca9954aa08ed0c991ece156cd71b41aa39f97b227d2",
+  "profileHash": "74ee75e0d80d97618d6cd29130ea3571d176e07c0791224d1da3aa0851706dc5",
   "schemas": {
-    "change.schema.json": "91314899ee4d317e27fb55c9b2e78c662990f5d2acd74bca891c211055b0833e",
+    "change.schema.json": "ebd2261f5f4ed8ec4fc0222f2ae76145810b59b006c05ad53b28daf36ec18146",
     "decision.schema.json": "aa6ac1d5b17864252d6392f035ddf1379d9b3395c87cf6d18d1da8922a6685f4",
     "github-evidence.schema.json": "117c3901de6ca701e3f3b118eabf9ee2649d04aee8433fb506b845a034ed79fa",
     "mechanisms.schema.json": "f64c26faf63bc43efb343cb20068488cfbc7e3af4760a5cda6572f99b5040f77",
-    "profile.schema.json": "05d6f798065140ce788f4ac23b6ac865c60fbe1e9cfeda35e34670401fcf19fa",
-    "run.schema.json": "ae4f3ed74e44b74af4179d33f81a9b51218fac05883d81aa6df3283ea4ec6cbc"
+    "profile.schema.json": "82360a0c3d3f9e60cf8a5c00bc0d9b0d5eee6de149bba5485db140e3683f5dd2",
+    "run.schema.json": "ae4f3ed74e44b74af4179d33f81a9b51218fac05883d81aa6df3283ea4ec6cbc",
+    "specification.schema.json": "d1d8cf142b6596dca26d4b63e8279f4f8d3dfb4f4f998e9428d1d7df51ce6ea7"
   },
-  "schemaVersion": "overlaykit-governance-manifest/v1"
+  "schemaVersion": "overlaykit-governance-manifest/v2",
+  "specifications": {
+    "SPEC-0001": "c0dc8cd59249be7f8c2ed8abec9f686ab03f8f52efaae2b5df49b1140121213b"
+  }
 }

@@ -20,6 +20,11 @@ export function buildManifest(
       .map((record) => [record.decision.id, record.contentHash] as const),
   );
   const schemas = sortedRecord(Object.entries(contract.schemas));
+  const specifications = sortedRecord(
+    contract.specifications.map(
+      (record) => [record.specification.id, record.contentHash] as const,
+    ),
+  );
   const changes = sortedRecord(
     contract.changes.map((record) => [record.change.id, record.contentHash] as const),
   );
@@ -27,6 +32,7 @@ export function buildManifest(
   const body = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     decisions,
+    specifications,
     changes,
     schemas,
     profileHash: plan.profileHash,
@@ -59,6 +65,9 @@ export function immutabilityViolations(
   const changes = Object.entries(base.changes ?? {})
     .filter(([id, hash]) => current.changes[id] !== hash)
     .map(([id]) => `change:${id}`);
+  const specifications = Object.entries(base.specifications ?? {})
+    .filter(([id, hash]) => current.specifications?.[id] !== hash)
+    .map(([id]) => `specification:${id}`);
 
-  return [...decisions, ...changes].sort();
+  return [...decisions, ...specifications, ...changes].sort();
 }

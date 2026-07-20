@@ -30,6 +30,16 @@ describe('OverlayKit governance contract', () => {
         }),
         expect.objectContaining({
           id: 'ADR-0002',
+          effectiveStatus: 'superseded',
+          supersededBy: 'ADR-0003',
+        }),
+        expect.objectContaining({
+          id: 'ADR-0003',
+          effectiveStatus: 'accepted',
+          supersededBy: null,
+        }),
+        expect.objectContaining({
+          id: 'ADR-0004',
           effectiveStatus: 'accepted',
           supersededBy: null,
         }),
@@ -39,15 +49,22 @@ describe('OverlayKit governance contract', () => {
       expect.objectContaining({
         tier: 'enforced',
         boundTo: 'ci:signed-identity',
-        sourceDecision: 'ADR-0002',
+        sourceDecision: 'ADR-0003',
       }),
     );
     expect(plan.gates.find((gate) => gate.id === 'independent-review')).toEqual(
       expect.objectContaining({
         tier: 'deferred',
-        sourceDecision: 'ADR-0002',
+        sourceDecision: 'ADR-0003',
       }),
     );
+    expect(plan.specifications).toEqual([
+      expect.objectContaining({
+        id: 'SPEC-0001',
+        effectiveStatus: 'accepted',
+        userStoryIds: expect.arrayContaining(['US-001', 'US-010']),
+      }),
+    ]);
     const storedPlan = JSON.parse(
       readFileSync(join(root, '.overlaykit/governance/plan.json'), 'utf8'),
     ) as unknown;

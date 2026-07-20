@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0006",
+  "title": "Establish the secure show-centered Studio contract",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The current OSS quickstart launches Editor and Panel as separate applications and exposes channel as a query parameter for Panel and OBS.",
+      "evidence": "QUICKSTART.md#Launch-the-editor-and-panel",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current Editor and Panel both use collection resources for saved compositions while production commands operate through channel-scoped scene activation.",
+      "evidence": "editor/src/App.vue and panel/src/App.vue",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Separating saved Scene source from Preview and Program snapshots removes ambiguous persistence and gives Editor, Production, OBS, and devices one command model.",
+      "evidence": "ADR-0004#decision",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "The accepted product direction is local single-instance authentication rather than cloud multi-tenancy in the OSS repository.",
+      "evidence": "user-approval:2026-07-20",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The detailed interaction design for optional direct-to-Program mode will be resolved during its implementation change without weakening explicit target requirements.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "SPEC-0001 defines the accepted actors, domain terms, requirements, user stories, acceptance criteria, workflows, and exclusions for the Studio direction.",
+      "verification": "Specification schema validation and semantic reference checks."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The active profile selects ADR-0004 and SPEC-0001 so their hashes are present in the compiled GovernancePlan and manifest.",
+      "verification": "Repository contract test and generated artifact comparison."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The product contract distinguishes Show, Scene, Component Definition, Component Instance, Template, Preview, Program, Take, Control Definition, and Output.",
+      "verification": "SPEC-0001 term registry and duplicate-ID validation."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Security requirements separate Studio sessions, OBS output tokens, and device tokens while keeping multi-tenancy out of OSS scope.",
+      "verification": "SPEC-0001 security requirements and out-of-scope assertions."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Linux Stream Deck support is specified through the vendor-neutral Control API with Bitfocus Companion as the initial adapter.",
+      "verification": "SPEC-0001 integration requirements and US-010 acceptance criteria."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0004 and SPEC-0001 are accepted, immutable, selected by profile 2.0.0, and compile into the current plan.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Every user story has an actor, product surface, preconditions, outcome, and at least one observable acceptance criterion.",
+      "evidence": ".overlaykit/governance/specifications/SPEC-0001.json"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "No product implementation files are changed by this contract-establishment change.",
+      "evidence": "git diff --name-only origin/main...HEAD"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "The complete workspace quality and build suites pass.",
+      "evidence": "npm run check && npm run build"
+    }
+  ]
+}

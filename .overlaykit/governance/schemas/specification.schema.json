@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-product-specification/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "status",
+    "date",
+    "supersedes",
+    "scope",
+    "summary",
+    "actors",
+    "terms",
+    "requirements",
+    "userStories",
+    "workflows",
+    "outOfScope"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "overlaykit-product-specification/v1" },
+    "id": { "type": "string", "pattern": "^SPEC-[0-9]{4}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["proposed", "accepted", "rejected", "deprecated"] },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "supersedes": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^SPEC-[0-9]{4}$" }
+      ]
+    },
+    "scope": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "actors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/actor" }
+    },
+    "terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/term" }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "userStories": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/userStory" }
+    },
+    "workflows": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/workflow" }
+    },
+    "outOfScope": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "description"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "term": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "definition"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "name": { "type": "string", "minLength": 1 },
+        "definition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "statement", "verification"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^REQ-[A-Z]+-[0-9]{3}$" },
+        "category": {
+          "enum": ["domain", "navigation", "security", "runtime", "integration"]
+        },
+        "statement": { "type": "string", "minLength": 1 },
+        "verification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "acceptanceCriterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "given", "when", "then", "verification"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^AC-[0-9]{3}$" },
+        "given": { "type": "string", "minLength": 1 },
+        "when": { "type": "string", "minLength": 1 },
+        "then": { "type": "string", "minLength": 1 },
+        "verification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "userStory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "actor",
+        "need",
+        "outcome",
+        "surface",
+        "preconditions",
+        "acceptanceCriteria"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^US-[0-9]{3}$" },
+        "actor": { "$ref": "#/$defs/identifier" },
+        "need": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 },
+        "surface": {
+          "enum": [
+            "setup",
+            "login",
+            "shows",
+            "production",
+            "scenes",
+            "editor",
+            "library",
+            "settings",
+            "output",
+            "integration"
+          ]
+        },
+        "preconditions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/acceptanceCriterion" }
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "actors", "steps", "invariants"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^WF-[0-9]{3}$" },
+        "title": { "type": "string", "minLength": 1 },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "invariants": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^REQ-[A-Z]+-[0-9]{3}$" }
+        }
+      }
+    }
+  }
+}

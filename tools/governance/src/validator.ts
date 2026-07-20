@@ -6,13 +6,17 @@ import type {
   GovernanceDecision,
   GovernanceProfile,
   MechanismRegistry,
+  ProductSpecification,
   RequiredArtifact,
+  SpecificationRecord,
 } from './types.js';
 
 export interface ValidatedContract {
   decisionsById: Map<string, DecisionRecord>;
+  specificationsById: Map<string, SpecificationRecord>;
   mechanismsById: Map<string, EnforcementMechanism>;
   supersededBy: Map<string, string>;
+  specificationSupersededBy: Map<string, string>;
 }
 
 function indexUnique<T extends { id: string }>(
@@ -94,6 +98,104 @@ function deriveSupersededBy(decisions: DecisionRecord[]): Map<string, string> {
   return supersededBy;
 }
 
+function assertNoSpecificationSupersessionCycles(
+  specificationsById: Map<string, SpecificationRecord>,
+): void {
+  for (const start of specificationsById.values()) {
+    const path: string[] = [];
+    const pathIndex = new Map<string, number>();
+    let current: ProductSpecification | undefined = start.specification;
+
+    while (current) {
+      const repeatedAt = pathIndex.get(current.id);
+      if (repeatedAt !== undefined) {
+        const cycle = [...path.slice(repeatedAt), current.id];
+        throw new GovernanceError(
+          'SPECIFICATION_SUPERSESSION_CYCLE',
+          `Specification supersession cycle: ${cycle.join(' -> ')}`,
+        );
+      }
+
+      pathIndex.set(current.id, path.length);
+      path.push(current.id);
+      current =
+        current.supersedes === null
+          ? undefined
+          : specificationsById.get(current.supersedes)?.specification;
+    }
+  }
+}
+
+function deriveSpecificationSupersededBy(
+  specifications: SpecificationRecord[],
+): Map<string, string> {
+  const supersededBy = new Map<string, string>();
+
+  for (const record of specifications) {
+    const specification = record.specification;
+    if (specification.status !== 'accepted' || specification.supersedes === null) {
+      continue;
+    }
+
+    invariant(
+      !supersededBy.has(specification.supersedes),
+      'SPECIFICATION_SUPERSESSION_AMBIGUOUS',
+      `${specification.supersedes} is superseded by more than one accepted specification`,
+    );
+    supersededBy.set(specification.supersedes, specification.id);
+  }
+
+  return supersededBy;
+}
+
+function assertSpecificationSemantics(specification: ProductSpecification): void {
+  const actors = indexUnique(specification.actors, 'SPECIFICATION_ACTOR_DUPLICATE', 'actor');
+  indexUnique(specification.terms, 'SPECIFICATION_TERM_DUPLICATE', 'term');
+  const requirements = indexUnique(
+    specification.requirements,
+    'SPECIFICATION_REQUIREMENT_DUPLICATE',
+    'requirement',
+  );
+  indexUnique(specification.userStories, 'SPECIFICATION_STORY_DUPLICATE', 'user story');
+  indexUnique(specification.workflows, 'SPECIFICATION_WORKFLOW_DUPLICATE', 'workflow');
+  const acceptanceIds = new Set<string>();
+
+  for (const story of specification.userStories) {
+    invariant(
+      actors.has(story.actor),
+      'SPECIFICATION_ACTOR_MISSING',
+      `${story.id} references missing actor ${story.actor}`,
+    );
+
+    for (const criterion of story.acceptanceCriteria) {
+      invariant(
+        !acceptanceIds.has(criterion.id),
+        'SPECIFICATION_CRITERION_DUPLICATE',
+        `Duplicate acceptance criterion id: ${criterion.id}`,
+      );
+      acceptanceIds.add(criterion.id);
+    }
+  }
+
+  for (const workflow of specification.workflows) {
+    for (const actor of workflow.actors) {
+      invariant(
+        actors.has(actor),
+        'SPECIFICATION_ACTOR_MISSING',
+        `${workflow.id} references missing actor ${actor}`,
+      );
+    }
+
+    for (const requirement of workflow.invariants) {
+      invariant(
+        requirements.has(requirement),
+        'SPECIFICATION_REQUIREMENT_MISSING',
+        `${workflow.id} references missing requirement ${requirement}`,
+      );
+    }
+  }
+}
+
 function assertEnforcementBound(
   id: string,
   tier: string,
@@ -135,6 +237,7 @@ export function validateContract(
   profile: GovernanceProfile,
   registry: MechanismRegistry,
   changes: ChangeRecord[] = [],
+  specifications: SpecificationRecord[] = [],
 ): ValidatedContract {
   const decisionsById = indexUnique(
     decisions.map((record) => ({ ...record, id: record.decision.id })),
@@ -162,6 +265,32 @@ export function validateContract(
 
   assertNoSupersessionCycles(decisionsById);
   const supersededBy = deriveSupersededBy(decisions);
+  const specificationsById = indexUnique(
+    specifications.map((record) => ({ ...record, id: record.specification.id })),
+    'SPECIFICATION_DUPLICATE',
+    'specification',
+  );
+
+  for (const record of specifications) {
+    const { id, supersedes } = record.specification;
+    assertSpecificationSemantics(record.specification);
+    if (supersedes === null) {
+      continue;
+    }
+    invariant(
+      supersedes !== id,
+      'SPECIFICATION_SUPERSESSION_CYCLE',
+      `${id} cannot supersede itself`,
+    );
+    invariant(
+      specificationsById.has(supersedes),
+      'SPECIFICATION_NOT_FOUND',
+      `${id} supersedes missing specification ${supersedes}`,
+    );
+  }
+
+  assertNoSpecificationSupersessionCycles(specificationsById);
+  const specificationSupersededBy = deriveSpecificationSupersededBy(specifications);
   const mechanismsById = indexUnique(
     registry.mechanisms,
     'MECHANISM_DUPLICATE',
@@ -181,6 +310,26 @@ export function validateContract(
         decisionsById.has(decisionId),
         'DECISION_NOT_FOUND',
         `${record.change.id} references missing decision ${decisionId}`,
+      );
+    }
+
+    const specificationIds = record.change.specifications ?? [];
+    if (
+      record.change.schemaVersion === 'overlaykit-governance-change/v2' &&
+      record.change.changeClass !== 'governance'
+    ) {
+      invariant(
+        specificationIds.length > 0,
+        'CHANGE_SPECIFICATION_MISSING',
+        `${record.change.id} must reference at least one product specification`,
+      );
+    }
+
+    for (const specificationId of specificationIds) {
+      invariant(
+        specificationsById.has(specificationId),
+        'SPECIFICATION_NOT_FOUND',
+        `${record.change.id} references missing specification ${specificationId}`,
       );
     }
   }
@@ -203,6 +352,32 @@ export function validateContract(
       !supersededBy.has(id),
       'DECISION_INACTIVE',
       `Profile decision ${id} is superseded by ${supersededBy.get(id)}`,
+    );
+  }
+
+  const activeSpecificationIds = profile.specificationIds ?? [];
+  invariant(
+    new Set(activeSpecificationIds).size === activeSpecificationIds.length,
+    'PROFILE_INVALID',
+    'Profile specificationIds must be unique',
+  );
+
+  for (const id of activeSpecificationIds) {
+    const record = specificationsById.get(id);
+    invariant(
+      record !== undefined,
+      'SPECIFICATION_NOT_FOUND',
+      `Profile references missing specification ${id}`,
+    );
+    invariant(
+      record.specification.status === 'accepted',
+      'SPECIFICATION_INACTIVE',
+      `Profile specification ${id} is ${record.specification.status}, not accepted`,
+    );
+    invariant(
+      !specificationSupersededBy.has(id),
+      'SPECIFICATION_INACTIVE',
+      `Profile specification ${id} is superseded by ${specificationSupersededBy.get(id)}`,
     );
   }
 
@@ -277,5 +452,11 @@ export function validateContract(
     }
   }
 
-  return { decisionsById, mechanismsById, supersededBy };
+  return {
+    decisionsById,
+    specificationsById,
+    mechanismsById,
+    supersededBy,
+    specificationSupersededBy,
+  };
 }

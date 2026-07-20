@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0003",
+  "title": "Product specifications are deterministic contract inputs",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": "ADR-0002",
+  "governs": [
+    "architecture",
+    "change-control",
+    "evidence",
+    "identity",
+    "memory",
+    "product-requirements",
+    "quality"
+  ],
+  "context": "ADR-0002 established deterministic decisions, changes, evidence, and signed identity, but product user stories remained outside the compiled contract. A mutable story map could therefore change without changing the planHash, allowing implementation and review to observe different requirements while both appeared governed.",
+  "decision": "OverlayKit retains the deterministic governance and signed-identity model established by ADR-0002 and adds typed product specifications as immutable, profile-selected contract inputs. The compiler validates specification actors, terms, requirements, user stories, Given/When/Then acceptance criteria, workflows, references, and supersession; it binds selected specification hashes and identifiers into the profileHash, GovernancePlan, and manifest. Version-two change contracts for architecture, product, security, or documentation work must reference at least one specification. Accepted specifications are changed only by an accepted successor.",
+  "consequences": [
+    "The same decisions, specifications, profile, schemas, and mechanisms must compile byte-for-byte to the same planHash.",
+    "A product requirement is normative only when its accepted specification is selected by the active profile.",
+    "An accepted specification is immutable and may be replaced only through explicit supersession.",
+    "Version-two non-governance changes without a specification reference fail closed.",
+    "Evidence remains separate from law and cannot alter user stories or acceptance criteria.",
+    "Every pull-request commit and the exact workflow commit must remain GitHub-verified.",
+    "Independent approval remains deferred until a second trusted human can satisfy it without deterministic lockout."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "law-is-compiled",
+      "statement": "Normative governance is the compiled plan derived from accepted immutable decisions, accepted immutable specifications, and the active profile."
+    },
+    {
+      "kind": "rule",
+      "id": "evidence-cannot-redefine-law",
+      "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
+    },
+    {
+      "kind": "rule",
+      "id": "accepted-decisions-are-immutable",
+      "statement": "An accepted decision is never edited or deleted; a successor decision derives supersession."
+    },
+    {
+      "kind": "rule",
+      "id": "accepted-specifications-are-immutable",
+      "statement": "An accepted product specification is never edited or deleted; a successor specification derives supersession."
+    },
+    {
+      "kind": "rule",
+      "id": "changes-reference-specifications",
+      "statement": "Version-two architecture, product, security, and documentation changes reference the specifications whose observable criteria authorize their scope."
+    },
+    {
+      "kind": "rule",
+      "id": "claims-are-typed",
+      "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "agents-are-delegated",
+      "statement": "An agent identity has no independent project authority and must name its human principal."
+    },
+    {
+      "kind": "rule",
+      "id": "done-is-observed",
+      "statement": "A change is ready only when every enforced gate passed and every enforced artifact is present for the current planHash and manifestHash."
+    },
+    {
+      "kind": "gate",
+      "id": "governance-contract",
+      "description": "The deterministic governance host validates and verifies the stored plan and manifest.",
+      "tier": "enforced",
+      "boundTo": "ci:governance"
+    },
+    {
+      "kind": "gate",
+      "id": "change-contract",
+      "description": "Typed change contracts satisfy their schema and epistemic invariants.",
+      "tier": "enforced",
+      "boundTo": "ci:governance"
+    },
+    {
+      "kind": "gate",
+      "id": "quality",
+      "description": "Lint, type-check, and automated tests pass.",
+      "tier": "enforced",
+      "boundTo": "ci:quality"
+    },
+    {
+      "kind": "gate",
+      "id": "build",
+      "description": "Every buildable workspace builds successfully.",
+      "tier": "enforced",
+      "boundTo": "ci:build"
+    },
+    {
+      "kind": "gate",
+      "id": "independent-review",
+      "description": "A reviewer other than the last producer approves the change.",
+      "tier": "deferred",
+      "boundTo": "github:independent-review"
+    },
+    {
+      "kind": "gate",
+      "id": "signed-identity",
+      "description": "The workflow commit and every pull-request commit carry an identity signature verified by the GitHub root of trust.",
+      "tier": "enforced",
+      "boundTo": "ci:signed-identity"
+    },
+    {
+      "kind": "artifact",
+      "id": "governance-plan",
+      "description": "Canonical plan.json and manifest.json generated from the contract.",
+      "tier": "enforced",
+      "producedBy": "repo:governance-compiler"
+    },
+    {
+      "kind": "artifact",
+      "id": "change-contract-artifact",
+      "description": "A typed change contract containing scope, claims, criteria, and definition of done.",
+      "tier": "enforced",
+      "producedBy": "repo:governance-compiler"
+    },
+    {
+      "kind": "artifact",
+      "id": "review-record",
+      "description": "An independent review attached to the proposed change.",
+      "tier": "deferred",
+      "producedBy": "github:independent-review"
+    }
+  ]
+}

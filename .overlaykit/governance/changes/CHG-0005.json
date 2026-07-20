@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0005",
+  "title": "Compile product specifications into governance",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003"],
+  "specifications": [],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Governance host version one loaded decisions, changes, profiles, and mechanisms but had no product specification input or manifest binding.",
+      "evidence": "git:f59b85a:tools/governance/src/types.ts#LoadedContract",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Without a specification content hash in the profile, plan, and manifest, mutable user stories can drift without invalidating otherwise current governance evidence.",
+      "evidence": "ADR-0003#context",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Given/When/Then criteria plus an explicit verification description are sufficient as the first typed vocabulary for observable product behavior.",
+      "evidence": ".overlaykit/governance/schemas/specification.schema.json#/$defs/acceptanceCriterion",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Future specifications may require traceability from each criterion to a concrete test result rather than a verification description.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The repository loader validates typed product specifications and their cross-references before compilation.",
+      "verification": "Repository and validator unit tests with valid and adversarial specification fixtures."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Selected specification lineage and content hashes deterministically affect profileHash, planHash, and manifestHash.",
+      "verification": "Deterministic compiler and manifest unit tests with reordered and modified specifications."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Accepted specification mutation or removal is reported as an immutability violation.",
+      "verification": "Manifest immutability unit test for specification records."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Version-two architecture, product, security, and documentation changes fail when they do not reference an existing specification.",
+      "verification": "Validator unit tests for missing and unknown specification references."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Plan and manifest schema versions advance together and existing governance evidence becomes stale rather than being reinterpreted.",
+      "verification": "Governance compilation and evidence projection tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0003, the specification schema, host implementation, tests, profile, plan, and manifest compile deterministically.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Specification validation, supersession, references, ordering, and immutability have automated coverage.",
+      "evidence": "tools/governance/tests/governance.test.ts and tools/governance/tests/repository.test.ts"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The complete workspace quality and build suites pass.",
+      "evidence": "npm run check && npm run build"
+    }
+  ]
+}

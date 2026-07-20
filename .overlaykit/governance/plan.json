@@ -36,7 +36,7 @@
       "id": "change-contract-artifact",
       "kind": "artifact",
       "producedBy": "repo:governance-compiler",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -44,7 +44,7 @@
       "id": "governance-plan",
       "kind": "artifact",
       "producedBy": "repo:governance-compiler",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -52,7 +52,7 @@
       "id": "review-record",
       "kind": "artifact",
       "producedBy": "github:independent-review",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "deferred"
     }
   ],
@@ -80,13 +80,29 @@
     {
       "contentHash": "828b33d7262b11255fb0e3dbe121d6d378295743322279e213f3bde0084be0f3",
       "declaredStatus": "accepted",
-      "effectiveStatus": "accepted",
+      "effectiveStatus": "superseded",
       "id": "ADR-0002",
-      "supersededBy": null,
+      "supersededBy": "ADR-0003",
       "title": "Signed identity is enforced at the GitHub trust boundary"
+    },
+    {
+      "contentHash": "6c38ca8507ca5ce03f06dca89c4fdfb7a7f1fcb0fada11cd9f3958b6dd20f580",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0003",
+      "supersededBy": null,
+      "title": "Product specifications are deterministic contract inputs"
+    },
+    {
+      "contentHash": "69f0500e8ec1fa52ee80fdf1ea149cdf53cfc457d1e36f64bcc5a1aa141e7c11",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0004",
+      "supersededBy": null,
+      "title": "OverlayKit is a secure show-centered production studio"
     }
   ],
-  "engineVersion": "overlaykit-governance-host/v1",
+  "engineVersion": "overlaykit-governance-host/v2",
   "gates": [
     {
       "boundTo": "ci:build",
@@ -94,7 +110,7 @@
       "id": "build",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -103,7 +119,7 @@
       "id": "change-contract",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -112,7 +128,7 @@
       "id": "governance-contract",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -121,7 +137,7 @@
       "id": "independent-review",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "deferred"
     },
     {
@@ -130,7 +146,7 @@
       "id": "quality",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     },
     {
@@ -139,7 +155,7 @@
       "id": "signed-identity",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "tier": "enforced"
     }
   ],
@@ -218,50 +234,155 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "c6a195779434b3410e0314ff7a9726ff95480556a816b434df507cd6a39dac21",
-  "profileHash": "032309b4a8b391d030eaf0c4840a40f7285cebbe33369995959fe619649ca8c0",
+  "planHash": "f123b9a06bc4eba0cd4f5ca9954aa08ed0c991ece156cd71b41aa39f97b227d2",
+  "profileHash": "74ee75e0d80d97618d6cd29130ea3571d176e07c0791224d1da3aa0851706dc5",
   "profileName": "overlaykit-oss",
-  "profileVersion": "1.3.0",
+  "profileVersion": "2.0.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "statement": "An accepted decision is never edited or deleted; a successor decision derives supersession."
+    },
+    {
+      "id": "accepted-specifications-are-immutable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0003",
+      "statement": "An accepted product specification is never edited or deleted; a successor specification derives supersession."
     },
     {
       "id": "agents-are-delegated",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "statement": "An agent identity has no independent project authority and must name its human principal."
+    },
+    {
+      "id": "changes-reference-specifications",
+      "kind": "rule",
+      "sourceDecision": "ADR-0003",
+      "statement": "Version-two architecture, product, security, and documentation changes reference the specifications whose observable criteria authorize their scope."
     },
     {
       "id": "claims-are-typed",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
+    },
+    {
+      "id": "credentials-are-purpose-scoped",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "Studio sessions, OBS output tokens, and device tokens are separate, revocable credentials with least-privilege scopes."
     },
     {
       "id": "done-is-observed",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "statement": "A change is ready only when every enforced gate passed and every enforced artifact is present for the current planHash and manifestHash."
     },
     {
       "id": "evidence-cannot-redefine-law",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
+      "sourceDecision": "ADR-0003",
       "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
+    },
+    {
+      "id": "hardware-is-an-adapter",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "Hardware and third-party controller support integrates through the vendor-neutral Control API and never defines the core production command model."
     },
     {
       "id": "law-is-compiled",
       "kind": "rule",
-      "sourceDecision": "ADR-0002",
-      "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
+      "sourceDecision": "ADR-0003",
+      "statement": "Normative governance is the compiled plan derived from accepted immutable decisions, accepted immutable specifications, and the active profile."
+    },
+    {
+      "id": "operator-controls-are-declared",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "A component exposes operator capabilities through typed control definitions rather than inferred variables or arbitrary implementation access."
+    },
+    {
+      "id": "preview-precedes-program",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "The default production workflow prepares Preview and promotes it to Program through an explicit Take command."
+    },
+    {
+      "id": "runtime-does-not-mutate-source",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "Preview and Program state never overwrite a saved Scene or Component Definition without an explicit save-back command."
+    },
+    {
+      "id": "show-is-the-workspace",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "Every saved scene, production session, output, and show-local control belongs to an explicit Show."
+    },
+    {
+      "id": "studio-is-one-shell",
+      "kind": "rule",
+      "sourceDecision": "ADR-0004",
+      "statement": "Authoring, production, library, security, and integrations share one authenticated Studio shell; the headless OBS output remains separate."
     }
   ],
-  "schemasHash": "6cf185b56c4bebef256087d9b6d3b825a08282ffbaf87ea419ec27191c32fa63",
-  "schemaVersion": "overlaykit-governance-plan/v1",
+  "schemasHash": "7140a74320331a66d4edcb04118f77a1fa39e0a5378a8923c22fe6ef4329a0ce",
+  "schemaVersion": "overlaykit-governance-plan/v2",
+  "specifications": [
+    {
+      "contentHash": "c0dc8cd59249be7f8c2ed8abec9f686ab03f8f52efaae2b5df49b1140121213b",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "SPEC-0001",
+      "requirementIds": [
+        "REQ-DOM-001",
+        "REQ-DOM-002",
+        "REQ-DOM-003",
+        "REQ-DOM-004",
+        "REQ-DOM-005",
+        "REQ-DOM-006",
+        "REQ-INT-001",
+        "REQ-INT-002",
+        "REQ-NAV-001",
+        "REQ-NAV-002",
+        "REQ-NAV-003",
+        "REQ-NAV-004",
+        "REQ-RUN-001",
+        "REQ-RUN-002",
+        "REQ-RUN-003",
+        "REQ-RUN-004",
+        "REQ-SEC-001",
+        "REQ-SEC-002",
+        "REQ-SEC-003",
+        "REQ-SEC-004",
+        "REQ-SEC-005"
+      ],
+      "supersededBy": null,
+      "title": "Secure show authoring and live production",
+      "userStoryIds": [
+        "US-001",
+        "US-002",
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-007",
+        "US-008",
+        "US-009",
+        "US-010"
+      ],
+      "workflowIds": [
+        "WF-001",
+        "WF-002",
+        "WF-003",
+        "WF-004"
+      ]
+    }
+  ],
   "trustAnchors": [
     {
       "checkAppId": 15368,
