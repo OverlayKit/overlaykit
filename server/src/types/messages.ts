@@ -1,5 +1,10 @@
 import { ElementNode } from './element';
 import { Scene, Orientation } from './scene';
+import type {
+  ProductionBus,
+  ProductionSnapshot,
+  TakeReceipt,
+} from './production';
 
 export interface ErrorDetails {
   path?: string;
@@ -28,6 +33,18 @@ export interface WsSubscribeMessage {
 export interface WsUnsubscribeMessage {
   type: 'unsubscribe';
   channelId: string;
+}
+
+export interface WsProductionSubscribeMessage {
+  type: 'subscribe.production';
+  showId: string;
+  bus: ProductionBus;
+}
+
+export interface WsProductionUnsubscribeMessage {
+  type: 'unsubscribe.production';
+  showId: string;
+  bus: ProductionBus;
 }
 
 export interface WsPingMessage {
@@ -61,6 +78,8 @@ export interface WsSceneActivateMessage {
 export type ClientMessage =
   | WsSubscribeMessage
   | WsUnsubscribeMessage
+  | WsProductionSubscribeMessage
+  | WsProductionUnsubscribeMessage
   | WsPingMessage
   | WsComponentDeployMessage
   | WsSceneActivateMessage;
@@ -152,6 +171,26 @@ export interface WsDesignSystemMessage {
   designSystem: { name: string; tokens: Record<string, string>; css: string } | null;
 }
 
+export interface WsProductionSubscriptionConfirmedMessage {
+  type: 'production.subscription.confirmed';
+  showId: string;
+  bus: ProductionBus;
+  snapshot: ProductionSnapshot;
+}
+
+export interface WsProductionSnapshotMessage {
+  type: 'production.snapshot';
+  showId: string;
+  bus: ProductionBus;
+  snapshot: ProductionSnapshot;
+}
+
+export interface WsProductionTakenMessage {
+  type: 'production.taken';
+  showId: string;
+  receipt: TakeReceipt;
+}
+
 export type ServerMessage =
   | WsElementCreateMessage
   | WsElementUpdateMessage
@@ -164,4 +203,7 @@ export type ServerMessage =
   | WsElementsUpdatedMessage
   | WsComponentDeployedMessage
   | WsSoundPlayMessage
-  | WsDesignSystemMessage;
+  | WsDesignSystemMessage
+  | WsProductionSubscriptionConfirmedMessage
+  | WsProductionSnapshotMessage
+  | WsProductionTakenMessage;

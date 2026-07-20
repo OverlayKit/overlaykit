@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Check, Clipboard, KeyRound, RotateCw, ShieldCheck } from '@lucide/vue';
 import { api, type Show } from '../api';
 import { auth } from '../auth';
+import { outputUrl as buildOutputUrl } from '../production';
 
 const props = defineProps<{ show?: Show }>();
 const shows = ref<Show[]>([]);
@@ -11,7 +12,7 @@ const outputToken = ref('');
 const copied = ref(false);
 const rotating = ref(false);
 const outputUrl = computed(() => outputToken.value && selectedShowId.value
-  ? `http://localhost:5183/production?channel=${encodeURIComponent(selectedShowId.value)}&transparent=true&token=${encodeURIComponent(outputToken.value)}`
+  ? buildOutputUrl(selectedShowId.value, outputToken.value)
   : '');
 
 onMounted(async () => {

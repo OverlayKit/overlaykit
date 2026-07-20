@@ -7,7 +7,7 @@ import type { Show } from '../api';
 const props = defineProps<{ show: Show }>();
 const route = useRoute();
 const editorUrl = computed(() => {
-  const query = new URLSearchParams({ channel: props.show.id, embedded: 'true' });
+  const query = new URLSearchParams({ channel: props.show.id, show: props.show.id, embedded: 'true' });
   if (route.params.sceneId) query.set('collection', String(route.params.sceneId));
   return `http://localhost:5174/?${query.toString()}`;
 });

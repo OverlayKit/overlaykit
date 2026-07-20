@@ -95,6 +95,32 @@ describe('local security boundary', () => {
       .send({ name: 'Friday Broadcast', description: 'Weekly production' })
       .expect(201);
     expect(created.body.data.name).toBe('Friday Broadcast');
+    const showId = created.body.data.id as string;
+    const sourceScene = {
+      id: 'opening',
+      name: 'Opening',
+      elements: [{ id: 'title', tag: 'div', content: '{{title}}', styles: {} }],
+    };
+    const preview = await agent
+      .post(`/api/shows/${showId}/production/preview`)
+      .set('Origin', ORIGIN)
+      .send({ scene: sourceScene, variables: { title: 'Hello' } })
+      .expect(200);
+    expect(preview.body.data).toMatchObject({
+      preview: { revision: 1, scene: { id: 'opening' } },
+      program: { revision: 0, scene: null },
+    });
+    await agent
+      .post(`/api/shows/${showId}/production/take`)
+      .set('Origin', ORIGIN)
+      .send({ expectedPreviewRevision: 0, operationId: 'stale-take' })
+      .expect(409);
+    const taken = await agent
+      .post(`/api/shows/${showId}/production/take`)
+      .set('Origin', ORIGIN)
+      .send({ expectedPreviewRevision: 1, operationId: 'take-1' })
+      .expect(200);
+    expect(taken.body.data.program).toMatchObject({ revision: 1, scene: { id: 'opening' } });
     await agent.get('/api/shows').expect(200);
     await agent.delete(`/api/shows/${created.body.data.id}`).set('Origin', ORIGIN).expect(200);
     expect((await agent.get('/api/shows').expect(200)).body.data).toEqual([]);
@@ -129,9 +155,21 @@ describe('local security boundary', () => {
     const ws = await openWebSocket(`ws://127.0.0.1:${port}?token=${encodeURIComponent(output.token)}`, {
       origin: ORIGIN,
     });
-    const subscribed = nextMessage(ws);
+    const legacyDenied = nextMessage(ws);
     ws.send(JSON.stringify({ type: 'subscribe', channelId: 'show-1' }));
-    expect((await subscribed).type).toBe('subscription.confirmed');
+    expect(await legacyDenied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
+
+    const previewDenied = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'preview' }));
+    expect(await previewDenied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
+
+    const subscribed = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'program' }));
+    expect(await subscribed).toMatchObject({
+      type: 'production.subscription.confirmed',
+      showId: 'show-1',
+      bus: 'program',
+    });
 
     const denied = nextMessage(ws);
     ws.send(JSON.stringify({

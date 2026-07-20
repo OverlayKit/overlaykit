@@ -65,6 +65,8 @@ import type { ElementNode, Variables, Scene, ComponentAction } from '../types/el
 
 interface QueryParams {
   channel?: string;
+  show?: string;
+  bus?: string;
   transparent?: string;
   fullscreen?: string;
   hideStatus?: string;
@@ -97,6 +99,15 @@ interface WebSocketMessage {
   payload?: {
     componentId?: string;
     elementsCount?: number;
+  };
+  showId?: string;
+  bus?: 'preview' | 'program';
+  snapshot?: {
+    revision: number;
+    scene: Scene | null;
+    elements: ElementNode[];
+    variables: Variables;
+    orientation: 'landscape' | 'portrait';
   };
   [key: string]: unknown;
 }
@@ -148,6 +159,8 @@ function applyOrientation(o: unknown): void {
 // Props from query parameters
 const params = computed<QueryParams>(() => ({
   channel: route.query.channel as string | undefined,
+  show: route.query.show as string | undefined,
+  bus: route.query.bus as string | undefined,
   transparent: route.query.transparent as string | undefined,
   fullscreen: route.query.fullscreen as string | undefined,
   hideStatus: route.query.hideStatus as string | undefined,
@@ -164,7 +177,12 @@ const autoConnect = computed(() => params.value.autoConnect !== 'false');
 const readOnlyOutput = computed(() => Boolean(params.value.token) || params.value.readOnly === 'true');
 
 const channelId = computed(() => params.value.channel || 'main');
-const variables = computed(() => variablesStore.getVariables(channelId.value));
+const productionShowId = computed(() => params.value.show || '');
+const productionBus = computed<'preview' | 'program'>(() => params.value.bus === 'preview' ? 'preview' : 'program');
+const stateKey = computed(() => productionShowId.value
+  ? `production:${productionShowId.value}:${productionBus.value}`
+  : channelId.value);
+const variables = computed(() => variablesStore.getVariables(stateKey.value));
 
 // Motion System kill switch: flags.motion === false neutralizes all motion for the
 // channel (sets data-motion="off" on the container; the patterns CSS zeroes the
@@ -173,7 +191,7 @@ const motionOff = computed(() => {
   const flags = (variables.value as Record<string, any>)?.flags;
   return flags?.motion === false || flags?.motion === 'false';
 });
-const activeElements = computed(() => channelStore.getElements(channelId.value));
+const activeElements = computed(() => channelStore.getElements(stateKey.value));
 
 // Motion System: pair each top-level element with its visual index (skipping the
 // non-visual <style> theme node) so DS component entrances stagger on a scene intro.
@@ -208,7 +226,11 @@ const connectionStatusText = computed(() => {
 
 // Lifecycle
 onMounted(() => {
-  logger.info('ProductionView mounted', { channelId: channelId.value });
+  logger.info('ProductionView mounted', {
+    channelId: channelId.value,
+    showId: productionShowId.value || undefined,
+    bus: productionShowId.value ? productionBus.value : undefined,
+  });
 
   // Motion System: ship the theme-independent motion-patterns stylesheet once.
   // Design-system motion tokens arrive via the existing :root{--ds-*} path.
@@ -253,7 +275,9 @@ async function connectWebSocket(): Promise<void> {
 
     await wsAdapter.connect();
 
-    const subscribeMessage = { type: 'subscribe', channelId: channelId.value };
+    const subscribeMessage = productionShowId.value
+      ? { type: 'subscribe.production', showId: productionShowId.value, bus: productionBus.value }
+      : { type: 'subscribe', channelId: channelId.value };
 
     wsAdapter.send(subscribeMessage);
   } catch (error) {
@@ -323,13 +347,31 @@ async function dispatchAction(actions: ComponentAction[], sourceId: string, trig
 function handleWebSocketMessage(message: WebSocketMessage): void {
   const { type, channelId: msgChannelId } = message;
 
+  if (type === 'production.subscription.confirmed' || type === 'production.snapshot') {
+    if (message.showId !== productionShowId.value || message.bus !== productionBus.value || !message.snapshot) return;
+    channelStore.clearElements(stateKey.value);
+    for (const element of message.snapshot.elements || []) {
+      channelStore.addElement(stateKey.value, element);
+    }
+    variablesStore.clearVariables(stateKey.value);
+    variablesStore.setVariables(stateKey.value, message.snapshot.variables || {});
+    applyOrientation(message.snapshot.orientation);
+    applyDesignSystem(null);
+    if (message.snapshot.scene?.backgroundMusic) {
+      soundManager.playBackgroundMusic(message.snapshot.scene.backgroundMusic);
+    }
+    return;
+  }
+
+  if (type === 'production.taken') return;
+
   // Only process messages for our channel
   if (msgChannelId && msgChannelId !== channelId.value) {
     return;
   }
 
   // Use the message channelId or fallback to our subscribed channel
-  const targetChannelId = msgChannelId || channelId.value;
+  const targetChannelId = msgChannelId || stateKey.value;
 
   switch (type) {
     case 'subscription.confirmed':

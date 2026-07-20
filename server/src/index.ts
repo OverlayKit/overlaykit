@@ -21,16 +21,20 @@ import healthRoutes from './routes/health';
 import { authService, enforceBrowserOrigin, requireRole, requireSession, type AuthService } from './auth';
 import { createAuthRouter } from './routes/auth';
 import { createShowsRouter } from './routes/shows';
+import { createProductionRouter } from './routes/production';
+import { productionService, type ProductionService } from './services/ProductionService';
 
 export interface AppDependencies {
   auth?: AuthService;
   dataStorage?: Storage;
+  production?: ProductionService;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
   const auth = dependencies.auth ?? authService;
   const dataStorage = dependencies.dataStorage ?? storage;
+  const production = dependencies.production ?? productionService;
 
   if (config.trustProxy !== undefined) app.set('trust proxy', config.trustProxy);
 
@@ -68,6 +72,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   app.use('/api', createAuthRouter(auth, config.cookieSecure));
   app.use('/api', requireSession(auth));
   app.use('/api', requireRole('producer'), createShowsRouter(dataStorage));
+  app.use('/api', requireRole('producer'), createProductionRouter(dataStorage, production));
 
   app.use('/api', elementRoutes);
   app.use('/api', variablesRoutes);

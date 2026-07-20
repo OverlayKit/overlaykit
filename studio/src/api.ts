@@ -26,6 +26,38 @@ export interface Show {
   archivedAt: number | null;
 }
 
+export interface RuntimeScene {
+  id: string;
+  name: string;
+  elements: unknown[];
+  orientation?: 'landscape' | 'portrait';
+}
+
+export interface ProductionSnapshot {
+  showId: string;
+  bus: 'preview' | 'program';
+  revision: number;
+  scene: RuntimeScene | null;
+  elements: unknown[];
+  variables: Record<string, unknown>;
+  orientation: 'landscape' | 'portrait';
+  updatedAt: number | null;
+}
+
+export interface TakeReceipt {
+  operationId: string;
+  previewRevision: number;
+  programRevision: number;
+  takenAt: number;
+}
+
+export interface ProductionState {
+  showId: string;
+  preview: ProductionSnapshot;
+  program: ProductionSnapshot;
+  lastTake: TakeReceipt | null;
+}
+
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
