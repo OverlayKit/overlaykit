@@ -15,6 +15,7 @@ Run:
 ```bash
 npm run governance:compile
 npm run governance:check
+npm run governance:ruleset:plan -- --out artifacts/github-ruleset-plan.json
 ```
 
 The compiler has no clock, network, or mutable state. Evidence is represented separately as a
@@ -27,5 +28,12 @@ Hashes establish integrity and freshness, not identity authenticity. GitHub atte
 repository rules are the external root of trust. The GitHub observer records workflow, check,
 signature, attestation, and ruleset facts against the compiled trust anchor. Missing protections
 remain activation blockers; observation alone never promotes a deferred mechanism.
+
+Ruleset activation is a two-step governed operation. `governance:ruleset:plan` is pure and derives
+the exact create payload from the compiled trust anchor. `governance:ruleset:apply` is create-only
+and requires an attested successful push run for the protected branch, explicit confirmation of
+both hashes, and equality between that run, local HEAD, and the live GitHub ref. It refuses to
+update, adopt, or delete an existing ruleset. After creation it observes GitHub again and emits a
+receipt only when `activationReady` is true.
 
 Memory Cloud and conversational context can preserve lessons, but they are not normative law.

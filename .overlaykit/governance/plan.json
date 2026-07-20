@@ -185,6 +185,14 @@
       "subject": "commit-authenticity"
     },
     {
+      "enforcementCapable": false,
+      "expectedCommand": "npm run ruleset:apply --workspace @overlaykit/governance-host --",
+      "id": "repo:github-ruleset-controller",
+      "kind": "local-command",
+      "locator": "package.json#scripts.governance:ruleset:apply",
+      "subject": "github-ruleset-activation"
+    },
+    {
       "enforcementCapable": true,
       "expectedCommand": "npm run compile --workspace @overlaykit/governance-host",
       "id": "repo:governance-compiler",
@@ -193,11 +201,11 @@
       "subject": "governance-plan"
     }
   ],
-  "mechanismsHash": "a260a2cf3e3317c1600f79f9c64691e590b760141c0cbb3aab2303903f62f301",
-  "planHash": "d73edf02b8744c4915ae902f974dbe9dcfe71e9c7a6e64340f62adec62746aed",
-  "profileHash": "09ba836c29491f746a1a014ea97d35cdcb86a37b53f2158ae9bed1dd9ad7743a",
+  "mechanismsHash": "88a03449a0af49006a90913d002ffdf497152d3724816084b739117ca777fbfb",
+  "planHash": "54c43b54cb5a4adccd471d8b81d6c3afaadd083a227646a11658bc9653e0e801",
+  "profileHash": "cafb20da435e690f106ca7a684366fafeac5902df1d92ff2f87d12ee0c050da5",
   "profileName": "overlaykit-oss",
-  "profileVersion": "1.1.0",
+  "profileVersion": "1.2.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -236,7 +244,7 @@
       "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
     }
   ],
-  "schemasHash": "287a5292c5deec565bdd93ff81da990b634add28c206852d5dea290b9a31a3f1",
+  "schemasHash": "6cf185b56c4bebef256087d9b6d3b825a08282ffbaf87ea419ec27191c32fa63",
   "schemaVersion": "overlaykit-governance-plan/v1",
   "trustAnchors": [
     {
@@ -250,8 +258,18 @@
       "protectedRef": "refs/heads/main",
       "repository": "OverlayKit/overlaykit",
       "ruleset": {
+        "activationChange": "CHG-0003",
+        "allowAdditionalRules": false,
+        "allowAdditionalRulesets": false,
         "allowBypassActors": false,
+        "allowedMergeMethods": [
+          "merge"
+        ],
+        "dismissStaleReviewsOnPush": false,
+        "doNotEnforceOnCreate": false,
         "minimumApprovals": 0,
+        "name": "main",
+        "requireCodeOwnerReview": false,
         "requiredRules": [
           "deletion",
           "non_fast_forward",
@@ -262,7 +280,9 @@
         "requiredStatusChecks": [
           "validate"
         ],
-        "requireReviewThreadResolution": true
+        "requireLastPushApproval": false,
+        "requireReviewThreadResolution": true,
+        "strictRequiredStatusChecksPolicy": true
       },
       "runnerEnvironment": "github-hosted",
       "workflowPath": ".github/workflows/governance.yml"

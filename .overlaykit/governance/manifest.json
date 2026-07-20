@@ -1,21 +1,22 @@
 {
   "changes": {
     "CHG-0001": "1938307f8f7b4f1a3c3124b118bc99b0e06ef6424bd5495fb7941f064d9cc05b",
-    "CHG-0002": "300531dad25e61370a6bff5a0f10bb476ac02d79bedcaa77ced5763fdc3fe2cf"
+    "CHG-0002": "300531dad25e61370a6bff5a0f10bb476ac02d79bedcaa77ced5763fdc3fe2cf",
+    "CHG-0003": "a34c08bed93dd69c2e831ba6871298ee1e7a4ed0d8101e323d1a731a0a3540d2"
   },
-  "contentHash": "97ce5cee3c36c8043a5fedd96e0e46ad5b53e67c1104c680c739f6af7f39cad0",
+  "contentHash": "b41975b32168334b37fc32378b794a8148a57c43d31a1b7d9fde20ca1ed6e72d",
   "decisions": {
     "ADR-0001": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b"
   },
-  "mechanismsHash": "a260a2cf3e3317c1600f79f9c64691e590b760141c0cbb3aab2303903f62f301",
-  "planHash": "d73edf02b8744c4915ae902f974dbe9dcfe71e9c7a6e64340f62adec62746aed",
-  "profileHash": "09ba836c29491f746a1a014ea97d35cdcb86a37b53f2158ae9bed1dd9ad7743a",
+  "mechanismsHash": "88a03449a0af49006a90913d002ffdf497152d3724816084b739117ca777fbfb",
+  "planHash": "54c43b54cb5a4adccd471d8b81d6c3afaadd083a227646a11658bc9653e0e801",
+  "profileHash": "cafb20da435e690f106ca7a684366fafeac5902df1d92ff2f87d12ee0c050da5",
   "schemas": {
     "change.schema.json": "91314899ee4d317e27fb55c9b2e78c662990f5d2acd74bca891c211055b0833e",
     "decision.schema.json": "aa6ac1d5b17864252d6392f035ddf1379d9b3395c87cf6d18d1da8922a6685f4",
     "github-evidence.schema.json": "117c3901de6ca701e3f3b118eabf9ee2649d04aee8433fb506b845a034ed79fa",
     "mechanisms.schema.json": "f64c26faf63bc43efb343cb20068488cfbc7e3af4760a5cda6572f99b5040f77",
-    "profile.schema.json": "109b23e9adee5ebb549c641f86ce2a99878d3f8e6aa3638a4c070a39a5fad4a8",
+    "profile.schema.json": "05d6f798065140ce788f4ac23b6ac865c60fbe1e9cfeda35e34670401fcf19fa",
     "run.schema.json": "ae4f3ed74e44b74af4179d33f81a9b51218fac05883d81aa6df3283ea4ec6cbc"
   },
   "schemaVersion": "overlaykit-governance-manifest/v1"

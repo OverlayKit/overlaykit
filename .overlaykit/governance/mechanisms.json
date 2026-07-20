@@ -42,6 +42,14 @@
       "expectedCommand": "npm run governance:observe:github -- --run artifacts/governance-run.json --out artifacts/github-evidence.json --observation-out artifacts/github-observation.json"
     },
     {
+      "id": "repo:github-ruleset-controller",
+      "kind": "local-command",
+      "locator": "package.json#scripts.governance:ruleset:apply",
+      "subject": "github-ruleset-activation",
+      "enforcementCapable": false,
+      "expectedCommand": "npm run ruleset:apply --workspace @overlaykit/governance-host --"
+    },
+    {
       "id": "github:independent-review",
       "kind": "github-ruleset",
       "locator": "github://OverlayKit/overlaykit/rulesets/main",

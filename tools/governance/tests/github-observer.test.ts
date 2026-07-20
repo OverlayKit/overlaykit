@@ -97,7 +97,7 @@ function activeRulesets(): GitHubEvidence['rulesets']['items'] {
       sourceType: 'Repository',
       conditions: {
         ref_name: {
-          include: ['~DEFAULT_BRANCH'],
+          include: [anchor.protectedRef],
           exclude: [],
         },
       },
@@ -108,20 +108,29 @@ function activeRulesets(): GitHubEvidence['rulesets']['items'] {
         {
           type: 'pull_request',
           parameters: {
-            required_approving_review_count: 0,
-            required_review_thread_resolution: true,
+            allowed_merge_methods: anchor.ruleset.allowedMergeMethods,
+            dismiss_stale_reviews_on_push:
+              anchor.ruleset.dismissStaleReviewsOnPush,
+            require_code_owner_review: anchor.ruleset.requireCodeOwnerReview,
+            require_last_push_approval: anchor.ruleset.requireLastPushApproval,
+            required_approving_review_count: anchor.ruleset.minimumApprovals,
+            required_review_thread_resolution:
+              anchor.ruleset.requireReviewThreadResolution,
           },
         },
         { type: 'required_signatures', parameters: null },
         {
           type: 'required_status_checks',
           parameters: {
+            do_not_enforce_on_create: anchor.ruleset.doNotEnforceOnCreate,
             required_status_checks: [
               {
                 context: anchor.checkName,
                 integration_id: anchor.checkAppId,
               },
             ],
+            strict_required_status_checks_policy:
+              anchor.ruleset.strictRequiredStatusChecksPolicy,
           },
         },
       ],
@@ -350,6 +359,82 @@ describe('GitHub root of trust observer', () => {
     expect(observation.ready).toBe(true);
     expect(observation.activationReady).toBe(true);
     expect(observation.activationBlockers).toEqual([]);
+  });
+
+  it('rejects merge methods that differ from the compiled trust anchor', () => {
+    const run = pullRequestRun();
+    const observed = evidence(run);
+    const pullRequestRule = observed.rulesets.items[0]!.rules.find(
+      (rule) => rule.type === 'pull_request',
+    )!;
+    pullRequestRule.parameters!.allowed_merge_methods = ['squash'];
+    observed.rulesets.contentHash = canonicalHash(observed.rulesets.items);
+
+    const observation = verifyGitHubEvidence(
+      plan,
+      manifest,
+      run,
+      observed,
+      anchor,
+      runFileHash,
+    );
+    expect(observation.state).toBe('current');
+    expect(observation.activationReady).toBe(false);
+    expect(observation.activationBlockers).toContain(
+      'Pull request policy parameters differ from the trust anchor.',
+    );
+  });
+
+  it('rejects an additional ruleset that can constrain the protected ref', () => {
+    const run = pullRequestRun();
+    const observed = evidence(run);
+    observed.rulesets.items.push({
+      ...structuredClone(observed.rulesets.items[0]!),
+      id: 2,
+      name: 'unconfigured',
+      conditions: {
+        ref_name: {
+          include: ['refs/heads/*'],
+          exclude: [],
+        },
+      },
+    });
+    observed.rulesets.contentHash = canonicalHash(observed.rulesets.items);
+
+    const observation = verifyGitHubEvidence(
+      plan,
+      manifest,
+      run,
+      observed,
+      anchor,
+      runFileHash,
+    );
+    expect(observation.activationReady).toBe(false);
+    expect(observation.activationBlockers).toContain(
+      'One or more unconfigured rulesets also apply to the protected ref.',
+    );
+  });
+
+  it('rejects bypass actors even when every required rule is present', () => {
+    const run = pullRequestRun();
+    const observed = evidence(run);
+    observed.rulesets.items[0]!.bypassActors = [
+      { actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' },
+    ];
+    observed.rulesets.contentHash = canonicalHash(observed.rulesets.items);
+
+    const observation = verifyGitHubEvidence(
+      plan,
+      manifest,
+      run,
+      observed,
+      anchor,
+      runFileHash,
+    );
+    expect(observation.activationReady).toBe(false);
+    expect(observation.activationBlockers).toContain(
+      'One or more applicable rulesets allow bypass actors.',
+    );
   });
 
   it('rejects evidence from another workflow commit', () => {

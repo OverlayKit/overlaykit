@@ -11,12 +11,15 @@
     "record": "tsx src/cli.ts record",
     "observe": "tsx src/cli.ts observe",
     "observe:github": "tsx src/cli.ts observe-github",
+    "ruleset:plan": "tsx src/cli.ts ruleset-plan",
+    "ruleset:apply": "tsx src/cli.ts ruleset-apply",
     "lint": "eslint src tests --ext .ts",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
     "ajv": "^8.20.0",
+    "minimatch": "^9.0.9",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
