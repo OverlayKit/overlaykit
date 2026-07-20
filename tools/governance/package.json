@@ -10,6 +10,7 @@
     "verify": "tsx src/cli.ts verify",
     "record": "tsx src/cli.ts record",
     "observe": "tsx src/cli.ts observe",
+    "observe:github": "tsx src/cli.ts observe-github",
     "lint": "eslint src tests --ext .ts",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

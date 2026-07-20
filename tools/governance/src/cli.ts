@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { canonicalJson, canonicalPrettyJson } from './canonical.js';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { canonicalJson, canonicalPrettyJson, sha256 } from './canonical.js';
 import { compileGovernance } from './compiler.js';
 import { GovernanceError, invariant } from './errors.js';
+import {
+  collectGitHubEvidence,
+  verifyGitHubEvidence,
+} from './github-observer.js';
 import {
   buildManifest,
   immutabilityViolations,
@@ -16,17 +21,21 @@ import {
   loadContract,
   readBaseManifest,
   readStoredManifest,
+  validateGitHubEvidence,
   validateRun,
   verifyMechanismBindings,
   verifyPinnedWorkflowActions,
 } from './repository.js';
 import {
   RUN_SCHEMA_VERSION,
+  type EvidenceSubject,
   type GateOutcome,
   type GovernanceManifest,
   type GovernancePlan,
   type GovernanceRun,
+  type GitHubTrustAnchor,
   type IdentityKind,
+  type PullRequestSubject,
 } from './types.js';
 
 interface ParsedArgs {
@@ -67,6 +76,115 @@ function requiredFlag(args: ParsedArgs, name: string): string {
   const value = flag(args, name);
   invariant(value, 'CLI_INVALID', `Missing --${name}`);
   return value;
+}
+
+function gitValue(repoRoot: string, gitArgs: string[]): string {
+  return execFileSync('git', gitArgs, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+}
+
+function repositoryFromRemote(repoRoot: string): string {
+  const remote = gitValue(repoRoot, ['remote', 'get-url', 'origin']);
+  const match =
+    /^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/.exec(remote) ??
+    /^https:\/\/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/.exec(remote);
+  invariant(match?.[1], 'SUBJECT_INVALID', `Cannot derive GitHub repository from ${remote}`);
+  return match[1];
+}
+
+function eventObject(path: string): Record<string, unknown> {
+  const value = JSON.parse(readFileSync(path, 'utf8')) as unknown;
+  invariant(
+    value !== null && typeof value === 'object' && !Array.isArray(value),
+    'SUBJECT_INVALID',
+    'GitHub event payload must be an object',
+  );
+  return value as Record<string, unknown>;
+}
+
+function objectProperty(
+  value: Record<string, unknown>,
+  property: string,
+): Record<string, unknown> {
+  const child = value[property];
+  invariant(
+    child !== null && typeof child === 'object' && !Array.isArray(child),
+    'SUBJECT_INVALID',
+    `GitHub event is missing ${property}`,
+  );
+  return child as Record<string, unknown>;
+}
+
+function stringProperty(value: Record<string, unknown>, property: string): string {
+  const child = value[property];
+  invariant(
+    typeof child === 'string' && child !== '',
+    'SUBJECT_INVALID',
+    `GitHub event is missing ${property}`,
+  );
+  return child;
+}
+
+function pullRequestFromEvent(path: string): PullRequestSubject {
+  const event = eventObject(path);
+  const pullRequest = objectProperty(event, 'pull_request');
+  const head = objectProperty(pullRequest, 'head');
+  const base = objectProperty(pullRequest, 'base');
+  const number = pullRequest.number;
+  invariant(
+    Number.isInteger(number) && Number(number) > 0,
+    'SUBJECT_INVALID',
+    'GitHub event has an invalid pull request number',
+  );
+
+  return {
+    number: Number(number),
+    headCommit: stringProperty(head, 'sha'),
+    headRef: stringProperty(head, 'ref'),
+    baseCommit: stringProperty(base, 'sha'),
+    baseRef: stringProperty(base, 'ref'),
+  };
+}
+
+function pullRequestFromFlags(args: ParsedArgs): PullRequestSubject {
+  const number = Number(requiredFlag(args, 'pull-request-number'));
+  invariant(
+    Number.isInteger(number) && number > 0,
+    'SUBJECT_INVALID',
+    'The pull request number must be a positive integer',
+  );
+  return {
+    number,
+    headCommit: requiredFlag(args, 'pull-request-head'),
+    headRef: requiredFlag(args, 'pull-request-head-ref'),
+    baseCommit: requiredFlag(args, 'pull-request-base'),
+    baseRef: requiredFlag(args, 'pull-request-base-ref'),
+  };
+}
+
+function resolveSubject(repoRoot: string, args: ParsedArgs): EvidenceSubject {
+  const commit =
+    flag(args, 'commit', process.env.GITHUB_SHA) ??
+    gitValue(repoRoot, ['rev-parse', 'HEAD']);
+  const event = flag(args, 'event', process.env.GITHUB_EVENT_NAME ?? 'local') ?? 'local';
+  const ref =
+    flag(args, 'ref', process.env.GITHUB_REF) ??
+    gitValue(repoRoot, ['symbolic-ref', '-q', 'HEAD']);
+  const repository =
+    flag(args, 'repository', process.env.GITHUB_REPOSITORY) ??
+    repositoryFromRemote(repoRoot);
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  const pullRequest =
+    event === 'pull_request'
+      ? eventPath && existsSync(eventPath)
+        ? pullRequestFromEvent(eventPath)
+        : pullRequestFromFlags(args)
+      : null;
+
+  return { repository, commit, ref, event, pullRequest };
 }
 
 function writeJson(path: string, value: unknown): void {
@@ -174,6 +292,7 @@ function normalizeOutcome(value: string): GateOutcome {
 
 function recordCommand(repoRoot: string, args: ParsedArgs): void {
   const { plan, manifest } = compile(repoRoot);
+  const subject = resolveSubject(repoRoot, args);
   const now = new Date().toISOString();
   const producerRef =
     flag(args, 'producer-ref') ??
@@ -222,8 +341,9 @@ function recordCommand(repoRoot: string, args: ParsedArgs): void {
       kind: flag(args, 'producer-kind', 'ci-workflow') ?? 'ci-workflow',
       id: flag(args, 'producer-id', '.github/workflows/ci.yml') ?? '.github/workflows/ci.yml',
       version: flag(args, 'producer-version', process.env.GITHUB_WORKFLOW_REF) ?? null,
-      commit: flag(args, 'commit', process.env.GITHUB_SHA) ?? null,
+      commit: subject.commit,
     },
+    subject,
     source: flag(args, 'source', process.env.GITHUB_ACTIONS ? 'ci' : 'local') ?? 'local',
     startedAt: flag(args, 'started-at', now) ?? now,
     finishedAt: flag(args, 'finished-at', now) ?? now,
@@ -257,7 +377,7 @@ function recordCommand(repoRoot: string, args: ParsedArgs): void {
   };
 
   validateRun(repoRoot, run);
-  const observation = observeRun(plan, manifest, run);
+  const observation = observeRun(plan, manifest, run, subject);
   invariant(
     observation.state === 'current',
     'RUN_INVALID',
@@ -273,11 +393,76 @@ function recordCommand(repoRoot: string, args: ParsedArgs): void {
 
 function observeCommand(repoRoot: string, args: ParsedArgs): void {
   const { plan, manifest } = compile(repoRoot);
+  const subject = resolveSubject(repoRoot, args);
   const runPath = requiredFlag(args, 'run');
   const run = JSON.parse(readFileSync(join(repoRoot, runPath), 'utf8')) as unknown;
   validateRun(repoRoot, run);
-  const observation = observeRun(plan, manifest, run);
+  const observation = observeRun(plan, manifest, run, subject);
   process.stdout.write(canonicalPrettyJson(observation));
+}
+
+function githubTrustAnchor(
+  plan: GovernancePlan,
+  requestedId: string | undefined,
+): GitHubTrustAnchor {
+  const candidates = plan.trustAnchors.filter(
+    (anchor): anchor is GitHubTrustAnchor => anchor.kind === 'github',
+  );
+  const anchor = requestedId
+    ? candidates.find((candidate) => candidate.id === requestedId)
+    : candidates.length === 1
+      ? candidates[0]
+      : undefined;
+  invariant(
+    anchor,
+    'TRUST_ANCHOR_NOT_FOUND',
+    requestedId
+      ? `Unknown GitHub trust anchor ${requestedId}`
+      : 'Use --trust-anchor when more than one GitHub trust anchor exists',
+  );
+  return anchor;
+}
+
+function observeGitHubCommand(repoRoot: string, args: ParsedArgs): void {
+  const { plan, manifest } = compile(repoRoot);
+  const relativeRunPath = requiredFlag(args, 'run');
+  const runPath = resolve(repoRoot, relativeRunPath);
+  const rawRun = readFileSync(runPath);
+  const run = JSON.parse(rawRun.toString('utf8')) as unknown;
+  validateRun(repoRoot, run);
+  const anchor = githubTrustAnchor(plan, flag(args, 'trust-anchor'));
+  const evidence = collectGitHubEvidence({
+    repoRoot,
+    runPath: relativeRunPath,
+    run,
+    anchor,
+  });
+  validateGitHubEvidence(repoRoot, evidence);
+  const observation = verifyGitHubEvidence(
+    plan,
+    manifest,
+    run,
+    evidence,
+    anchor,
+    sha256(rawRun),
+  );
+  invariant(
+    observation.state === 'current' && observation.ready,
+    'GITHUB_OBSERVATION_INVALID',
+    observation.reason ??
+      (observation.blockers.join(' ') || 'GitHub evidence is not ready'),
+  );
+
+  writeJson(join(repoRoot, requiredFlag(args, 'out')), evidence);
+  const observationPath = flag(args, 'observation-out');
+  if (observationPath) {
+    writeJson(join(repoRoot, observationPath), observation);
+  }
+  process.stdout.write(
+    `github observation ${run.runId} ${observation.state} ready=${String(
+      observation.ready,
+    )} activationReady=${String(observation.activationReady)}\n`,
+  );
 }
 
 export function main(argv = process.argv.slice(2)): void {
@@ -304,9 +489,14 @@ export function main(argv = process.argv.slice(2)): void {
     return;
   }
 
+  if (args.command === 'observe-github') {
+    observeGitHubCommand(repoRoot, args);
+    return;
+  }
+
   throw new GovernanceError(
     'CLI_INVALID',
-    'Usage: governance <compile|verify|record|observe> [options]',
+    'Usage: governance <compile|verify|record|observe|observe-github> [options]',
   );
 }
 

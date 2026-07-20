@@ -1,6 +1,7 @@
 import { canonicalJson } from './canonical.js';
 import type {
   EnforcementMechanism,
+  EvidenceSubject,
   GateOutcome,
   GovernanceManifest,
   GovernanceObservation,
@@ -47,6 +48,7 @@ export function observeRun(
   plan: GovernancePlan,
   manifest: GovernanceManifest,
   run: GovernanceRun | null,
+  target: EvidenceSubject,
 ): GovernanceObservation {
   if (run === null) {
     return {
@@ -56,6 +58,17 @@ export function observeRun(
       reason: null,
       ready: false,
       blockers: ['No governance run has observed this plan.'],
+    };
+  }
+
+  if (canonicalJson(run.subject) !== canonicalJson(target)) {
+    return {
+      state: 'stale',
+      plan,
+      run,
+      reason: 'The run observed a different repository, commit, ref, event, or pull request.',
+      ready: false,
+      blockers: ['Evidence is stale for the current execution subject.'],
     };
   }
 
@@ -76,6 +89,24 @@ export function observeRun(
 
   if (run.runId === '') {
     return invalid(plan, run, 'The runId is empty.');
+  }
+
+  if (run.producer.commit !== run.subject.commit) {
+    return invalid(plan, run, 'The producer commit differs from the evidence subject.');
+  }
+
+  if (
+    (run.subject.event === 'pull_request' && run.subject.pullRequest === null) ||
+    (run.subject.event !== 'pull_request' && run.subject.pullRequest !== null)
+  ) {
+    return invalid(plan, run, 'The pull request subject does not match the event.');
+  }
+
+  if (
+    run.subject.pullRequest !== null &&
+    run.subject.ref !== `refs/pull/${run.subject.pullRequest.number}/merge`
+  ) {
+    return invalid(plan, run, 'The pull request ref does not match its number.');
   }
 
   if (!isValidDate(run.startedAt) || !isValidDate(run.finishedAt)) {

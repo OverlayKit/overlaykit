@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-profile/v1",
   "name": "overlaykit-oss",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "decisionIds": ["ADR-0001"],
   "gates": [],
   "artifacts": [],
@@ -35,6 +35,34 @@
       "id": "single-maintainer-bootstrap",
       "statement": "The organization currently has one human maintainer available to approve governance changes.",
       "source": "github-org-observation:2026-07-20"
+    }
+  ],
+  "trustAnchors": [
+    {
+      "kind": "github",
+      "id": "github:overlaykit",
+      "repository": "OverlayKit/overlaykit",
+      "workflowPath": ".github/workflows/governance.yml",
+      "jobName": "validate",
+      "checkName": "validate",
+      "checkAppId": 15368,
+      "checkAppSlug": "github-actions",
+      "oidcIssuer": "https://token.actions.githubusercontent.com",
+      "runnerEnvironment": "github-hosted",
+      "protectedRef": "refs/heads/main",
+      "ruleset": {
+        "requiredRules": [
+          "deletion",
+          "non_fast_forward",
+          "pull_request",
+          "required_signatures",
+          "required_status_checks"
+        ],
+        "requiredStatusChecks": ["validate"],
+        "requireReviewThreadResolution": true,
+        "minimumApprovals": 0,
+        "allowBypassActors": false
+      }
     }
   ]
 }

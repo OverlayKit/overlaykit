@@ -56,6 +56,7 @@ function compileProfileHash(
       artifacts: [...contract.profile.artifacts].sort(compareById),
       actors: [...contract.profile.actors].sort(compareById),
       assumptions: [...contract.profile.assumptions].sort(compareById),
+      trustAnchors: [...contract.profile.trustAnchors].sort(compareById),
     },
     decisionHashes,
     mechanismsHash: contract.mechanismsHash,
@@ -139,6 +140,7 @@ export function compileGovernance(contract: LoadedContract): GovernancePlan {
     artifacts,
     actors: [...contract.profile.actors].sort(compareById),
     assumptions: [...contract.profile.assumptions].sort(compareById),
+    trustAnchors: [...contract.profile.trustAnchors].sort(compareById),
   };
 
   return {

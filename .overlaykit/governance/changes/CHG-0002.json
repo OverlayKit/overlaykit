@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v1",
+  "id": "CHG-0002",
+  "title": "Bind governance evidence to the GitHub root of trust",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "GovernanceRun freshness compared profileHash, planHash, and manifestHash but did not require an externally expected repository, commit, ref, event, or pull request.",
+      "evidence": "tools/governance/src/projector.ts@b30afa3",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The main-branch GovernanceRun for commit b30afa3 has a GitHub provenance attestation bound to OverlayKit/overlaykit, refs/heads/main, the governance workflow, the exact source digest, and a GitHub-hosted runner.",
+      "evidence": "github-attestation:OverlayKit/overlaykit@b30afa3674a197cbe2ab10859338ab4e9221002c",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "OverlayKit/overlaykit had no repository rulesets when this change was specified.",
+      "evidence": "github-api:repos/OverlayKit/overlaykit/rulesets@2026-07-20",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A compiled trust anchor plus normalized GitHub observations can reject replay and context substitution without giving network evidence authority to redefine the plan.",
+      "evidence": "ADR-0001#evidence-cannot-redefine-law",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "GitHub-hosted runners provide the gh CLI and a repository-scoped token capable of reading Actions, pull requests, attestations, commits, and rulesets.",
+      "evidence": "github-actions-runtime-contract",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether attestation indexing can be delayed long enough to require bounded retries in the observer job.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A GovernanceRun is stale when its repository, commit, ref, event, or pull request differs from the expected execution subject even if all contract hashes match.",
+      "verification": "Automated replay test using content-identical evidence and a different commit."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The GitHub observer binds evidence to the configured repository, workflow, run, job, check, runner class, and exact PR head and base.",
+      "verification": "Automated valid and adversarial GitHub observation tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Protected-main evidence is invalid unless its attestation matches the run file digest, source commit, ref, signer workflow, OIDC issuer, invocation, and GitHub-hosted runner.",
+      "verification": "Automated attestation substitution tests and a successful main-branch observer run."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Ruleset evidence has a canonical snapshot hash and reports missing required protections as activation blockers rather than claiming enforcement.",
+      "verification": "Automated ruleset tamper and missing-protection tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "GitHub Actions emits both the GovernanceRun and a normalized GitHub observation artifact.",
+      "verification": "Successful validate and observe jobs in the Constitution workflow."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "Governance host lint, type-check, tests, compilation, and verification pass.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The full monorepo quality suite and builds pass.",
+      "evidence": "npm run check && npm run build"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "plan.json and manifest.json include the trust anchor, new schema, and CHG-0002 without mutating ADR-0001.",
+      "evidence": ".overlaykit/governance/plan.json and manifest.json"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Adversarial tests cover wrong commit, PR head, workflow, runner, attestation, and ruleset snapshot.",
+      "evidence": "tools/governance/tests/github-observer.test.ts"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "The workflow observe job records activationReady=false while the required main ruleset is absent.",
+      "evidence": "GitHub Actions github-observation artifact"
+    }
+  ]
+}
