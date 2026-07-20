@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-governance-mechanisms/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "mechanisms"],
+  "properties": {
+    "schemaVersion": { "const": "overlaykit-governance-mechanisms/v1" },
+    "mechanisms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "locator",
+          "subject",
+          "enforcementCapable",
+          "expectedCommand"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": {
+            "enum": [
+              "local-command",
+              "github-actions-job",
+              "github-ruleset",
+              "human-review"
+            ]
+          },
+          "locator": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string", "minLength": 1 },
+          "enforcementCapable": { "type": "boolean" },
+          "expectedCommand": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "minLength": 1 }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

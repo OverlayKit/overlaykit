@@ -50,6 +50,18 @@ npm run check        # lint + type-check + tests
 npm run build        # build all workspaces
 ```
 
+## Development Governance
+
+OverlayKit compiles immutable decisions, an active profile, and concrete enforcement mechanisms
+into a deterministic governance plan. Every change carries typed claims, success criteria, and
+definition-of-done evidence.
+
+Start with [GOVERNANCE.md](GOVERNANCE.md), then run:
+
+```bash
+npm run governance:verify
+```
+
 ## License
 
 MIT

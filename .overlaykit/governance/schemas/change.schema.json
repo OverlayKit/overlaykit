@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-governance-change/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "status",
+    "changeClass",
+    "risk",
+    "owner",
+    "decisions",
+    "claims",
+    "successCriteria",
+    "definitionOfDone"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "overlaykit-governance-change/v1" },
+    "id": { "type": "string", "pattern": "^CHG-[0-9]{4}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": ["proposed", "approved", "implemented", "rejected"]
+    },
+    "changeClass": {
+      "enum": ["governance", "architecture", "product", "security", "documentation"]
+    },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "owner": { "type": "string", "minLength": 1 },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^ADR-[0-9]{4}$" }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "successCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/criterion" }
+    },
+    "definitionOfDone": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/done" }
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "statement", "evidence", "blocking"],
+      "properties": {
+        "kind": { "enum": ["fact", "inference", "assumption", "unknown"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "evidence": { "$ref": "#/$defs/nullableString" },
+        "blocking": { "type": "boolean" }
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "verification"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "verification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "done": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

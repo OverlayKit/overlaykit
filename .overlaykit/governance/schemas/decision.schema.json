@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-governance-decision/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "status",
+    "date",
+    "supersedes",
+    "governs",
+    "context",
+    "decision",
+    "consequences",
+    "policies"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "overlaykit-governance-decision/v1" },
+    "id": { "type": "string", "pattern": "^ADR-[0-9]{4}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": ["proposed", "accepted", "rejected", "deprecated"]
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "supersedes": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^ADR-[0-9]{4}$" }
+      ]
+    },
+    "governs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "context": { "type": "string", "minLength": 1 },
+    "decision": { "type": "string", "minLength": 1 },
+    "consequences": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "policies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policy" }
+    }
+  },
+  "$defs": {
+    "tier": {
+      "enum": ["enforced", "advisory", "convention", "deferred"]
+    },
+    "nullableMechanism": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+    },
+    "policy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id", "statement"],
+          "properties": {
+            "kind": { "const": "rule" },
+            "id": { "type": "string", "minLength": 1 },
+            "statement": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id", "description", "tier", "boundTo"],
+          "properties": {
+            "kind": { "const": "gate" },
+            "id": { "type": "string", "minLength": 1 },
+            "description": { "type": "string", "minLength": 1 },
+            "tier": { "$ref": "#/$defs/tier" },
+            "boundTo": { "$ref": "#/$defs/nullableMechanism" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id", "description", "tier", "producedBy"],
+          "properties": {
+            "kind": { "const": "artifact" },
+            "id": { "type": "string", "minLength": 1 },
+            "description": { "type": "string", "minLength": 1 },
+            "tier": { "$ref": "#/$defs/tier" },
+            "producedBy": { "$ref": "#/$defs/nullableMechanism" }
+          }
+        }
+      ]
+    }
+  }
+}

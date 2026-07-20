@@ -1,0 +1,104 @@
+name: Constitution
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: constitution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund --maxsockets=1
+
+      - name: Governance contract
+        id: governance
+        continue-on-error: true
+        env:
+          GOVERNANCE_BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: npm run governance:check
+
+      - name: Quality
+        id: quality
+        continue-on-error: true
+        run: npm run check
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Record evidence
+        if: always()
+        run: >-
+          npm run governance:record --
+          --out artifacts/governance-run.json
+          --invoker-kind ci
+          --invoker-id github-actions
+          --principal @rodrigoteamx
+          --producer-kind github-actions
+          --producer-id .github/workflows/governance.yml
+          --producer-version ${{ github.workflow_ref }}
+          --commit ${{ github.sha }}
+          --outcome governance-contract=${{ steps.governance.outcome }}
+          --outcome change-contract=${{ steps.governance.outcome }}
+          --outcome quality=${{ steps.quality.outcome }}
+          --outcome build=${{ steps.build.outcome }}
+          --artifact governance-plan=.overlaykit/governance/plan.json
+          --artifact change-contract-artifact=.overlaykit/governance/changes
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: governance-run-${{ github.run_id }}
+          path: artifacts/governance-run.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Attest evidence
+        if: >-
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          steps.governance.outcome == 'success' &&
+          steps.quality.outcome == 'success' &&
+          steps.build.outcome == 'success'
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with:
+          subject-path: artifacts/governance-run.json
+
+      - name: Enforce outcomes
+        if: always()
+        env:
+          GOVERNANCE_OUTCOME: ${{ steps.governance.outcome }}
+          QUALITY_OUTCOME: ${{ steps.quality.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          test "$GOVERNANCE_OUTCOME" = "success"
+          test "$QUALITY_OUTCOME" = "success"
+          test "$BUILD_OUTCOME" = "success"

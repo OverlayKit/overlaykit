@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v1",
+  "id": "CHG-0001",
+  "title": "Bootstrap deterministic development governance",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The public repository had no tracked GitHub workflows or deterministic governance contract before this change.",
+      "evidence": "git-tree:6b2f065",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The root quality check runs lint, type-check, and tests but does not run workspace builds.",
+      "evidence": "package.json#scripts.check",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The default branch had no branch protection or repository ruleset at bootstrap.",
+      "evidence": "github-api:OverlayKit/overlaykit@2026-07-20",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Binding decisions, mechanisms, and evidence to a canonical planHash will make stale evidence and governance drift mechanically detectable.",
+      "evidence": "ADR-0001",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A repo-local TypeScript host is sufficient until repeated use demonstrates a stable public package boundary.",
+      "evidence": "user-directive:2026-07-20",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether the governance host should later become a reusable package outside OverlayKit.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The same semantic contract compiles to the same planHash regardless of input ordering.",
+      "verification": "Automated determinism test."
+    },
+    {
+      "id": "SC-002",
+      "statement": "An enforced gate without a real registered mechanism fails closed.",
+      "verification": "Automated enforcement honesty test."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Editing or deleting a previously manifested decision or change is detected.",
+      "verification": "Automated manifest immutability test and base-ref verification."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Evidence for another plan or manifest is stale and evidence that redefines a gate is invalid.",
+      "verification": "Automated run projection tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "CI runs governance validation, quality checks, builds, and emits an evidence run.",
+      "verification": "GitHub Actions workflow inspection and successful check runs."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Invoker delegation and gate producer provenance must match the compiled profile and mechanism.",
+      "verification": "Automated identity and producer mismatch tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "Governance host lint, type-check, tests, compilation, and verification pass.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The full monorepo quality suite and builds pass.",
+      "evidence": "npm run check && npm run build"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "plan.json and manifest.json match deterministic compilation.",
+      "evidence": ".overlaykit/governance/plan.json and manifest.json"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "A current governance run records gate outcomes and enforced artifacts.",
+      "evidence": "GitHub Actions governance-run artifact"
+    }
+  ]
+}
