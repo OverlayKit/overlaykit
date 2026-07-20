@@ -41,7 +41,8 @@ interface SavedCollection {
 
 const items = ref<LayoutItem[]>([]);
 const selectedId = ref<string | null>(null);
-const channelId = ref('main');
+const channelId = ref(new URLSearchParams(location.search).get('channel') || 'main');
+const showId = new URLSearchParams(location.search).get('show');
 const collectionName = ref('Mi Layout');
 const savedCollections = ref<SavedCollection[]>([]);
 const isSending = ref(false);
@@ -339,12 +340,17 @@ function buildScene() {
 
 async function activate() {
   if (!items.value.length) { showToast('Agrega componentes primero', 'error'); return; }
-  const body = JSON.stringify({ channelId: channelId.value, clearPrevious: true, variables: mergedVars.value, scene: buildScene() });
+  const body = showId
+    ? JSON.stringify({ variables: mergedVars.value, scene: buildScene() })
+    : JSON.stringify({ channelId: channelId.value, clearPrevious: true, variables: mergedVars.value, scene: buildScene() });
+  const path = showId
+    ? `/api/shows/${encodeURIComponent(showId)}/production/preview`
+    : '/api/scenes/activate';
   isSending.value = true;
   try {
-    const res = await fetch(`${API}/api/scenes/activate`, { credentials: 'include', method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    const res = await fetch(`${API}${path}`, { credentials: 'include', method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.error?.message || 'HTTP ' + res.status); }
-    showToast('Layout activado en producción ✓', 'success');
+    showToast(showId ? 'Layout enviado a Preview' : 'Layout activado', 'success');
   } catch (e) { showToast('Error: ' + (e as Error).message, 'error'); }
   finally { isSending.value = false; }
 }
@@ -376,12 +382,15 @@ async function saveToServer() {
 }
 async function activateServerCollection(id: string) {
   try {
-    const r = await fetch(`${API}/api/collections/${id}/activate`, { credentials: 'include',
+    const path = showId
+      ? `/api/shows/${encodeURIComponent(showId)}/production/preview/scenes/${encodeURIComponent(id)}`
+      : `/api/collections/${encodeURIComponent(id)}/activate`;
+    const r = await fetch(`${API}${path}`, { credentials: 'include',
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: channelId.value }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j?.error?.message || 'HTTP ' + r.status);
-    showToast('Activado desde servidor ✓', 'success');
+    showToast(showId ? 'Escena cargada en Preview' : 'Escena activada', 'success');
   } catch (e) { showToast('Error: ' + (e as Error).message, 'error'); }
 }
 async function deleteServerCollection(id: string) {
@@ -512,7 +521,7 @@ function onCanvasClick(e: MouseEvent) { if (e.target === e.currentTarget) select
       <section class="rail-sec">
         <h3>Colección</h3>
         <input class="col-name" v-model="collectionName" placeholder="Nombre del layout" />
-        <label class="chan">Canal <input v-model="channelId" /></label>
+        <label v-if="!showId" class="chan">Canal <input v-model="channelId" /></label>
         <div class="col-actions">
           <button class="btn" @click="saveCollection" title="Guardar en este navegador">💾 Local</button>
           <button class="btn" @click="saveToServer" title="Guardar en el servidor para activarla por id">☁ Servidor</button>

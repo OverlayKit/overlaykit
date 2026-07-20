@@ -167,6 +167,7 @@ const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
 // Target channel for sends/backups. Read from ?channel= so a Componente send lands
 // on the same channel the streamer's overlay is subscribed to (defaults to 'main').
 const channelId = new URLSearchParams(location.search).get('channel') || 'main';
+const showId = new URLSearchParams(location.search).get('show');
 
 // Authoring mode: 'code' (HTML/CSS) or 'visual' (structured tree)
 const authoringMode = ref<'code' | 'visual'>('code');
@@ -436,17 +437,24 @@ const fullPayload = computed(() => {
     }, null, 2);
 });
 
-// Send to Production
+// Send the current runtime snapshot to Preview. Legacy standalone use keeps the
+// channel activation endpoint until it is opened from a Show-aware Studio URL.
 const sendToProduction = async () => {
     isSending.value = true;
     try {
-        const res = await fetch(`${API}/api/scenes/activate`, { credentials: 'include',
+        const path = showId
+            ? `/api/shows/${encodeURIComponent(showId)}/production/preview`
+            : '/api/scenes/activate';
+        const body = showId
+            ? JSON.stringify({ scene: JSON.parse(fullPayload.value).scene, variables: activeVariables.value })
+            : fullPayload.value;
+        const res = await fetch(`${API}${path}`, { credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: fullPayload.value
+            body
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Enviado a producción ✓', 'success');
+        showToast(showId ? 'Enviado a Preview' : 'Escena activada', 'success');
     } catch (e) {
         showToast('Error al enviar: ' + e, 'error');
     } finally {

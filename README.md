@@ -1,13 +1,13 @@
 # OverlayKit
 
-OverlayKit is an MIT-licensed, self-hosted overlay studio for OBS and XSplit. It includes a protected Studio, visual editor, live control panel, browser-source production view, and reusable protocol/renderer packages.
+OverlayKit is an MIT-licensed, self-hosted overlay studio for OBS and XSplit. It includes a protected Studio, visual editor, Preview/Program production switcher, browser-source output, and reusable protocol/renderer packages.
 
 ## What Is Included
 
-- **Studio**: first-run owner setup, login, Shows, scene navigation, production controls, and output security.
-- **Overlay runtime**: `/production` renders scenes through a read-only OBS credential.
+- **Studio**: first-run owner setup, login, Shows, scene navigation, Preview/Program operation, and output security.
+- **Overlay runtime**: `/production` renders a selected runtime bus; tokenized OBS URLs are fixed to Program.
 - **Editor**: visual scene authoring for reusable overlay collections.
-- **Panel**: live variables, scene switching, component visibility, and sound controls.
+- **Panel**: transitional variable, visibility, and sound controls while typed component controls are developed.
 - **Server**: local REST API plus WebSocket fan-out for one self-hosted instance.
 - **Packages**: @overlaykit/protocol, @overlaykit/renderer, and @overlaykit/ui.
 
@@ -27,7 +27,11 @@ Open Studio and create the local owner account:
 - Studio: http://localhost:5173
 - API health: http://localhost:3000/health
 
-Create a Show, then use **Output** to rotate the read-only token and copy the complete OBS browser-source URL. Editor and live controls are opened from inside the Show workspace.
+Create a Show and save a Scene. In **Production**, load that Scene into Preview, inspect it, and press **Take** to promote the complete snapshot to Program. Runtime operations do not modify the saved Scene.
+
+Use **Output** to rotate the read-only token and copy the complete OBS browser-source URL. OBS receives Program only; an output credential cannot subscribe to Preview or mutate production.
+
+Preview and Program snapshots currently live in server memory. They survive WebSocket reconnects but reset when the server process restarts. Durable production recovery is intentionally not claimed yet.
 
 ## Workspaces
 

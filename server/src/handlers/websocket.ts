@@ -7,6 +7,12 @@ import { ClientMessage, ServerMessage } from '../types/messages';
 import type { AuthService } from '../auth/AuthService';
 import { parseCookies, SESSION_COOKIE } from '../auth/http';
 import type { WebSocketAccess } from '../auth/types';
+import {
+  productionRouteKey,
+  productionService,
+  type ProductionBus,
+  type ProductionService,
+} from '../services/ProductionService';
 
 function routeKey(channelId: string): string {
   return channelKey(DEFAULT_TENANT_ID, channelId);
@@ -16,6 +22,7 @@ export function setupWebSocketHandler(
   wss: WSServer,
   auth: AuthService,
   allowedOrigins: string[] = [],
+  production: ProductionService = productionService,
 ): void {
   const originAllowlist = new Set(allowedOrigins);
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
@@ -34,12 +41,12 @@ export function setupWebSocketHandler(
 
     logger.debug('WebSocket client connected', { clientIp, access: access.kind });
 
-    const subscribedChannels = new Set<string>();
+    const subscriptions = new Set<string>();
 
     ws.on('message', (data: Buffer) => {
       try {
         const message: unknown = JSON.parse(data.toString());
-        handleClientMessage(ws, message as ClientMessage, subscribedChannels, access);
+        handleClientMessage(ws, message as ClientMessage, subscriptions, access, production);
       } catch (error) {
         logger.warn('Failed to parse WebSocket message', { error: String(error) });
         sendErrorMessage(ws, 'PARSE_ERROR', 'Invalid JSON message');
@@ -48,10 +55,10 @@ export function setupWebSocketHandler(
 
     ws.on('close', () => {
       logger.debug('WebSocket client disconnected', { clientIp });
-      for (const channelId of subscribedChannels) {
-        channelManager.unsubscribe(routeKey(channelId), ws);
+      for (const key of subscriptions) {
+        channelManager.unsubscribe(key, ws);
       }
-      subscribedChannels.clear();
+      subscriptions.clear();
     });
 
     ws.on('error', (error: Error) => {
@@ -73,8 +80,9 @@ function authenticateConnection(req: IncomingMessage, auth: AuthService): WebSoc
 function handleClientMessage(
   ws: WebSocket,
   message: ClientMessage,
-  subscribedChannels: Set<string>,
+  subscriptions: Set<string>,
   access: WebSocketAccess,
+  production: ProductionService,
 ): void {
   if (!message || typeof message !== 'object' || !('type' in message)) {
     sendErrorMessage(ws, 'INVALID_MESSAGE', 'Message must have a type field');
@@ -83,10 +91,20 @@ function handleClientMessage(
 
   switch (message.type) {
     case 'subscribe':
-      handleSubscribe(ws, message, subscribedChannels);
+      if (access.kind === 'output') {
+        sendErrorMessage(ws, 'FORBIDDEN', 'Output credentials may subscribe only to Program');
+        break;
+      }
+      handleSubscribe(ws, message, subscriptions);
       break;
     case 'unsubscribe':
-      handleUnsubscribe(ws, message, subscribedChannels);
+      handleUnsubscribe(ws, message, subscriptions);
+      break;
+    case 'subscribe.production':
+      handleProductionSubscribe(ws, message, subscriptions, access, production);
+      break;
+    case 'unsubscribe.production':
+      handleProductionUnsubscribe(ws, message, subscriptions);
       break;
     case 'component_deploy':
       if (access.kind === 'output') {
@@ -110,7 +128,7 @@ function handleClientMessage(
   }
 }
 
-function handleSubscribe(ws: WebSocket, message: ClientMessage, subscribedChannels: Set<string>): void {
+function handleSubscribe(ws: WebSocket, message: ClientMessage, subscriptions: Set<string>): void {
   if (message.type !== 'subscribe') return;
   const { channelId } = message;
 
@@ -122,14 +140,14 @@ function handleSubscribe(ws: WebSocket, message: ClientMessage, subscribedChanne
     sendErrorMessage(ws, 'INVALID_CHANNEL_ID', 'channelId must be 100 characters or less');
     return;
   }
-  if (subscribedChannels.has(channelId)) {
+  const key = routeKey(channelId);
+  if (subscriptions.has(key)) {
     sendErrorMessage(ws, 'ALREADY_SUBSCRIBED', 'Already subscribed to channel: ' + channelId);
     return;
   }
 
-  const key = routeKey(channelId);
   channelManager.subscribe(key, ws);
-  subscribedChannels.add(channelId);
+  subscriptions.add(key);
   logger.debug('Client subscribed to channel', { channelId });
 
   ws.send(JSON.stringify({
@@ -144,7 +162,7 @@ function handleSubscribe(ws: WebSocket, message: ClientMessage, subscribedChanne
   }));
 }
 
-function handleUnsubscribe(ws: WebSocket, message: ClientMessage, subscribedChannels: Set<string>): void {
+function handleUnsubscribe(ws: WebSocket, message: ClientMessage, subscriptions: Set<string>): void {
   if (message.type !== 'unsubscribe') return;
   const { channelId } = message;
 
@@ -152,14 +170,71 @@ function handleUnsubscribe(ws: WebSocket, message: ClientMessage, subscribedChan
     sendErrorMessage(ws, 'INVALID_CHANNEL_ID', 'channelId must be a non-empty string');
     return;
   }
-  if (!subscribedChannels.has(channelId)) {
+  const key = routeKey(channelId);
+  if (!subscriptions.has(key)) {
     sendErrorMessage(ws, 'NOT_SUBSCRIBED', 'Not subscribed to channel: ' + channelId);
     return;
   }
 
-  channelManager.unsubscribe(routeKey(channelId), ws);
-  subscribedChannels.delete(channelId);
+  channelManager.unsubscribe(key, ws);
+  subscriptions.delete(key);
   logger.debug('Client unsubscribed from channel', { channelId });
+}
+
+function validProductionBus(value: unknown): value is ProductionBus {
+  return value === 'preview' || value === 'program';
+}
+
+function handleProductionSubscribe(
+  ws: WebSocket,
+  message: ClientMessage,
+  subscriptions: Set<string>,
+  access: WebSocketAccess,
+  production: ProductionService,
+): void {
+  if (message.type !== 'subscribe.production') return;
+  const { showId, bus } = message;
+  if (typeof showId !== 'string' || showId.length === 0 || showId.length > 100 || !validProductionBus(bus)) {
+    sendErrorMessage(ws, 'INVALID_PRODUCTION_SUBSCRIPTION', 'showId and bus are required');
+    return;
+  }
+  if (access.kind === 'output' && bus !== 'program') {
+    sendErrorMessage(ws, 'FORBIDDEN', 'Output credentials cannot subscribe to Preview');
+    return;
+  }
+  const key = productionRouteKey(showId, bus);
+  if (subscriptions.has(key)) {
+    sendErrorMessage(ws, 'ALREADY_SUBSCRIBED', `Already subscribed to ${bus}`);
+    return;
+  }
+  channelManager.subscribe(key, ws);
+  subscriptions.add(key);
+  ws.send(JSON.stringify({
+    type: 'production.subscription.confirmed',
+    showId,
+    bus,
+    snapshot: production.getSnapshot(showId, bus),
+  }));
+}
+
+function handleProductionUnsubscribe(
+  ws: WebSocket,
+  message: ClientMessage,
+  subscriptions: Set<string>,
+): void {
+  if (message.type !== 'unsubscribe.production') return;
+  const { showId, bus } = message;
+  if (typeof showId !== 'string' || !validProductionBus(bus)) {
+    sendErrorMessage(ws, 'INVALID_PRODUCTION_SUBSCRIPTION', 'showId and bus are required');
+    return;
+  }
+  const key = productionRouteKey(showId, bus);
+  if (!subscriptions.has(key)) {
+    sendErrorMessage(ws, 'NOT_SUBSCRIBED', `Not subscribed to ${bus}`);
+    return;
+  }
+  channelManager.unsubscribe(key, ws);
+  subscriptions.delete(key);
 }
 
 function handleComponentDeploy(ws: WebSocket, message: ClientMessage): void {

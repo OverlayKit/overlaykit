@@ -23,6 +23,7 @@ export class WebSocketAdapter {
   private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private subscribedChannels: Set<string> = new Set();
+  private productionSubscriptions: Map<string, { showId: string; bus: 'preview' | 'program' }> = new Map();
 
   constructor(url: string) {
     this.url = url;
@@ -175,10 +176,14 @@ export class WebSocketAdapter {
    * Re-send subscribe for every channel we were subscribed to (after a reconnect).
    */
   private resubscribeAll(): void {
-    if (this.subscribedChannels.size === 0 || !this.ws) return;
+    if (!this.ws) return;
     for (const channelId of this.subscribedChannels) {
       logger.info('Re-subscribing to channel after reconnect', { channelId });
       this.ws.send(JSON.stringify({ type: 'subscribe', channelId }));
+    }
+    for (const subscription of this.productionSubscriptions.values()) {
+      logger.info('Re-subscribing to production bus after reconnect', subscription);
+      this.ws.send(JSON.stringify({ type: 'subscribe.production', ...subscription }));
     }
   }
 
@@ -187,11 +192,19 @@ export class WebSocketAdapter {
    */
   private trackSubscription(message: WsMessage): void {
     const channelId = typeof message.channelId === 'string' ? message.channelId : undefined;
-    if (!channelId) return;
-    if (message.type === 'subscribe') {
+    if (channelId && message.type === 'subscribe') {
       this.subscribedChannels.add(channelId);
-    } else if (message.type === 'unsubscribe') {
+    } else if (channelId && message.type === 'unsubscribe') {
       this.subscribedChannels.delete(channelId);
+    }
+    const showId = typeof message.showId === 'string' ? message.showId : undefined;
+    const bus = message.bus === 'preview' || message.bus === 'program' ? message.bus : undefined;
+    if (!showId || !bus) return;
+    const key = `${showId}:${bus}`;
+    if (message.type === 'subscribe.production') {
+      this.productionSubscriptions.set(key, { showId, bus });
+    } else if (message.type === 'unsubscribe.production') {
+      this.productionSubscriptions.delete(key);
     }
   }
 

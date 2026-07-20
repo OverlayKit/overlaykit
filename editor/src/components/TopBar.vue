@@ -42,7 +42,7 @@ const MODE_OPTIONS = [
     <Badge v-if="showPrimary && dirty" tone="draft" dot>Borrador</Badge>
     <StatusDot
       :state="connected ? 'live' : 'offline'"
-      :label="connected ? `EN VIVO · ${channel}` : 'Sin conexión'"
+      :label="connected ? `CONECTADO · ${channel}` : 'Sin conexión'"
     />
     <Button
       v-if="showPrimary"
@@ -51,7 +51,7 @@ const MODE_OPTIONS = [
       :disabled="sending"
       @click="$emit('activate')"
     >
-      {{ sending ? 'Enviando…' : '🚀 Enviar a producción' }}
+      {{ sending ? 'Enviando…' : 'Enviar a Preview' }}
     </Button>
   </header>
 </template>
