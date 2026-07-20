@@ -7,7 +7,9 @@ import { canonicalJson, canonicalPrettyJson, sha256 } from './canonical.js';
 import { compileGovernance } from './compiler.js';
 import { GovernanceError, invariant } from './errors.js';
 import {
+  assertGitHubIdentityVerified,
   collectGitHubEvidence,
+  collectGitHubIdentityEvidence,
   createGitHubCliRunner,
   verifyGitHubEvidence,
 } from './github-observer.js';
@@ -475,6 +477,25 @@ function observeGitHubCommand(repoRoot: string, args: ParsedArgs): void {
   );
 }
 
+function verifyGitHubSignaturesCommand(repoRoot: string, args: ParsedArgs): void {
+  const { plan } = compile(repoRoot);
+  const subject = resolveSubject(repoRoot, args);
+  const anchor = githubTrustAnchor(plan, flag(args, 'trust-anchor'));
+  invariant(
+    subject.repository === anchor.repository,
+    'SUBJECT_INVALID',
+    `Execution repository ${subject.repository} does not match ${anchor.repository}`,
+  );
+  const evidence = collectGitHubIdentityEvidence(
+    subject,
+    createGitHubCliRunner(repoRoot),
+  );
+  assertGitHubIdentityVerified(subject, evidence);
+  process.stdout.write(
+    `github signatures valid commits=${evidence.signatures.length} subject=${subject.commit}\n`,
+  );
+}
+
 function rulesetPlanCommand(repoRoot: string, args: ParsedArgs): void {
   const { contract, plan, manifest } = compile(repoRoot);
   const anchor = githubTrustAnchor(plan, flag(args, 'trust-anchor'));
@@ -618,6 +639,11 @@ export function main(argv = process.argv.slice(2)): void {
     return;
   }
 
+  if (args.command === 'verify-github-signatures') {
+    verifyGitHubSignaturesCommand(repoRoot, args);
+    return;
+  }
+
   if (args.command === 'ruleset-plan') {
     rulesetPlanCommand(repoRoot, args);
     return;
@@ -630,7 +656,7 @@ export function main(argv = process.argv.slice(2)): void {
 
   throw new GovernanceError(
     'CLI_INVALID',
-    'Usage: governance <compile|verify|record|observe|observe-github|ruleset-plan|ruleset-apply> [options]',
+    'Usage: governance <compile|verify|record|observe|observe-github|verify-github-signatures|ruleset-plan|ruleset-apply> [options]',
   );
 }
 

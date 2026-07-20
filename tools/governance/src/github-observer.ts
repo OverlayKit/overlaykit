@@ -7,6 +7,7 @@ import { invariant } from './errors.js';
 import { observeRun } from './projector.js';
 import {
   GITHUB_EVIDENCE_SCHEMA_VERSION,
+  type EvidenceSubject,
   type GitHubAttestationEvidence,
   type GitHubEvidence,
   type GitHubObservation,
@@ -30,6 +31,11 @@ export interface CollectGitHubEvidenceOptions {
   run: GovernanceRun;
   anchor: GitHubTrustAnchor;
   observedAt?: string;
+}
+
+export interface GitHubIdentityEvidence {
+  pullRequest: GitHubPullRequestEvidence | null;
+  signatures: GitHubSignatureEvidence[];
 }
 
 type JsonObject = Record<string, unknown>;
@@ -153,6 +159,125 @@ function normalizePullRequest(value: unknown): GitHubPullRequestEvidence {
     state: string(property(pullRequest, 'state', 'pull request'), 'pull request state'),
     commits: [],
   };
+}
+
+export function collectGitHubIdentityEvidence(
+  subject: EvidenceSubject,
+  runner: GitHubCommandRunner,
+): GitHubIdentityEvidence {
+  let pullRequest: GitHubPullRequestEvidence | null = null;
+  const signatures = [
+    normalizeSignature(api(runner, `repos/${subject.repository}/commits/${subject.commit}`)),
+  ];
+
+  if (subject.pullRequest !== null) {
+    const pullNumber = subject.pullRequest.number;
+    const rawPullRequest = object(
+      api(runner, `repos/${subject.repository}/pulls/${pullNumber}`),
+      'pull request',
+    );
+    pullRequest = normalizePullRequest(rawPullRequest);
+    const pullCommits = pagedApi(
+      runner,
+      `repos/${subject.repository}/pulls/${pullNumber}/commits?per_page=100`,
+    );
+    const pullSignatures = pullCommits.map(normalizeSignature);
+    const expectedCommitCount = number(
+      property(rawPullRequest, 'commits', 'pull request'),
+      'pull request commit count',
+    );
+    invariant(
+      pullSignatures.length === expectedCommitCount,
+      'GITHUB_EVIDENCE_INVALID',
+      `Expected ${expectedCommitCount} pull request commits, received ${pullSignatures.length}`,
+    );
+    pullRequest.commits = pullSignatures.map((signature) => signature.commit);
+    for (const signature of pullSignatures) {
+      if (!signatures.some((candidate) => candidate.commit === signature.commit)) {
+        signatures.push(signature);
+      }
+    }
+  }
+
+  return {
+    pullRequest,
+    signatures: signatures.sort((left, right) => left.commit.localeCompare(right.commit)),
+  };
+}
+
+function identityEvidenceReasons(
+  subject: EvidenceSubject,
+  evidence: GitHubIdentityEvidence,
+): string[] {
+  const reasons: string[] = [];
+  const normalizedPullRequest =
+    evidence.pullRequest === null
+      ? null
+      : {
+          number: evidence.pullRequest.number,
+          headCommit: evidence.pullRequest.headCommit,
+          headRef: evidence.pullRequest.headRef,
+          baseCommit: evidence.pullRequest.baseCommit,
+          baseRef: evidence.pullRequest.baseRef,
+        };
+
+  if (canonicalJson(normalizedPullRequest) !== canonicalJson(subject.pullRequest)) {
+    reasons.push('The pull request number, head, or base differs from the execution subject.');
+  }
+
+  const signatureCommits = new Set(evidence.signatures.map((signature) => signature.commit));
+  if (!signatureCommits.has(subject.commit)) {
+    reasons.push('No signature observation exists for the workflow commit.');
+  }
+  if (
+    subject.pullRequest !== null &&
+    !signatureCommits.has(subject.pullRequest.headCommit)
+  ) {
+    reasons.push('No signature observation exists for the pull request head commit.');
+  }
+  if (
+    evidence.pullRequest !== null &&
+    evidence.pullRequest.commits.some((commit) => !signatureCommits.has(commit))
+  ) {
+    reasons.push('One or more pull request commits have no signature observation.');
+  }
+  if (
+    evidence.pullRequest !== null &&
+    new Set(evidence.pullRequest.commits).size !== evidence.pullRequest.commits.length
+  ) {
+    reasons.push('The pull request commit list contains duplicates.');
+  }
+  if (signatureCommits.size !== evidence.signatures.length) {
+    reasons.push('The evidence contains duplicate commit signature observations.');
+  }
+
+  return reasons;
+}
+
+function signatureVerificationBlockers(
+  signatures: GitHubSignatureEvidence[],
+): string[] {
+  return signatures
+    .filter((signature) => !signature.verified || signature.reason !== 'valid')
+    .map(
+      (signature) =>
+        `Commit ${signature.commit} is not GitHub-verified (${signature.reason}).`,
+    );
+}
+
+export function assertGitHubIdentityVerified(
+  subject: EvidenceSubject,
+  evidence: GitHubIdentityEvidence,
+): void {
+  const blockers = [
+    ...identityEvidenceReasons(subject, evidence),
+    ...signatureVerificationBlockers(evidence.signatures),
+  ];
+  invariant(
+    blockers.length === 0,
+    'GITHUB_IDENTITY_INVALID',
+    blockers.join(' '),
+  );
 }
 
 function normalizeRulesetRule(value: unknown): GitHubRulesetRuleEvidence {
@@ -350,42 +475,7 @@ export function collectGitHubEvidence(
     'workflow run attempt',
   );
 
-  let pullRequest: GitHubPullRequestEvidence | null = null;
-  const signatures = [
-    normalizeSignature(
-      api(runner, `repos/${anchor.repository}/commits/${run.subject.commit}`),
-    ),
-  ];
-
-  if (run.subject.pullRequest !== null) {
-    const pullNumber = run.subject.pullRequest.number;
-    const pullRequestResponse = api(
-      runner,
-      `repos/${anchor.repository}/pulls/${pullNumber}`,
-    );
-    const rawPullRequest = object(pullRequestResponse, 'pull request');
-    pullRequest = normalizePullRequest(rawPullRequest);
-    const pullCommits = pagedApi(
-      runner,
-      `repos/${anchor.repository}/pulls/${pullNumber}/commits?per_page=100`,
-    );
-    const pullSignatures = pullCommits.map(normalizeSignature);
-    const expectedCommitCount = number(
-      property(rawPullRequest, 'commits', 'pull request'),
-      'pull request commit count',
-    );
-    invariant(
-      pullSignatures.length === expectedCommitCount,
-      'GITHUB_EVIDENCE_INVALID',
-      `Expected ${expectedCommitCount} pull request commits, received ${pullSignatures.length}`,
-    );
-    pullRequest.commits = pullSignatures.map((signature) => signature.commit);
-    for (const signature of pullSignatures) {
-      if (!signatures.some((candidate) => candidate.commit === signature.commit)) {
-        signatures.push(signature);
-      }
-    }
-  }
+  const identity = collectGitHubIdentityEvidence(run.subject, runner);
 
   const rulesets = collectGitHubRulesets(anchor, runner);
 
@@ -460,10 +550,8 @@ export function collectGitHubEvidence(
         url: string(property(job, 'html_url', 'workflow job'), 'workflow job URL'),
       },
     },
-    pullRequest,
-    signatures: signatures.sort((left, right) =>
-      left.commit.localeCompare(right.commit),
-    ),
+    pullRequest: identity.pullRequest,
+    signatures: identity.signatures,
     attestation,
     rulesets: {
       contentHash: canonicalHash(rulesets),
@@ -750,53 +838,12 @@ export function verifyGitHubEvidence(
     reasons.push('The required job did not run on a GitHub-hosted runner.');
   }
 
-  if (
-    canonicalJson(evidence.pullRequest) !== canonicalJson(run.subject.pullRequest)
-  ) {
-    const normalizedPullRequest =
-      evidence.pullRequest === null
-        ? null
-        : {
-            number: evidence.pullRequest.number,
-            headCommit: evidence.pullRequest.headCommit,
-            headRef: evidence.pullRequest.headRef,
-            baseCommit: evidence.pullRequest.baseCommit,
-            baseRef: evidence.pullRequest.baseRef,
-          };
-    if (
-      canonicalJson(normalizedPullRequest) !== canonicalJson(run.subject.pullRequest)
-    ) {
-      reasons.push('The pull request number, head, or base differs from the run subject.');
-    }
-  }
-
-  const signatureCommits = new Set(
-    evidence.signatures.map((signature) => signature.commit),
+  reasons.push(
+    ...identityEvidenceReasons(run.subject, {
+      pullRequest: evidence.pullRequest,
+      signatures: evidence.signatures,
+    }),
   );
-  if (!signatureCommits.has(run.subject.commit)) {
-    reasons.push('No signature observation exists for the workflow commit.');
-  }
-  if (
-    run.subject.pullRequest !== null &&
-    !signatureCommits.has(run.subject.pullRequest.headCommit)
-  ) {
-    reasons.push('No signature observation exists for the pull request head commit.');
-  }
-  if (
-    evidence.pullRequest !== null &&
-    evidence.pullRequest.commits.some((commit) => !signatureCommits.has(commit))
-  ) {
-    reasons.push('One or more pull request commits have no signature observation.');
-  }
-  if (
-    evidence.pullRequest !== null &&
-    new Set(evidence.pullRequest.commits).size !== evidence.pullRequest.commits.length
-  ) {
-    reasons.push('The pull request commit list contains duplicates.');
-  }
-  if (new Set(evidence.signatures.map((item) => item.commit)).size !== evidence.signatures.length) {
-    reasons.push('The evidence contains duplicate commit signature observations.');
-  }
 
   if (evidence.rulesets.contentHash !== canonicalHash(evidence.rulesets.items)) {
     reasons.push('The ruleset snapshot hash is invalid.');
@@ -833,22 +880,22 @@ export function verifyGitHubEvidence(
   }
 
   const activationBlockers = [
-    ...evidence.signatures
-      .filter((signature) => !signature.verified || signature.reason !== 'valid')
-      .map(
-        (signature) =>
-          `Commit ${signature.commit} is not GitHub-verified (${signature.reason}).`,
-      ),
+    ...signatureVerificationBlockers(evidence.signatures),
     ...githubRulesetActivationBlockers(anchor, evidence.rulesets.items),
   ];
-  const ready = runObservation.ready;
+  const signedIdentityEnforced = plan.gates.some(
+    (gate) => gate.id === 'signed-identity' && gate.tier === 'enforced',
+  );
+  const githubBlockers = signedIdentityEnforced ? activationBlockers : [];
+  const blockers = [...runObservation.blockers, ...githubBlockers];
+  const ready = runObservation.ready && githubBlockers.length === 0;
 
   return {
     state: 'current',
     reason: null,
     ready,
     activationReady: ready && activationBlockers.length === 0,
-    blockers: runObservation.blockers,
+    blockers,
     activationBlockers,
     run: runObservation,
     evidence,

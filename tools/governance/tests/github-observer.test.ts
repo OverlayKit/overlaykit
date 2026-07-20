@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { canonicalHash } from '../src/canonical.js';
 import { compileGovernance } from '../src/compiler.js';
 import {
+  assertGitHubIdentityVerified,
   collectGitHubEvidence,
   verifyGitHubEvidence,
   type GitHubCommandRunner,
@@ -361,6 +362,44 @@ describe('GitHub root of trust observer', () => {
     expect(observation.activationBlockers).toEqual([]);
   });
 
+  it('requires every collected identity signature to be GitHub-verified', () => {
+    const run = pullRequestRun();
+    const observed = evidence(run);
+    const identity = {
+      pullRequest: observed.pullRequest,
+      signatures: observed.signatures,
+    };
+
+    expect(() => assertGitHubIdentityVerified(run.subject, identity)).not.toThrow();
+
+    identity.signatures[0]!.verified = false;
+    identity.signatures[0]!.reason = 'unknown_key';
+    expect(() => assertGitHubIdentityVerified(run.subject, identity)).toThrowError(
+      /not GitHub-verified \(unknown_key\)/,
+    );
+  });
+
+  it('blocks readiness when enforced signed identity has invalid fresh evidence', () => {
+    const run = pullRequestRun();
+    const observed = evidence(run);
+    observed.signatures[0]!.verified = false;
+    observed.signatures[0]!.reason = 'unknown_key';
+
+    const observation = verifyGitHubEvidence(
+      plan,
+      manifest,
+      run,
+      observed,
+      anchor,
+      runFileHash,
+    );
+    const blocker = `Commit ${observed.signatures[0]!.commit} is not GitHub-verified (unknown_key).`;
+    expect(observation.state).toBe('current');
+    expect(observation.ready).toBe(false);
+    expect(observation.activationReady).toBe(false);
+    expect(observation.blockers).toContain(blocker);
+  });
+
   it('rejects merge methods that differ from the compiled trust anchor', () => {
     const run = pullRequestRun();
     const observed = evidence(run);
@@ -505,7 +544,7 @@ describe('GitHub root of trust observer', () => {
     expect(observation.reason).toContain('ruleset snapshot hash');
   });
 
-  it('reports missing rules as activation blockers without fabricating enforcement', () => {
+  it('blocks readiness when the enforced GitHub boundary loses required rules', () => {
     const run = pullRequestRun();
     const observed = evidence(run);
     observed.rulesets = { contentHash: canonicalHash([]), items: [] };
@@ -519,8 +558,11 @@ describe('GitHub root of trust observer', () => {
     );
 
     expect(observation.state).toBe('current');
-    expect(observation.ready).toBe(true);
+    expect(observation.ready).toBe(false);
     expect(observation.activationReady).toBe(false);
+    expect(observation.blockers).toContain(
+      `Ruleset rule required_signatures is not active for ${anchor.protectedRef}.`,
+    );
     expect(observation.activationBlockers).toContain(
       `Ruleset rule required_signatures is not active for ${anchor.protectedRef}.`,
     );

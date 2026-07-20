@@ -21,6 +21,7 @@ The central rule is simple: evidence may observe the law; it may never redefine 
 npm run governance:compile  # regenerate plan.json and manifest.json
 npm run governance:verify   # prove stored artifacts match deterministic compilation
 npm run governance:check    # host quality checks plus verification
+npm run governance:verify:signatures
 npm run governance:observe:github -- --run <run.json> --out <evidence.json>
 npm run governance:ruleset:plan -- --out <plan.json>
 ```
@@ -29,14 +30,18 @@ An accepted decision file is never edited. Introduce a new decision with a new I
 `supersedes` to replace an earlier decision. Supersession is derived in the compiled plan.
 
 No gate may claim `enforced` unless its `boundTo` mechanism is registered and the host can verify
-that mechanism exists. External mechanisms remain `deferred` until an external observer can prove
-their state.
+that mechanism exists. An external mechanism cannot directly produce a passed outcome; a CI
+mechanism must make the observation, record the result, and remain subject to fresh external
+verification.
 
 The main ruleset controller defaults to planning. Its apply command is create-only and accepts
 authority from an attested protected-main `GovernanceRun`, never from chat or ambient CLI state.
 It also requires the operator to affirm the compiled plan and payload hashes, then records a fresh
-post-create observation and activation receipt. Promotion of a deferred gate is a later immutable
-decision made only after that evidence exists.
+post-create observation and activation receipt. ADR-0002 promotes signed identity only after that
+evidence exists: the active ruleset rejects unsigned commits at the main boundary, the validate job
+checks the exact workflow commit and every pull-request commit, and the observer fails readiness if
+the signatures or ruleset drift. Independent review remains deferred during single-maintainer
+bootstrap.
 
 A local run can inspect the contract but cannot satisfy a gate owned by GitHub Actions. A run from
 another commit, ref, event, or pull request is stale even when its plan and manifest hashes match.

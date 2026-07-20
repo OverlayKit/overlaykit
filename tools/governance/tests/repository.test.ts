@@ -21,6 +21,33 @@ describe('OverlayKit governance contract', () => {
 
     const plan = compileGovernance(contract);
     const manifest = buildManifest(contract, plan);
+    expect(plan.decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ADR-0001',
+          effectiveStatus: 'superseded',
+          supersededBy: 'ADR-0002',
+        }),
+        expect.objectContaining({
+          id: 'ADR-0002',
+          effectiveStatus: 'accepted',
+          supersededBy: null,
+        }),
+      ]),
+    );
+    expect(plan.gates.find((gate) => gate.id === 'signed-identity')).toEqual(
+      expect.objectContaining({
+        tier: 'enforced',
+        boundTo: 'ci:signed-identity',
+        sourceDecision: 'ADR-0002',
+      }),
+    );
+    expect(plan.gates.find((gate) => gate.id === 'independent-review')).toEqual(
+      expect.objectContaining({
+        tier: 'deferred',
+        sourceDecision: 'ADR-0002',
+      }),
+    );
     const storedPlan = JSON.parse(
       readFileSync(join(root, '.overlaykit/governance/plan.json'), 'utf8'),
     ) as unknown;

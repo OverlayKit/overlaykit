@@ -15,6 +15,7 @@ Run:
 ```bash
 npm run governance:compile
 npm run governance:check
+npm run governance:verify:signatures
 npm run governance:ruleset:plan -- --out artifacts/github-ruleset-plan.json
 ```
 
@@ -27,7 +28,10 @@ the plan. Local runs therefore cannot satisfy gates owned by GitHub Actions.
 Hashes establish integrity and freshness, not identity authenticity. GitHub attestations and
 repository rules are the external root of trust. The GitHub observer records workflow, check,
 signature, attestation, and ruleset facts against the compiled trust anchor. Missing protections
-remain activation blockers; observation alone never promotes a deferred mechanism.
+remain activation blockers; observation alone never promotes a deferred mechanism. With ADR-0002,
+signed identity is enforced by the validate job after it queries GitHub for the exact workflow
+commit and every pull-request commit. The active ruleset is the remote rejection boundary, and its
+state is rechecked by the observer before the run can remain ready.
 
 Ruleset activation is a two-step governed operation. `governance:ruleset:plan` is pure and derives
 the exact create payload from the compiled trust anchor. `governance:ruleset:apply` is create-only

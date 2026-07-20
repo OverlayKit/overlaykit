@@ -11,6 +11,7 @@
     "record": "tsx src/cli.ts record",
     "observe": "tsx src/cli.ts observe",
     "observe:github": "tsx src/cli.ts observe-github",
+    "verify:signatures": "tsx src/cli.ts verify-github-signatures",
     "ruleset:plan": "tsx src/cli.ts ruleset-plan",
     "ruleset:apply": "tsx src/cli.ts ruleset-apply",
     "lint": "eslint src tests --ext .ts",
