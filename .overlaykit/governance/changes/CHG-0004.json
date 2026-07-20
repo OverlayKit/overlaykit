@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v1",
+  "id": "CHG-0004",
+  "title": "Promote signed identity to enforced governance",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0002"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The protected-main run for commit 2de3e9e39adc310151e7f77643da4ef2a4340787 passed validate and observe and produced an exact GitHub provenance attestation.",
+      "evidence": "github-actions:OverlayKit/overlaykit/actions/runs/29778235981",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Repository ruleset 19272447 is active for refs/heads/main with required_signatures, no bypass actors, required pull requests, and the strict validate status check.",
+      "evidence": "github-ruleset:OverlayKit/overlaykit/rulesets/19272447",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The GitHub observer already collects verification records for the workflow commit and every commit in a pull request.",
+      "evidence": "tools/governance/src/github-observer.ts#collectGitHubEvidence",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Combining active remote rejection with an in-workflow signature check lets signed-identity become an observed enforced gate without allowing later observation evidence to redefine its outcome.",
+      "evidence": "ADR-0002#decision",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "GitHub's commit verification response is the repository trust anchor for accepted OpenPGP and GitHub-generated merge signatures.",
+      "evidence": "profile.json#trustAnchors.github:overlaykit",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether a future GitHub verification policy change will require additional identity evidence beyond verified=true and reason=valid.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "ADR-0002 supersedes ADR-0001 without modifying the accepted predecessor and changes signed-identity from deferred to enforced while preserving independent-review as deferred.",
+      "verification": "Compiled decision lineage and gate snapshot tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The signature verifier checks the exact workflow commit and every pull-request commit and rejects missing, duplicate, unverified, or mismatched evidence.",
+      "verification": "Automated GitHub identity evidence tests with an injected command runner."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The validate job records signed-identity from the verifier step and fails when that step does not succeed.",
+      "verification": "Pinned Constitution workflow and GovernanceRun projection tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Fresh GitHub observation treats invalid signatures as readiness blockers whenever signed-identity is enforced.",
+      "verification": "Adversarial observer test with a non-verified commit."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The active ruleset continues to require signatures with no bypass while zero approvals remain configured for the single-maintainer bootstrap.",
+      "verification": "GitHub observer activationReady=true and compiled trust-anchor tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0002, CHG-0004, profile 1.3.0, mechanisms, plan, and manifest compile deterministically without mutating ADR-0001.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Signature verification rejects invalid PR and workflow commit evidence and the observer refuses readiness drift.",
+      "evidence": "tools/governance/tests/github-observer.test.ts"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The complete workspace quality and build suites pass.",
+      "evidence": "npm run check && npm run build"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "The promotion PR contains only GitHub-verified commits and passes the required validate check under the active ruleset.",
+      "evidence": "GitHub Actions Constitution workflow and GitHub ruleset 19272447"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "The PR observation is current, ready, and activationReady with signed-identity recorded as passed and independent-review still pending by policy.",
+      "evidence": "github-observation workflow artifact"
+    }
+  ]
+}

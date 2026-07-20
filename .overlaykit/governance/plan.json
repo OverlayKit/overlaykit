@@ -36,7 +36,7 @@
       "id": "change-contract-artifact",
       "kind": "artifact",
       "producedBy": "repo:governance-compiler",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
@@ -44,7 +44,7 @@
       "id": "governance-plan",
       "kind": "artifact",
       "producedBy": "repo:governance-compiler",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
@@ -52,7 +52,7 @@
       "id": "review-record",
       "kind": "artifact",
       "producedBy": "github:independent-review",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "deferred"
     }
   ],
@@ -72,10 +72,18 @@
     {
       "contentHash": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b",
       "declaredStatus": "accepted",
-      "effectiveStatus": "accepted",
+      "effectiveStatus": "superseded",
       "id": "ADR-0001",
-      "supersededBy": null,
+      "supersededBy": "ADR-0002",
       "title": "Development governance is a deterministic contract"
+    },
+    {
+      "contentHash": "828b33d7262b11255fb0e3dbe121d6d378295743322279e213f3bde0084be0f3",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0002",
+      "supersededBy": null,
+      "title": "Signed identity is enforced at the GitHub trust boundary"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v1",
@@ -86,7 +94,7 @@
       "id": "build",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
@@ -95,7 +103,7 @@
       "id": "change-contract",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
@@ -104,7 +112,7 @@
       "id": "governance-contract",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
@@ -113,7 +121,7 @@
       "id": "independent-review",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "deferred"
     },
     {
@@ -122,17 +130,17 @@
       "id": "quality",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "tier": "enforced"
     },
     {
-      "boundTo": "github:signed-commits",
-      "description": "Commits carry an identity signature trusted by the repository root of trust.",
+      "boundTo": "ci:signed-identity",
+      "description": "The workflow commit and every pull-request commit carry an identity signature verified by the GitHub root of trust.",
       "id": "signed-identity",
       "kind": "gate",
       "outcome": null,
-      "sourceDecision": "ADR-0001",
-      "tier": "deferred"
+      "sourceDecision": "ADR-0002",
+      "tier": "enforced"
     }
   ],
   "mechanisms": [
@@ -169,6 +177,14 @@
       "subject": "source-quality"
     },
     {
+      "enforcementCapable": true,
+      "expectedCommand": "npm run governance:verify:signatures",
+      "id": "ci:signed-identity",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "github-verified-commit-identity"
+    },
+    {
       "enforcementCapable": false,
       "expectedCommand": null,
       "id": "github:independent-review",
@@ -201,46 +217,46 @@
       "subject": "governance-plan"
     }
   ],
-  "mechanismsHash": "88a03449a0af49006a90913d002ffdf497152d3724816084b739117ca777fbfb",
-  "planHash": "54c43b54cb5a4adccd471d8b81d6c3afaadd083a227646a11658bc9653e0e801",
-  "profileHash": "cafb20da435e690f106ca7a684366fafeac5902df1d92ff2f87d12ee0c050da5",
+  "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
+  "planHash": "c6a195779434b3410e0314ff7a9726ff95480556a816b434df507cd6a39dac21",
+  "profileHash": "032309b4a8b391d030eaf0c4840a40f7285cebbe33369995959fe619649ca8c0",
   "profileName": "overlaykit-oss",
-  "profileVersion": "1.2.0",
+  "profileVersion": "1.3.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "An accepted decision is never edited or deleted; a successor decision derives supersession."
     },
     {
       "id": "agents-are-delegated",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "An agent identity has no independent project authority and must name its human principal."
     },
     {
       "id": "claims-are-typed",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
     },
     {
       "id": "done-is-observed",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "A change is ready only when every enforced gate passed and every enforced artifact is present for the current planHash and manifestHash."
     },
     {
       "id": "evidence-cannot-redefine-law",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
     },
     {
       "id": "law-is-compiled",
       "kind": "rule",
-      "sourceDecision": "ADR-0001",
+      "sourceDecision": "ADR-0002",
       "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
     }
   ],

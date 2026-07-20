@@ -46,6 +46,13 @@ jobs:
           GOVERNANCE_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: npm run governance:check
 
+      - name: Signed identity
+        id: identity
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run governance:verify:signatures
+
       - name: Quality
         id: quality
         continue-on-error: true
@@ -70,6 +77,7 @@ jobs:
           --commit ${{ github.sha }}
           --outcome governance-contract=${{ steps.governance.outcome }}
           --outcome change-contract=${{ steps.governance.outcome }}
+          --outcome signed-identity=${{ steps.identity.outcome }}
           --outcome quality=${{ steps.quality.outcome }}
           --outcome build=${{ steps.build.outcome }}
           --artifact governance-plan=.overlaykit/governance/plan.json
@@ -99,10 +107,12 @@ jobs:
         if: always()
         env:
           GOVERNANCE_OUTCOME: ${{ steps.governance.outcome }}
+          IDENTITY_OUTCOME: ${{ steps.identity.outcome }}
           QUALITY_OUTCOME: ${{ steps.quality.outcome }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
         run: |
           test "$GOVERNANCE_OUTCOME" = "success"
+          test "$IDENTITY_OUTCOME" = "success"
           test "$QUALITY_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
 

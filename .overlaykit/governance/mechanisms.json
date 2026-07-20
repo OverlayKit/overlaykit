@@ -42,6 +42,14 @@
       "expectedCommand": "npm run governance:observe:github -- --run artifacts/governance-run.json --out artifacts/github-evidence.json --observation-out artifacts/github-observation.json"
     },
     {
+      "id": "ci:signed-identity",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.validate",
+      "subject": "github-verified-commit-identity",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run governance:verify:signatures"
+    },
+    {
       "id": "repo:github-ruleset-controller",
       "kind": "local-command",
       "locator": "package.json#scripts.governance:ruleset:apply",
