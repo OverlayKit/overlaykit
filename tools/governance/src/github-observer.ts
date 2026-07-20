@@ -608,6 +608,8 @@ export function verifyGitHubEvidence(
 
   const reasons: string[] = [];
   const expectedRunId = Number(run.runId);
+  const expectedWorkflowCommit =
+    run.subject.pullRequest?.headCommit ?? run.subject.commit;
   const expectedSigner = `https://github.com/${anchor.repository}/${anchor.workflowPath}@${run.subject.ref}`;
   const expectedRepository = `https://github.com/${anchor.repository}`;
   const expectedInvocation = `https://github.com/${anchor.repository}/actions/runs/${run.runId}/attempts/${evidence.workflow.attempt}`;
@@ -624,7 +626,7 @@ export function verifyGitHubEvidence(
   if (
     evidence.workflow.runId !== expectedRunId ||
     evidence.workflow.repository !== anchor.repository ||
-    evidence.workflow.commit !== run.subject.commit ||
+    evidence.workflow.commit !== expectedWorkflowCommit ||
     evidence.workflow.ref !== run.subject.ref ||
     evidence.workflow.event !== run.subject.event
   ) {

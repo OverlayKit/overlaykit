@@ -143,7 +143,7 @@ function evidence(run: GovernanceRun): GitHubEvidence {
       runId: Number(run.runId),
       attempt: 1,
       repository: anchor.repository,
-      commit: run.subject.commit,
+      commit: run.subject.pullRequest?.headCommit ?? run.subject.commit,
       ref: run.subject.ref,
       event: run.subject.event,
       workflowPath: anchor.workflowPath,
@@ -232,7 +232,7 @@ describe('GitHub root of trust observer', () => {
         {
           id: Number(run.runId),
           head_branch: run.subject.pullRequest!.headRef,
-          head_sha: run.subject.commit,
+          head_sha: run.subject.pullRequest!.headCommit,
           path: anchor.workflowPath,
           event: run.subject.event,
           status: 'in_progress',
