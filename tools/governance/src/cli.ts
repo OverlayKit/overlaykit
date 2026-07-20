@@ -8,8 +8,16 @@ import { compileGovernance } from './compiler.js';
 import { GovernanceError, invariant } from './errors.js';
 import {
   collectGitHubEvidence,
+  createGitHubCliRunner,
   verifyGitHubEvidence,
 } from './github-observer.js';
+import {
+  assertGitHubRulesetActivationAuthorization,
+  buildGitHubRulesetActivationReceipt,
+  buildGitHubRulesetPlan,
+  createGitHubRuleset,
+  readGitHubRefCommit,
+} from './github-ruleset.js';
 import {
   buildManifest,
   immutabilityViolations,
@@ -35,6 +43,7 @@ import {
   type GovernanceRun,
   type GitHubTrustAnchor,
   type IdentityKind,
+  type LoadedContract,
   type PullRequestSubject,
 } from './types.js';
 
@@ -201,6 +210,7 @@ function generatedPaths(repoRoot: string): { plan: string; manifest: string } {
 }
 
 function compile(repoRoot: string): {
+  contract: LoadedContract;
   plan: GovernancePlan;
   manifest: GovernanceManifest;
 } {
@@ -209,7 +219,7 @@ function compile(repoRoot: string): {
   verifyPinnedWorkflowActions(repoRoot);
   const plan = compileGovernance(contract);
   const manifest = buildManifest(contract, plan);
-  return { plan, manifest };
+  return { contract, plan, manifest };
 }
 
 function compileCommand(repoRoot: string, args: ParsedArgs): void {
@@ -465,6 +475,120 @@ function observeGitHubCommand(repoRoot: string, args: ParsedArgs): void {
   );
 }
 
+function rulesetPlanCommand(repoRoot: string, args: ParsedArgs): void {
+  const { contract, plan, manifest } = compile(repoRoot);
+  const anchor = githubTrustAnchor(plan, flag(args, 'trust-anchor'));
+  const activationPlan = buildGitHubRulesetPlan(
+    contract,
+    plan,
+    manifest,
+    anchor,
+  );
+  const output = flag(args, 'out');
+  if (output) {
+    writeJson(join(repoRoot, output), activationPlan);
+  }
+  process.stdout.write(canonicalPrettyJson(activationPlan));
+}
+
+function rulesetApplyCommand(repoRoot: string, args: ParsedArgs): void {
+  const { contract, plan, manifest } = compile(repoRoot);
+  const anchor = githubTrustAnchor(plan, flag(args, 'trust-anchor'));
+  const activationPlan = buildGitHubRulesetPlan(
+    contract,
+    plan,
+    manifest,
+    anchor,
+  );
+  const confirmedPlanHash = requiredFlag(args, 'confirm-plan-hash');
+  const confirmedPayloadHash = requiredFlag(args, 'confirm-payload-hash');
+
+  const relativeRunPath = requiredFlag(args, 'run');
+  const runPath = resolve(repoRoot, relativeRunPath);
+  const rawRun = readFileSync(runPath);
+  const run = JSON.parse(rawRun.toString('utf8')) as unknown;
+  validateRun(repoRoot, run);
+  const localRef = gitValue(repoRoot, ['symbolic-ref', '-q', 'HEAD']);
+  const localCommit = gitValue(repoRoot, ['rev-parse', 'HEAD']);
+  const runner = createGitHubCliRunner(repoRoot);
+  const remoteCommit = readGitHubRefCommit(anchor, runner);
+
+  const preEvidence = collectGitHubEvidence(
+    { repoRoot, runPath: relativeRunPath, run, anchor },
+    runner,
+  );
+  validateGitHubEvidence(repoRoot, preEvidence);
+  const runFileHash = sha256(rawRun);
+  const preObservation = verifyGitHubEvidence(
+    plan,
+    manifest,
+    run,
+    preEvidence,
+    anchor,
+    runFileHash,
+  );
+  assertGitHubRulesetActivationAuthorization({
+    activationPlan,
+    anchor,
+    run,
+    observation: preObservation,
+    confirmedPlanHash,
+    confirmedPayloadHash,
+    localRef,
+    localCommit,
+    remoteCommit,
+  });
+
+  const created = createGitHubRuleset(
+    activationPlan,
+    anchor,
+    preEvidence.rulesets.items,
+    runner,
+  );
+  const postEvidence = collectGitHubEvidence(
+    { repoRoot, runPath: relativeRunPath, run, anchor },
+    runner,
+  );
+  validateGitHubEvidence(repoRoot, postEvidence);
+  const postObservation = verifyGitHubEvidence(
+    plan,
+    manifest,
+    run,
+    postEvidence,
+    anchor,
+    runFileHash,
+  );
+
+  writeJson(join(repoRoot, requiredFlag(args, 'out')), postEvidence);
+  writeJson(
+    join(repoRoot, requiredFlag(args, 'observation-out')),
+    postObservation,
+  );
+  const receipt = buildGitHubRulesetActivationReceipt({
+    activatedAt: new Date().toISOString(),
+    activationPlan,
+    sourceCommit: run.subject.commit,
+    runId: run.runId,
+    runFileHash,
+    beforeRulesets: preEvidence.rulesets.items,
+    afterRulesets: postEvidence.rulesets.items,
+    evidence: postEvidence,
+    ruleset: created,
+  });
+  writeJson(join(repoRoot, requiredFlag(args, 'receipt-out')), receipt);
+
+  invariant(
+    postObservation.state === 'current' &&
+      postObservation.ready &&
+      postObservation.activationReady,
+    'RULESET_ACTIVATION_INVALID',
+    postObservation.reason ?? postObservation.activationBlockers.join(' '),
+  );
+  process.stdout.write(
+    `github ruleset ${created.id} active plan=${activationPlan.planHash} payload=${activationPlan.payloadHash}\n`,
+  );
+}
+
 export function main(argv = process.argv.slice(2)): void {
   const args = parseArgs(argv);
   const repoRoot = findRepoRoot();
@@ -494,9 +618,19 @@ export function main(argv = process.argv.slice(2)): void {
     return;
   }
 
+  if (args.command === 'ruleset-plan') {
+    rulesetPlanCommand(repoRoot, args);
+    return;
+  }
+
+  if (args.command === 'ruleset-apply') {
+    rulesetApplyCommand(repoRoot, args);
+    return;
+  }
+
   throw new GovernanceError(
     'CLI_INVALID',
-    'Usage: governance <compile|verify|record|observe|observe-github> [options]',
+    'Usage: governance <compile|verify|record|observe|observe-github|ruleset-plan|ruleset-apply> [options]',
   );
 }
 

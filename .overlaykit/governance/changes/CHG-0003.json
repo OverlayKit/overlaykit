@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v1",
+  "id": "CHG-0003",
+  "title": "Authorize deterministic creation of the main ruleset",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The accepted main-branch run for commit 7cdfe0d has an exact GitHub provenance attestation and a current ready observation.",
+      "evidence": "github-actions:OverlayKit/overlaykit/actions/runs/29775534630",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The attested observation for commit 7cdfe0d recorded an empty ruleset snapshot and seven explicit activation blockers for refs/heads/main.",
+      "evidence": "github-artifact:github-observation-29775534630",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The OverlayKit organization currently has one human maintainer, so requiring an independent approval would prevent that maintainer from merging their own governed changes.",
+      "evidence": "profile.json#assumptions.single-maintainer-bootstrap",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A create-only controller authorized by an attested GovernanceRun can activate the compiled ruleset without allowing conversational intent or mutable remote state to redefine the payload.",
+      "evidence": "ADR-0001#law-is-compiled",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "The human operator applying the accepted plan has repository Administration write permission through the authenticated gh CLI.",
+      "evidence": "github-rest:repos/rulesets#create",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether GitHub will normalize optional ruleset parameters beyond the values submitted by the controller.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The ruleset create payload is derived deterministically from the compiled GitHub trust anchor and is bound to the current plan and manifest hashes.",
+      "verification": "Unit test compiles the same contract twice and compares canonical payloads and hashes."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Remote mutation is refused unless an attested protected-main GovernanceRun is current, ready, and matches local HEAD and the live GitHub main ref.",
+      "verification": "Automated adversarial tests plus guarded CLI preconditions."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The controller never updates, adopts, or deletes an existing ruleset and refuses unexpected rulesets that already apply to main.",
+      "verification": "Automated existing-ruleset and name-collision tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The created ruleset requires pull requests, GitHub Actions validate, verified signatures, resolved conversations, and blocks deletion and force pushes without bypass actors.",
+      "verification": "Payload test and post-create GitHub observation with activationReady=true."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Only merge commits are allowed while independent approvals remain at zero until a second trusted human is available.",
+      "verification": "Ruleset payload and observer drift tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0003, profile 1.2.0, mechanisms, plan, and manifest compile deterministically without mutating accepted records.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The create-only controller and observer reject wrong hashes, wrong refs, unsafe merge methods, bypasses, and unexpected applicable rulesets.",
+      "evidence": "tools/governance/tests/github-ruleset.test.ts and github-observer.test.ts"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The complete workspace quality and build suites pass.",
+      "evidence": "npm run check && npm run build"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "The activation PR passes validate and observe with GitHub-verified commit signatures.",
+      "evidence": "GitHub Actions Constitution workflow"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "After merge, the controller emits a receipt and a current post-create observation with activationReady=true before any gate is promoted.",
+      "evidence": "github-ruleset activation receipt and GitHub observation artifacts"
+    }
+  ]
+}

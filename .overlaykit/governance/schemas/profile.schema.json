@@ -146,26 +146,64 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "name",
+        "activationChange",
         "requiredRules",
         "requiredStatusChecks",
+        "allowedMergeMethods",
         "requireReviewThreadResolution",
+        "dismissStaleReviewsOnPush",
+        "requireCodeOwnerReview",
+        "requireLastPushApproval",
         "minimumApprovals",
-        "allowBypassActors"
+        "strictRequiredStatusChecksPolicy",
+        "doNotEnforceOnCreate",
+        "allowBypassActors",
+        "allowAdditionalRulesets",
+        "allowAdditionalRules"
       ],
       "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "activationChange": {
+          "type": "string",
+          "pattern": "^CHG-[0-9]{4}$"
+        },
         "requiredRules": {
           "type": "array",
+          "minItems": 1,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "enum": [
+              "deletion",
+              "non_fast_forward",
+              "pull_request",
+              "required_signatures",
+              "required_status_checks"
+            ]
+          }
         },
         "requiredStatusChecks": {
           "type": "array",
+          "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
+        "allowedMergeMethods": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["merge", "squash", "rebase"] }
+        },
         "requireReviewThreadResolution": { "type": "boolean" },
+        "dismissStaleReviewsOnPush": { "type": "boolean" },
+        "requireCodeOwnerReview": { "type": "boolean" },
+        "requireLastPushApproval": { "type": "boolean" },
         "minimumApprovals": { "type": "integer", "minimum": 0 },
-        "allowBypassActors": { "type": "boolean" }
+        "strictRequiredStatusChecksPolicy": { "type": "boolean" },
+        "doNotEnforceOnCreate": { "type": "boolean" },
+        "allowBypassActors": { "type": "boolean" },
+        "allowAdditionalRulesets": { "type": "boolean" },
+        "allowAdditionalRules": { "type": "boolean" }
       }
     }
   }

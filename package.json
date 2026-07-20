@@ -44,7 +44,9 @@
     "governance:verify": "npm run verify --workspace @overlaykit/governance-host",
     "governance:check": "npm run check --workspace @overlaykit/governance-host && npm run governance:verify",
     "governance:record": "npm run record --workspace @overlaykit/governance-host --",
-    "governance:observe:github": "npm run observe:github --workspace @overlaykit/governance-host --"
+    "governance:observe:github": "npm run observe:github --workspace @overlaykit/governance-host --",
+    "governance:ruleset:plan": "npm run ruleset:plan --workspace @overlaykit/governance-host --",
+    "governance:ruleset:apply": "npm run ruleset:apply --workspace @overlaykit/governance-host --"
   },
   "dependencies": {
     "monaco-editor": "^0.55.1",

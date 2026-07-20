@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-profile/v1",
   "name": "overlaykit-oss",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "decisionIds": ["ADR-0001"],
   "gates": [],
   "artifacts": [],
@@ -51,6 +51,8 @@
       "runnerEnvironment": "github-hosted",
       "protectedRef": "refs/heads/main",
       "ruleset": {
+        "name": "main",
+        "activationChange": "CHG-0003",
         "requiredRules": [
           "deletion",
           "non_fast_forward",
@@ -59,9 +61,17 @@
           "required_status_checks"
         ],
         "requiredStatusChecks": ["validate"],
+        "allowedMergeMethods": ["merge"],
         "requireReviewThreadResolution": true,
+        "dismissStaleReviewsOnPush": false,
+        "requireCodeOwnerReview": false,
+        "requireLastPushApproval": false,
         "minimumApprovals": 0,
-        "allowBypassActors": false
+        "strictRequiredStatusChecksPolicy": true,
+        "doNotEnforceOnCreate": false,
+        "allowBypassActors": false,
+        "allowAdditionalRulesets": false,
+        "allowAdditionalRules": false
       }
     }
   ]

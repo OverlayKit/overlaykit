@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
+import { minimatch } from 'minimatch';
 import { canonicalHash, canonicalJson, sha256 } from './canonical.js';
 import { invariant } from './errors.js';
 import { observeRun } from './projector.js';
@@ -20,7 +21,7 @@ import {
 } from './types.js';
 
 export interface GitHubCommandRunner {
-  run(args: string[]): string;
+  run(args: string[], input?: string): string;
 }
 
 export interface CollectGitHubEvidenceOptions {
@@ -35,12 +36,13 @@ type JsonObject = Record<string, unknown>;
 
 export function createGitHubCliRunner(cwd: string): GitHubCommandRunner {
   return {
-    run(args) {
+    run(args, input) {
       return execFileSync('gh', args, {
         cwd,
         encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
         env: process.env,
+        ...(input === undefined ? {} : { input }),
       });
     },
   };
@@ -165,7 +167,7 @@ function normalizeRulesetRule(value: unknown): GitHubRulesetRuleEvidence {
   };
 }
 
-function normalizeRuleset(value: unknown): GitHubRulesetEvidence {
+export function normalizeGitHubRuleset(value: unknown): GitHubRulesetEvidence {
   const ruleset = object(value, 'ruleset');
   const conditions = ruleset.conditions;
   const bypassActors = ruleset.bypass_actors;
@@ -195,6 +197,23 @@ function normalizeRuleset(value: unknown): GitHubRulesetEvidence {
       .map(normalizeRulesetRule)
       .sort((left, right) => left.type.localeCompare(right.type)),
   };
+}
+
+export function collectGitHubRulesets(
+  anchor: GitHubTrustAnchor,
+  runner: GitHubCommandRunner,
+): GitHubRulesetEvidence[] {
+  const summaries = pagedApi(
+    runner,
+    `repos/${anchor.repository}/rulesets?includes_parents=true&per_page=100`,
+  );
+  return summaries
+    .map((summary) => object(summary, 'ruleset summary'))
+    .map((summary) => number(property(summary, 'id', 'ruleset summary'), 'ruleset id'))
+    .map((id) =>
+      normalizeGitHubRuleset(api(runner, `repos/${anchor.repository}/rulesets/${id}`)),
+    )
+    .sort((left, right) => left.id - right.id);
 }
 
 function normalizeAttestationResult(value: unknown): GitHubAttestationEvidence {
@@ -368,17 +387,7 @@ export function collectGitHubEvidence(
     }
   }
 
-  const rulesetSummaries = pagedApi(
-    runner,
-    `repos/${anchor.repository}/rulesets?includes_parents=true&per_page=100`,
-  );
-  const rulesets = rulesetSummaries
-    .map((summary) => object(summary, 'ruleset summary'))
-    .map((summary) => number(property(summary, 'id', 'ruleset summary'), 'ruleset id'))
-    .map((id) =>
-      normalizeRuleset(api(runner, `repos/${anchor.repository}/rulesets/${id}`)),
-    )
-    .sort((left, right) => left.id - right.id);
+  const rulesets = collectGitHubRulesets(anchor, runner);
 
   const absoluteRunPath = resolve(options.repoRoot, options.runPath);
   const runFileHash = sha256(readFileSync(absoluteRunPath));
@@ -481,7 +490,10 @@ function invalidObservation(
   };
 }
 
-function appliesToRef(ruleset: GitHubRulesetEvidence, ref: string): boolean {
+export function githubRulesetAppliesToRef(
+  ruleset: GitHubRulesetEvidence,
+  ref: string,
+): boolean {
   if (ruleset.target !== 'branch' || ruleset.enforcement !== 'active') {
     return false;
   }
@@ -496,31 +508,94 @@ function appliesToRef(ruleset: GitHubRulesetEvidence, ref: string): boolean {
   const exclude = Array.isArray(condition.exclude)
     ? condition.exclude.filter((item): item is string => typeof item === 'string')
     : [];
+  const branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref;
   const matches = (pattern: string): boolean =>
-    pattern === '~ALL' || pattern === '~DEFAULT_BRANCH' || pattern === ref;
+    pattern === '~ALL' ||
+    pattern === '~DEFAULT_BRANCH' ||
+    [ref, branch].some((candidate) =>
+      minimatch(candidate, pattern, {
+        dot: true,
+        nobrace: true,
+        nocomment: true,
+        noext: true,
+        nonegate: true,
+      }),
+    );
   return include.some(matches) && !exclude.some(matches);
 }
 
-function rulesetActivationBlockers(
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').sort()
+    : [];
+}
+
+function sameStrings(left: string[], right: string[]): boolean {
+  return canonicalJson([...left].sort()) === canonicalJson([...right].sort());
+}
+
+export function githubRulesetActivationBlockers(
   anchor: GitHubTrustAnchor,
-  evidence: GitHubEvidence,
+  observedRulesets: GitHubRulesetEvidence[],
 ): string[] {
-  const rulesets = evidence.rulesets.items.filter((ruleset) =>
-    appliesToRef(ruleset, anchor.protectedRef),
+  const requirements = anchor.ruleset;
+  const applicable = observedRulesets.filter((ruleset) =>
+    githubRulesetAppliesToRef(ruleset, anchor.protectedRef),
   );
-  const rules = rulesets.flatMap((ruleset) => ruleset.rules);
+  const managedRulesets = applicable.filter(
+    (ruleset) => ruleset.name === requirements.name,
+  );
+  const managed = managedRulesets.length === 1 ? managedRulesets[0] : undefined;
+  const rules = managed?.rules ?? [];
   const blockers: string[] = [];
 
+  if (managedRulesets.length !== 1) {
+    blockers.push(
+      `Expected one active ${requirements.name} ruleset for ${anchor.protectedRef}, received ${managedRulesets.length}.`,
+    );
+  }
   if (
-    !anchor.ruleset.allowBypassActors &&
-    rulesets.some((ruleset) => ruleset.bypassActors.length > 0)
+    managed &&
+    (managed.source !== anchor.repository || managed.sourceType !== 'Repository')
+  ) {
+    blockers.push(`Ruleset ${requirements.name} is not owned by ${anchor.repository}.`);
+  }
+  if (!requirements.allowAdditionalRulesets && applicable.length > managedRulesets.length) {
+    blockers.push('One or more unconfigured rulesets also apply to the protected ref.');
+  }
+  if (
+    !requirements.allowBypassActors &&
+    applicable.some((ruleset) => ruleset.bypassActors.length > 0)
   ) {
     blockers.push('One or more applicable rulesets allow bypass actors.');
   }
 
-  for (const required of anchor.ruleset.requiredRules) {
+  if (managed) {
+    const refName = managed.conditions?.ref_name;
+    const condition =
+      refName && typeof refName === 'object' && !Array.isArray(refName)
+        ? (refName as Record<string, unknown>)
+        : null;
+    const exactRef =
+      condition !== null &&
+      sameStrings(stringArray(condition.include), [anchor.protectedRef]) &&
+      stringArray(condition.exclude).length === 0;
+    if (!exactRef) {
+      blockers.push(`Ruleset ${requirements.name} does not target only ${anchor.protectedRef}.`);
+    }
+  }
+
+  for (const required of requirements.requiredRules) {
     if (!rules.some((rule) => rule.type === required)) {
       blockers.push(`Ruleset rule ${required} is not active for ${anchor.protectedRef}.`);
+    }
+  }
+  if (managed && !requirements.allowAdditionalRules) {
+    const additional = rules
+      .map((rule) => rule.type)
+      .filter((type) => !requirements.requiredRules.includes(type));
+    if (additional.length > 0) {
+      blockers.push(`Ruleset has unconfigured rules: ${additional.sort().join(', ')}.`);
     }
   }
 
@@ -544,7 +619,7 @@ function rulesetActivationBlockers(
       });
     });
 
-  for (const context of anchor.ruleset.requiredStatusChecks) {
+  for (const context of requirements.requiredStatusChecks) {
     if (
       !statusChecks.some(
         (check) =>
@@ -557,28 +632,48 @@ function rulesetActivationBlockers(
     }
   }
 
-  const pullRequestRules = rules.filter((rule) => rule.type === 'pull_request');
-  if (anchor.ruleset.requireReviewThreadResolution) {
-    const resolvesThreads = pullRequestRules.some(
-      (rule) => rule.parameters?.required_review_thread_resolution === true,
-    );
-    if (!resolvesThreads) {
-      blockers.push('Pull request review-thread resolution is not required.');
-    }
+  const statusCheckRules = rules.filter((rule) => rule.type === 'required_status_checks');
+  if (
+    !statusCheckRules.some(
+      (rule) =>
+        rule.parameters?.strict_required_status_checks_policy ===
+          requirements.strictRequiredStatusChecksPolicy &&
+        (rule.parameters?.do_not_enforce_on_create ?? false) ===
+          requirements.doNotEnforceOnCreate,
+    )
+  ) {
+    blockers.push('Required status check policy parameters differ from the trust anchor.');
   }
 
-  const approvalCounts = pullRequestRules.map((rule) => {
-    const count = rule.parameters?.required_approving_review_count;
-    return typeof count === 'number' ? count : 0;
-  });
-  if (
-    anchor.ruleset.minimumApprovals > 0 &&
-    (approvalCounts.length === 0 ||
-      Math.max(...approvalCounts) < anchor.ruleset.minimumApprovals)
-  ) {
-    blockers.push(
-      `Pull requests require fewer than ${anchor.ruleset.minimumApprovals} approvals.`,
+  const pullRequestRules = rules.filter((rule) => rule.type === 'pull_request');
+  const matchingPullRequestRule = pullRequestRules.some((rule) => {
+    const parameters = rule.parameters;
+    return (
+      parameters !== null &&
+      sameStrings(
+        stringArray(parameters.allowed_merge_methods),
+        requirements.allowedMergeMethods,
+      ) &&
+      parameters.required_review_thread_resolution ===
+        requirements.requireReviewThreadResolution &&
+      parameters.dismiss_stale_reviews_on_push ===
+        requirements.dismissStaleReviewsOnPush &&
+      parameters.require_code_owner_review === requirements.requireCodeOwnerReview &&
+      parameters.require_last_push_approval === requirements.requireLastPushApproval &&
+      parameters.required_approving_review_count === requirements.minimumApprovals
     );
+  });
+  if (!matchingPullRequestRule) {
+    blockers.push('Pull request policy parameters differ from the trust anchor.');
+  }
+
+  if (
+    requirements.requireReviewThreadResolution &&
+    !pullRequestRules.some(
+      (rule) => rule.parameters?.required_review_thread_resolution === true,
+    )
+  ) {
+    blockers.push('Pull request review-thread resolution is not required.');
   }
 
   return blockers;
@@ -744,7 +839,7 @@ export function verifyGitHubEvidence(
         (signature) =>
           `Commit ${signature.commit} is not GitHub-verified (${signature.reason}).`,
       ),
-    ...rulesetActivationBlockers(anchor, evidence),
+    ...githubRulesetActivationBlockers(anchor, evidence.rulesets.items),
   ];
   const ready = runObservation.ready;
 

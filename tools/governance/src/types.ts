@@ -126,11 +126,21 @@ export interface GovernanceAssumption {
 }
 
 export interface GitHubRulesetRequirements {
+  name: string;
+  activationChange: string;
   requiredRules: string[];
   requiredStatusChecks: string[];
+  allowedMergeMethods: Array<'merge' | 'squash' | 'rebase'>;
   requireReviewThreadResolution: boolean;
+  dismissStaleReviewsOnPush: boolean;
+  requireCodeOwnerReview: boolean;
+  requireLastPushApproval: boolean;
   minimumApprovals: number;
+  strictRequiredStatusChecksPolicy: boolean;
+  doNotEnforceOnCreate: boolean;
   allowBypassActors: boolean;
+  allowAdditionalRulesets: boolean;
+  allowAdditionalRules: boolean;
 }
 
 export interface GitHubTrustAnchor {
