@@ -70,6 +70,8 @@ interface QueryParams {
   hideStatus?: string;
   hideWatermark?: string;
   autoConnect?: string;
+  token?: string;
+  readOnly?: string;
 }
 
 interface WebSocketMessage {
@@ -104,7 +106,11 @@ const channelStore = useChannelStore();
 const variablesStore = useVariablesStore();
 
 // State
-const wsAdapter = new WebSocketAdapter(import.meta.env.VITE_WS_URL || 'ws://localhost:8080');
+const rawOutputToken = new URLSearchParams(location.search).get('token');
+const rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+const authenticatedWsUrl = new URL(rawWsUrl);
+if (rawOutputToken) authenticatedWsUrl.searchParams.set('token', rawOutputToken);
+const wsAdapter = new WebSocketAdapter(authenticatedWsUrl.toString());
 const connectionState = ref<'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'>(
   'disconnected'
 );
@@ -147,12 +153,15 @@ const params = computed<QueryParams>(() => ({
   hideStatus: route.query.hideStatus as string | undefined,
   hideWatermark: route.query.hideWatermark as string | undefined,
   autoConnect: route.query.autoConnect as string | undefined,
+  token: route.query.token as string | undefined,
+  readOnly: route.query.readOnly as string | undefined,
 }));
 
 const isTransparent = computed(() => params.value.transparent === 'true');
 const hideStatus = computed(() => params.value.hideStatus === 'true');
 const hideWatermark = computed(() => params.value.hideWatermark === 'true');
 const autoConnect = computed(() => params.value.autoConnect !== 'false');
+const readOnlyOutput = computed(() => Boolean(params.value.token) || params.value.readOnly === 'true');
 
 const channelId = computed(() => params.value.channel || 'main');
 const variables = computed(() => variablesStore.getVariables(channelId.value));
@@ -283,6 +292,10 @@ const firedMounted = new Set<string>();
 // the exact same path.
 async function dispatchAction(actions: ComponentAction[], sourceId: string, triggerType: string): Promise<void> {
   if (!actions?.length) return;
+  if (readOnlyOutput.value) {
+    logger.warn('Output action ignored because this runtime is read-only', { sourceId, triggerType });
+    return;
+  }
   if (triggerType === 'mounted') {
     if (firedMounted.has(sourceId)) return;
     firedMounted.add(sourceId);

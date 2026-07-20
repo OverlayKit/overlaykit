@@ -116,7 +116,7 @@ const extractedTemplates = computed(() => {
   if (props.element.attributes['data-style-templates']) {
     try {
       result.styleTemplates = JSON.parse(props.element.attributes['data-style-templates']);
-    } catch (error) {
+    } catch {
       // Ignore malformed style templates
     }
   }
@@ -125,7 +125,7 @@ const extractedTemplates = computed(() => {
   if (props.element.attributes['data-attr-templates']) {
     try {
       result.attrTemplates = JSON.parse(props.element.attributes['data-attr-templates']);
-    } catch (error) {
+    } catch {
       // Ignore malformed attribute templates
     }
   }

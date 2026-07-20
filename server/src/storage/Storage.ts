@@ -1,6 +1,15 @@
 import { Scene } from '../types/scene';
 import { ComponentAction } from '../types/element';
 
+export interface ShowRecord {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  updatedAt: number;
+  archivedAt: number | null;
+}
+
 export interface CollectionRecord {
   id: string;
   tenantId: string;
@@ -31,6 +40,10 @@ export interface ActionRecord {
 
 export interface Storage {
   init(): Promise<void>;
+  listShows(includeArchived?: boolean): Promise<ShowRecord[]>;
+  getShow(id: string): Promise<ShowRecord | null>;
+  saveShow(record: ShowRecord): Promise<ShowRecord>;
+  archiveShow(id: string, archivedAt: number): Promise<ShowRecord | null>;
   listCollections(tenantId: string): Promise<CollectionMeta[]>;
   getCollection(tenantId: string, id: string): Promise<CollectionRecord | null>;
   saveCollection(record: CollectionRecord): Promise<CollectionRecord>;

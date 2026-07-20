@@ -13,24 +13,27 @@
     "client",
     "editor",
     "panel",
+    "studio",
     "landing"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently --names \"server,overlay,editor,panel,landing\" --prefix-colors \"green,cyan,magenta,blue,gray\" \"npm:server:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\" \"npm:landing:dev\"",
-    "dev:core": "concurrently --names \"server,overlay,editor,panel\" --prefix-colors \"green,cyan,magenta,blue\" \"npm:server:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\"",
+    "dev": "concurrently --names \"server,studio,overlay,editor,panel,landing\" --prefix-colors \"green,yellow,cyan,magenta,blue,gray\" \"npm:server:dev\" \"npm:studio:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\" \"npm:landing:dev\"",
+    "dev:core": "concurrently --names \"server,studio,overlay,editor,panel\" --prefix-colors \"green,yellow,cyan,magenta,blue\" \"npm:server:dev\" \"npm:studio:dev\" \"npm:client:dev\" \"npm:editor:dev\" \"npm:panel:dev\"",
     "server:dev": "npm run dev --workspace server",
     "client:dev": "npm run dev --workspace client",
     "editor:dev": "npm run dev --workspace editor",
     "panel:dev": "npm run dev --workspace panel",
+    "studio:dev": "npm run dev --workspace studio",
     "landing:dev": "npm run dev --workspace landing",
     "build": "npm run build --workspaces --if-present",
     "server:build": "npm run build --workspace server",
     "client:build": "npm run build --workspace client",
     "editor:build": "npm run build --workspace editor",
     "panel:build": "npm run build --workspace panel",
+    "studio:build": "npm run build --workspace studio",
     "landing:build": "npm run build --workspace landing",
     "start": "npm run start --workspace server",
     "lint": "npm run lint --workspaces --if-present",
@@ -49,19 +52,17 @@
     "governance:ruleset:plan": "npm run ruleset:plan --workspace @overlaykit/governance-host --",
     "governance:ruleset:apply": "npm run ruleset:apply --workspace @overlaykit/governance-host --"
   },
-  "dependencies": {
-    "monaco-editor": "^0.55.1",
-    "sass": "^1.97.1",
-    "ws": "^8.18.3"
-  },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5",
     "@rollup/rollup-linux-arm64-gnu": "4.52.5"
   },
+  "overrides": {
+    "dompurify": "3.4.12"
+  },
   "devDependencies": {
     "@types/node": "^25.0.3",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "concurrently": "^9.1.0",
     "eslint": "^8.57.1",
     "eslint-plugin-vue": "^9.33.0",

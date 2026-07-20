@@ -121,7 +121,7 @@ export class ChannelManager {
       if (subscriber.readyState === WebSocket.OPEN) {
         try {
           subscriber.send(messageStr);
-        } catch (error) {
+        } catch {
           // Ignore send errors for individual subscribers
         }
       }
