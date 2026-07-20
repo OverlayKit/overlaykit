@@ -11,7 +11,8 @@
     "gates",
     "artifacts",
     "actors",
-    "assumptions"
+    "assumptions",
+    "trustAnchors"
   ],
   "properties": {
     "schemaVersion": { "const": "overlaykit-governance-profile/v1" },
@@ -42,6 +43,10 @@
     "assumptions": {
       "type": "array",
       "items": { "$ref": "#/$defs/assumption" }
+    },
+    "trustAnchors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/trustAnchor" }
     }
   },
   "$defs": {
@@ -97,6 +102,70 @@
         "id": { "type": "string", "minLength": 1 },
         "statement": { "type": "string", "minLength": 1 },
         "source": { "type": "string", "minLength": 1 }
+      }
+    },
+    "trustAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "repository",
+        "workflowPath",
+        "jobName",
+        "checkName",
+        "checkAppId",
+        "checkAppSlug",
+        "oidcIssuer",
+        "runnerEnvironment",
+        "protectedRef",
+        "ruleset"
+      ],
+      "properties": {
+        "kind": { "const": "github" },
+        "id": { "type": "string", "minLength": 1 },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "workflowPath": {
+          "type": "string",
+          "pattern": "^\\.github/workflows/[^/]+\\.ya?ml$"
+        },
+        "jobName": { "type": "string", "minLength": 1 },
+        "checkName": { "type": "string", "minLength": 1 },
+        "checkAppId": { "type": "integer", "minimum": 1 },
+        "checkAppSlug": { "type": "string", "minLength": 1 },
+        "oidcIssuer": { "type": "string", "pattern": "^https://.+" },
+        "runnerEnvironment": { "const": "github-hosted" },
+        "protectedRef": { "type": "string", "pattern": "^refs/heads/.+" },
+        "ruleset": { "$ref": "#/$defs/rulesetRequirements" }
+      }
+    },
+    "rulesetRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requiredRules",
+        "requiredStatusChecks",
+        "requireReviewThreadResolution",
+        "minimumApprovals",
+        "allowBypassActors"
+      ],
+      "properties": {
+        "requiredRules": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requiredStatusChecks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requireReviewThreadResolution": { "type": "boolean" },
+        "minimumApprovals": { "type": "integer", "minimum": 0 },
+        "allowBypassActors": { "type": "boolean" }
       }
     }
   }

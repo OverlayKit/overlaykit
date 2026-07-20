@@ -7,9 +7,12 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
+  checks: read
   contents: read
   id-token: write
   attestations: write
+  pull-requests: read
 
 concurrency:
   group: constitution-${{ github.ref }}
@@ -102,3 +105,53 @@ jobs:
           test "$GOVERNANCE_OUTCOME" = "success"
           test "$QUALITY_OUTCOME" = "success"
           test "$BUILD_OUTCOME" = "success"
+
+  observe:
+    name: observe
+    if: ${{ always() && needs.validate.result == 'success' }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      checks: read
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund --maxsockets=1
+
+      - name: Download governance run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: governance-run-${{ github.run_id }}
+          path: artifacts
+
+      - name: Observe GitHub root of trust
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm run governance:observe:github -- --run artifacts/governance-run.json --out artifacts/github-evidence.json --observation-out artifacts/github-observation.json
+
+      - name: Upload GitHub observation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: github-observation-${{ github.run_id }}
+          path: |
+            artifacts/github-evidence.json
+            artifacts/github-observation.json
+          if-no-files-found: error
+          retention-days: 30

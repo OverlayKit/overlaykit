@@ -146,6 +146,14 @@
     },
     {
       "enforcementCapable": true,
+      "expectedCommand": "npm run governance:observe:github -- --run artifacts/governance-run.json --out artifacts/github-evidence.json --observation-out artifacts/github-observation.json",
+      "id": "ci:github-observer",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.observe",
+      "subject": "github-root-of-trust-evidence"
+    },
+    {
+      "enforcementCapable": true,
       "expectedCommand": "npm run governance:check",
       "id": "ci:governance",
       "kind": "github-actions-job",
@@ -185,11 +193,11 @@
       "subject": "governance-plan"
     }
   ],
-  "mechanismsHash": "d2157c08c44312e41dad93aaf11f8ceda59ca1fe87016915ae05b3d3c5c945d4",
-  "planHash": "67dafa3a952dd84969b25ae353a27730b78578477318e71ff994978a54000cd0",
-  "profileHash": "6acc9cb837d70a9006191fb668c268843d8753040421ed0252c3f1252caed320",
+  "mechanismsHash": "a260a2cf3e3317c1600f79f9c64691e590b760141c0cbb3aab2303903f62f301",
+  "planHash": "d73edf02b8744c4915ae902f974dbe9dcfe71e9c7a6e64340f62adec62746aed",
+  "profileHash": "09ba836c29491f746a1a014ea97d35cdcb86a37b53f2158ae9bed1dd9ad7743a",
   "profileName": "overlaykit-oss",
-  "profileVersion": "1.0.0",
+  "profileVersion": "1.1.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -228,6 +236,36 @@
       "statement": "Normative governance is the compiled plan derived from accepted immutable decisions and the active profile."
     }
   ],
-  "schemasHash": "b5b8baec5e57cc4ba512063af4b0248e5b1769e5606596389a2db4df9574b814",
-  "schemaVersion": "overlaykit-governance-plan/v1"
+  "schemasHash": "287a5292c5deec565bdd93ff81da990b634add28c206852d5dea290b9a31a3f1",
+  "schemaVersion": "overlaykit-governance-plan/v1",
+  "trustAnchors": [
+    {
+      "checkAppId": 15368,
+      "checkAppSlug": "github-actions",
+      "checkName": "validate",
+      "id": "github:overlaykit",
+      "jobName": "validate",
+      "kind": "github",
+      "oidcIssuer": "https://token.actions.githubusercontent.com",
+      "protectedRef": "refs/heads/main",
+      "repository": "OverlayKit/overlaykit",
+      "ruleset": {
+        "allowBypassActors": false,
+        "minimumApprovals": 0,
+        "requiredRules": [
+          "deletion",
+          "non_fast_forward",
+          "pull_request",
+          "required_signatures",
+          "required_status_checks"
+        ],
+        "requiredStatusChecks": [
+          "validate"
+        ],
+        "requireReviewThreadResolution": true
+      },
+      "runnerEnvironment": "github-hosted",
+      "workflowPath": ".github/workflows/governance.yml"
+    }
+  ]
 }

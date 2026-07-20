@@ -168,6 +168,7 @@ export function validateContract(
     'mechanism',
   );
   const actorsById = indexUnique(profile.actors, 'IDENTITY_DUPLICATE', 'actor');
+  indexUnique(profile.trustAnchors, 'TRUST_ANCHOR_DUPLICATE', 'trust anchor');
   const changesById = indexUnique(
     changes.map((record) => ({ ...record, id: record.change.id })),
     'CHANGE_DUPLICATE',

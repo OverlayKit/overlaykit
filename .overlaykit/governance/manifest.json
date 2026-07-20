@@ -1,20 +1,22 @@
 {
   "changes": {
-    "CHG-0001": "1938307f8f7b4f1a3c3124b118bc99b0e06ef6424bd5495fb7941f064d9cc05b"
+    "CHG-0001": "1938307f8f7b4f1a3c3124b118bc99b0e06ef6424bd5495fb7941f064d9cc05b",
+    "CHG-0002": "300531dad25e61370a6bff5a0f10bb476ac02d79bedcaa77ced5763fdc3fe2cf"
   },
-  "contentHash": "d53dfaece98c808ab971c9e3b250c80585bb75b7fef494378e669dead0f1432c",
+  "contentHash": "97ce5cee3c36c8043a5fedd96e0e46ad5b53e67c1104c680c739f6af7f39cad0",
   "decisions": {
     "ADR-0001": "e502f31f735a167218fc7f1c6af22e7a8a4248e76b06190075ec4076636fcf4b"
   },
-  "mechanismsHash": "d2157c08c44312e41dad93aaf11f8ceda59ca1fe87016915ae05b3d3c5c945d4",
-  "planHash": "67dafa3a952dd84969b25ae353a27730b78578477318e71ff994978a54000cd0",
-  "profileHash": "6acc9cb837d70a9006191fb668c268843d8753040421ed0252c3f1252caed320",
+  "mechanismsHash": "a260a2cf3e3317c1600f79f9c64691e590b760141c0cbb3aab2303903f62f301",
+  "planHash": "d73edf02b8744c4915ae902f974dbe9dcfe71e9c7a6e64340f62adec62746aed",
+  "profileHash": "09ba836c29491f746a1a014ea97d35cdcb86a37b53f2158ae9bed1dd9ad7743a",
   "schemas": {
     "change.schema.json": "91314899ee4d317e27fb55c9b2e78c662990f5d2acd74bca891c211055b0833e",
     "decision.schema.json": "aa6ac1d5b17864252d6392f035ddf1379d9b3395c87cf6d18d1da8922a6685f4",
+    "github-evidence.schema.json": "117c3901de6ca701e3f3b118eabf9ee2649d04aee8433fb506b845a034ed79fa",
     "mechanisms.schema.json": "f64c26faf63bc43efb343cb20068488cfbc7e3af4760a5cda6572f99b5040f77",
-    "profile.schema.json": "195fa4f53d5d91f734781be6c3fc4fecd8b873b43c0dfef1692e19b233b6ae8d",
-    "run.schema.json": "b78b46e0ed88c18fab6a7851c8f83c98f14fedba48d87c9b56674f7eaa1e69be"
+    "profile.schema.json": "109b23e9adee5ebb549c641f86ce2a99878d3f8e6aa3638a4c070a39a5fad4a8",
+    "run.schema.json": "ae4f3ed74e44b74af4179d33f81a9b51218fac05883d81aa6df3283ea4ec6cbc"
   },
   "schemaVersion": "overlaykit-governance-manifest/v1"
 }

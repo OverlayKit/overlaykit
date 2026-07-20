@@ -8,6 +8,7 @@ import { GovernanceError, invariant } from './errors.js';
 import type {
   ChangeContract,
   GovernanceDecision,
+  GitHubEvidence,
   GovernanceManifest,
   GovernanceProfile,
   GovernanceRun,
@@ -22,6 +23,7 @@ const SCHEMA_FILES = {
   profile: 'profile.schema.json',
   mechanisms: 'mechanisms.schema.json',
   run: 'run.schema.json',
+  githubEvidence: 'github-evidence.schema.json',
 } as const;
 
 interface SchemaValidators {
@@ -30,6 +32,7 @@ interface SchemaValidators {
   profile: ValidateFunction<GovernanceProfile>;
   mechanisms: ValidateFunction<MechanismRegistry>;
   run: ValidateFunction<GovernanceRun>;
+  githubEvidence: ValidateFunction<GitHubEvidence>;
 }
 
 function readJson(path: string): unknown {
@@ -71,6 +74,7 @@ function compileSchemas(schemaDirectory: string): {
     profile: ajv.compile<GovernanceProfile>(schemas.profile),
     mechanisms: ajv.compile<MechanismRegistry>(schemas.mechanisms),
     run: ajv.compile<GovernanceRun>(schemas.run),
+    githubEvidence: ajv.compile<GitHubEvidence>(schemas.githubEvidence),
   };
 
   return { validators, hashes };
@@ -309,6 +313,15 @@ export function validateRun(repoRoot: string, run: unknown): asserts run is Gove
   const schemaDirectory = join(repoRoot, GOVERNANCE_PATH, 'schemas');
   const { validators } = compileSchemas(schemaDirectory);
   assertSchema(validators.run, run, 'governance run');
+}
+
+export function validateGitHubEvidence(
+  repoRoot: string,
+  evidence: unknown,
+): asserts evidence is GitHubEvidence {
+  const schemaDirectory = join(repoRoot, GOVERNANCE_PATH, 'schemas');
+  const { validators } = compileSchemas(schemaDirectory);
+  assertSchema(validators.githubEvidence, evidence, 'GitHub evidence');
 }
 
 export function readStoredManifest(repoRoot: string): GovernanceManifest {

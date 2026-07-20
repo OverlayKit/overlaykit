@@ -1,0 +1,262 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-governance-github-evidence/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "observedAt",
+    "trustAnchor",
+    "runFileHash",
+    "subject",
+    "workflow",
+    "pullRequest",
+    "signatures",
+    "attestation",
+    "rulesets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "overlaykit-governance-github-evidence/v1"
+    },
+    "observedAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+    },
+    "trustAnchor": { "type": "string", "minLength": 1 },
+    "runFileHash": { "$ref": "#/$defs/hash" },
+    "subject": { "$ref": "#/$defs/subject" },
+    "workflow": { "$ref": "#/$defs/workflow" },
+    "pullRequest": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/pullRequestEvidence" }]
+    },
+    "signatures": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/signature" }
+    },
+    "attestation": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/attestation" }]
+    },
+    "rulesets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentHash", "items"],
+      "properties": {
+        "contentHash": { "$ref": "#/$defs/hash" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ruleset" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "nullableString": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "ref", "event", "pullRequest"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": { "$ref": "#/$defs/commit" },
+        "ref": { "type": "string", "pattern": "^refs/.+" },
+        "event": { "type": "string", "minLength": 1 },
+        "pullRequest": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/pullRequest" }]
+        }
+      }
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "headCommit",
+        "headRef",
+        "baseCommit",
+        "baseRef"
+      ],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "headCommit": { "$ref": "#/$defs/commit" },
+        "headRef": { "type": "string", "minLength": 1 },
+        "baseCommit": { "$ref": "#/$defs/commit" },
+        "baseRef": { "type": "string", "minLength": 1 }
+      }
+    },
+    "pullRequestEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "headCommit",
+        "headRef",
+        "baseCommit",
+        "baseRef",
+        "state",
+        "commits"
+      ],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "headCommit": { "$ref": "#/$defs/commit" },
+        "headRef": { "type": "string", "minLength": 1 },
+        "baseCommit": { "$ref": "#/$defs/commit" },
+        "baseRef": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "minLength": 1 },
+        "commits": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/commit" }
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "attempt",
+        "repository",
+        "commit",
+        "ref",
+        "event",
+        "workflowPath",
+        "status",
+        "conclusion",
+        "url",
+        "job"
+      ],
+      "properties": {
+        "runId": { "type": "integer", "minimum": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": { "$ref": "#/$defs/commit" },
+        "ref": { "type": "string", "pattern": "^refs/.+" },
+        "event": { "type": "string", "minLength": 1 },
+        "workflowPath": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "conclusion": { "$ref": "#/$defs/nullableString" },
+        "url": { "type": "string", "pattern": "^https://.+" },
+        "job": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "checkName",
+            "checkAppId",
+            "checkAppSlug",
+            "status",
+            "conclusion",
+            "runnerEnvironment",
+            "url"
+          ],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "checkName": { "type": "string", "minLength": 1 },
+            "checkAppId": { "type": "integer", "minimum": 1 },
+            "checkAppSlug": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "minLength": 1 },
+            "conclusion": { "$ref": "#/$defs/nullableString" },
+            "runnerEnvironment": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "pattern": "^https://.+" }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "verified", "reason", "verifiedAt"],
+      "properties": {
+        "commit": { "$ref": "#/$defs/commit" },
+        "verified": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1 },
+        "verifiedAt": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectName",
+        "subjectDigest",
+        "signerWorkflow",
+        "sourceRepository",
+        "sourceCommit",
+        "sourceRef",
+        "oidcIssuer",
+        "runnerEnvironment",
+        "event",
+        "invocation"
+      ],
+      "properties": {
+        "subjectName": { "type": "string", "minLength": 1 },
+        "subjectDigest": { "$ref": "#/$defs/hash" },
+        "signerWorkflow": { "type": "string", "pattern": "^https://.+" },
+        "sourceRepository": { "type": "string", "pattern": "^https://.+" },
+        "sourceCommit": { "$ref": "#/$defs/commit" },
+        "sourceRef": { "type": "string", "pattern": "^refs/.+" },
+        "oidcIssuer": { "type": "string", "pattern": "^https://.+" },
+        "runnerEnvironment": { "type": "string", "minLength": 1 },
+        "event": { "type": "string", "minLength": 1 },
+        "invocation": { "type": "string", "pattern": "^https://.+" }
+      }
+    },
+    "rulesetRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "parameters"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "parameters": {
+          "oneOf": [{ "type": "null" }, { "type": "object" }]
+        }
+      }
+    },
+    "ruleset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "target",
+        "enforcement",
+        "source",
+        "sourceType",
+        "conditions",
+        "bypassActors",
+        "rules"
+      ],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "enforcement": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sourceType": { "type": "string", "minLength": 1 },
+        "conditions": {
+          "oneOf": [{ "type": "null" }, { "type": "object" }]
+        },
+        "bypassActors": { "type": "array" },
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/rulesetRule" }
+        }
+      }
+    }
+  }
+}

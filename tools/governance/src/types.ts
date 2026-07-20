@@ -2,6 +2,8 @@ export const ENGINE_VERSION = 'overlaykit-governance-host/v1' as const;
 export const PLAN_SCHEMA_VERSION = 'overlaykit-governance-plan/v1' as const;
 export const MANIFEST_SCHEMA_VERSION = 'overlaykit-governance-manifest/v1' as const;
 export const RUN_SCHEMA_VERSION = 'overlaykit-governance-run/v1' as const;
+export const GITHUB_EVIDENCE_SCHEMA_VERSION =
+  'overlaykit-governance-github-evidence/v1' as const;
 
 export type DecisionStatus = 'proposed' | 'accepted' | 'rejected' | 'deprecated';
 export type EnforcementTier = 'enforced' | 'advisory' | 'convention' | 'deferred';
@@ -123,6 +125,31 @@ export interface GovernanceAssumption {
   source: string;
 }
 
+export interface GitHubRulesetRequirements {
+  requiredRules: string[];
+  requiredStatusChecks: string[];
+  requireReviewThreadResolution: boolean;
+  minimumApprovals: number;
+  allowBypassActors: boolean;
+}
+
+export interface GitHubTrustAnchor {
+  kind: 'github';
+  id: string;
+  repository: string;
+  workflowPath: string;
+  jobName: string;
+  checkName: string;
+  checkAppId: number;
+  checkAppSlug: string;
+  oidcIssuer: string;
+  runnerEnvironment: 'github-hosted';
+  protectedRef: string;
+  ruleset: GitHubRulesetRequirements;
+}
+
+export type TrustAnchor = GitHubTrustAnchor;
+
 export interface GovernanceProfile {
   schemaVersion: 'overlaykit-governance-profile/v1';
   name: string;
@@ -132,6 +159,7 @@ export interface GovernanceProfile {
   artifacts: RequiredArtifact[];
   actors: GovernanceActor[];
   assumptions: GovernanceAssumption[];
+  trustAnchors: TrustAnchor[];
 }
 
 export type MechanismKind =
@@ -193,6 +221,7 @@ export interface GovernancePlan {
   artifacts: CompiledArtifact[];
   actors: GovernanceActor[];
   assumptions: GovernanceAssumption[];
+  trustAnchors: TrustAnchor[];
   planHash: string;
 }
 
@@ -220,6 +249,22 @@ export interface ProducerIdentity {
   commit: string | null;
 }
 
+export interface PullRequestSubject {
+  number: number;
+  headCommit: string;
+  headRef: string;
+  baseCommit: string;
+  baseRef: string;
+}
+
+export interface EvidenceSubject {
+  repository: string;
+  commit: string;
+  ref: string;
+  event: string;
+  pullRequest: PullRequestSubject | null;
+}
+
 export interface GateOutcomeRecord {
   gate: string;
   outcome: GateOutcome;
@@ -242,6 +287,7 @@ export interface GovernanceRun {
   manifestHash: string;
   invokedBy: InvocationIdentity;
   producer: ProducerIdentity;
+  subject: EvidenceSubject;
   source: string;
   startedAt: string;
   finishedAt: string;
@@ -272,6 +318,99 @@ export interface GovernanceObservation {
   reason: string | null;
   ready: boolean;
   blockers: string[];
+}
+
+export interface GitHubWorkflowEvidence {
+  runId: number;
+  attempt: number;
+  repository: string;
+  commit: string;
+  ref: string;
+  event: string;
+  workflowPath: string;
+  status: string;
+  conclusion: string | null;
+  url: string;
+  job: {
+    id: number;
+    name: string;
+    checkName: string;
+    checkAppId: number;
+    checkAppSlug: string;
+    status: string;
+    conclusion: string | null;
+    runnerEnvironment: string;
+    url: string;
+  };
+}
+
+export interface GitHubPullRequestEvidence extends PullRequestSubject {
+  state: string;
+  commits: string[];
+}
+
+export interface GitHubSignatureEvidence {
+  commit: string;
+  verified: boolean;
+  reason: string;
+  verifiedAt: string | null;
+}
+
+export interface GitHubAttestationEvidence {
+  subjectName: string;
+  subjectDigest: string;
+  signerWorkflow: string;
+  sourceRepository: string;
+  sourceCommit: string;
+  sourceRef: string;
+  oidcIssuer: string;
+  runnerEnvironment: string;
+  event: string;
+  invocation: string;
+}
+
+export interface GitHubRulesetRuleEvidence {
+  type: string;
+  parameters: Record<string, unknown> | null;
+}
+
+export interface GitHubRulesetEvidence {
+  id: number;
+  name: string;
+  target: string;
+  enforcement: string;
+  source: string;
+  sourceType: string;
+  conditions: Record<string, unknown> | null;
+  bypassActors: unknown[];
+  rules: GitHubRulesetRuleEvidence[];
+}
+
+export interface GitHubEvidence {
+  schemaVersion: typeof GITHUB_EVIDENCE_SCHEMA_VERSION;
+  observedAt: string;
+  trustAnchor: string;
+  runFileHash: string;
+  subject: EvidenceSubject;
+  workflow: GitHubWorkflowEvidence;
+  pullRequest: GitHubPullRequestEvidence | null;
+  signatures: GitHubSignatureEvidence[];
+  attestation: GitHubAttestationEvidence | null;
+  rulesets: {
+    contentHash: string;
+    items: GitHubRulesetEvidence[];
+  };
+}
+
+export interface GitHubObservation {
+  state: ObservationState;
+  reason: string | null;
+  ready: boolean;
+  activationReady: boolean;
+  blockers: string[];
+  activationBlockers: string[];
+  run: GovernanceObservation;
+  evidence: GitHubEvidence;
 }
 
 export interface LoadedContract {

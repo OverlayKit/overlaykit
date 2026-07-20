@@ -66,6 +66,7 @@ function profile(decisionIds: string[]): GovernanceProfile {
       },
     ],
     assumptions: [],
+    trustAnchors: [],
   };
 }
 
@@ -115,7 +116,14 @@ function currentRun(
       kind: 'local-cli',
       id: 'vitest',
       version: '1',
-      commit: 'abcdef0',
+      commit: 'a'.repeat(40),
+    },
+    subject: {
+      repository: 'OverlayKit/overlaykit',
+      commit: 'a'.repeat(40),
+      ref: 'refs/heads/test',
+      event: 'local',
+      pullRequest: null,
     },
     source: 'local',
     startedAt: '2026-07-20T00:00:00.000Z',
@@ -250,18 +258,16 @@ describe('evidence projection', () => {
   const manifest = buildManifest(evidenceContract, plan);
 
   it('is ready only with current passing evidence and required artifacts', () => {
-    const observation = observeRun(plan, manifest, currentRun(plan, manifest));
+    const run = currentRun(plan, manifest);
+    const observation = observeRun(plan, manifest, run, run.subject);
     expect(observation.state).toBe('current');
     expect(observation.ready).toBe(true);
     expect(observation.blockers).toEqual([]);
   });
 
   it('marks evidence for a different plan as stale', () => {
-    const observation = observeRun(
-      plan,
-      manifest,
-      currentRun(plan, manifest, { planHash: 'f'.repeat(64) }),
-    );
+    const run = currentRun(plan, manifest, { planHash: 'f'.repeat(64) });
+    const observation = observeRun(plan, manifest, run, run.subject);
     expect(observation.state).toBe('stale');
     expect(observation.ready).toBe(false);
   });
@@ -269,17 +275,14 @@ describe('evidence projection', () => {
   it('rejects evidence that redefines a gate binding', () => {
     const run = currentRun(plan, manifest);
     run.outcomes[0] = { ...run.outcomes[0]!, boundTo: 'ci:other' };
-    const observation = observeRun(plan, manifest, run);
+    const observation = observeRun(plan, manifest, run, run.subject);
     expect(observation.state).toBe('invalid');
     expect(observation.reason).toContain('redefines boundTo');
   });
 
   it('keeps missing evidence pending instead of fabricating success', () => {
-    const observation = observeRun(
-      plan,
-      manifest,
-      currentRun(plan, manifest, { outcomes: [], artifacts: [] }),
-    );
+    const run = currentRun(plan, manifest, { outcomes: [], artifacts: [] });
+    const observation = observeRun(plan, manifest, run, run.subject);
     expect(observation.state).toBe('current');
     expect(observation.ready).toBe(false);
     expect(observation.blockers).toEqual([
@@ -292,7 +295,7 @@ describe('evidence projection', () => {
     const run = currentRun(plan, manifest, {
       invokedBy: { kind: 'agent', id: 'codex', principal: '@someone-else' },
     });
-    const observation = observeRun(plan, manifest, run);
+    const observation = observeRun(plan, manifest, run, run.subject);
 
     expect(observation.state).toBe('invalid');
     expect(observation.reason).toContain('does not match actor');
@@ -300,7 +303,7 @@ describe('evidence projection', () => {
 
   it('rejects passed outcomes from the wrong producer class', () => {
     const run = currentRun(plan, manifest, { source: 'ci' });
-    const observation = observeRun(plan, manifest, run);
+    const observation = observeRun(plan, manifest, run, run.subject);
 
     expect(observation.state).toBe('invalid');
     expect(observation.reason).toContain('cannot prove gate');
@@ -308,9 +311,36 @@ describe('evidence projection', () => {
 
   it('marks evidence stale when the change manifest differs', () => {
     const run = currentRun(plan, manifest, { manifestHash: 'f'.repeat(64) });
-    const observation = observeRun(plan, manifest, run);
+    const observation = observeRun(plan, manifest, run, run.subject);
 
     expect(observation.state).toBe('stale');
     expect(observation.ready).toBe(false);
+  });
+
+  it('marks content-identical evidence from another commit as stale', () => {
+    const run = currentRun(plan, manifest);
+    const target = {
+      ...run.subject,
+      commit: 'b'.repeat(40),
+    };
+    const observation = observeRun(plan, manifest, run, target);
+
+    expect(observation.state).toBe('stale');
+    expect(observation.reason).toContain('different repository, commit, ref, event');
+  });
+
+  it('rejects a producer commit that differs from its declared subject', () => {
+    const run = currentRun(plan, manifest, {
+      producer: {
+        kind: 'local-cli',
+        id: 'vitest',
+        version: '1',
+        commit: 'b'.repeat(40),
+      },
+    });
+    const observation = observeRun(plan, manifest, run, run.subject);
+
+    expect(observation.state).toBe('invalid');
+    expect(observation.reason).toContain('producer commit differs');
   });
 });

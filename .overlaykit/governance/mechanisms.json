@@ -34,6 +34,14 @@
       "expectedCommand": "npm run build"
     },
     {
+      "id": "ci:github-observer",
+      "kind": "github-actions-job",
+      "locator": ".github/workflows/governance.yml#jobs.observe",
+      "subject": "github-root-of-trust-evidence",
+      "enforcementCapable": true,
+      "expectedCommand": "npm run governance:observe:github -- --run artifacts/governance-run.json --out artifacts/github-evidence.json --observation-out artifacts/github-observation.json"
+    },
+    {
       "id": "github:independent-review",
       "kind": "github-ruleset",
       "locator": "github://OverlayKit/overlaykit/rulesets/main",

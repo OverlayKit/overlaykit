@@ -11,6 +11,7 @@
     "manifestHash",
     "invokedBy",
     "producer",
+    "subject",
     "source",
     "startedAt",
     "finishedAt",
@@ -26,6 +27,7 @@
     "manifestHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "invokedBy": { "$ref": "#/$defs/invocation" },
     "producer": { "$ref": "#/$defs/producer" },
+    "subject": { "$ref": "#/$defs/subject" },
     "source": { "type": "string", "minLength": 1 },
     "startedAt": {
       "type": "string",
@@ -73,9 +75,44 @@
         "commit": {
           "oneOf": [
             { "type": "null" },
-            { "type": "string", "pattern": "^[a-fA-F0-9]{7,64}$" }
+            { "type": "string", "pattern": "^[a-f0-9]{40}$" }
           ]
         }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "ref", "event", "pullRequest"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "ref": { "type": "string", "pattern": "^refs/.+" },
+        "event": { "type": "string", "minLength": 1 },
+        "pullRequest": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/pullRequest" }]
+        }
+      }
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "headCommit",
+        "headRef",
+        "baseCommit",
+        "baseRef"
+      ],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "headCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "headRef": { "type": "string", "minLength": 1 },
+        "baseCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "baseRef": { "type": "string", "minLength": 1 }
       }
     },
     "assumption": {
