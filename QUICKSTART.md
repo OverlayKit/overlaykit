@@ -14,18 +14,20 @@ npm install
 npm run dev:core
 ```
 
-## 3. Open The Apps
+## 3. Secure The Instance
 
-- Editor: http://localhost:5174
-- Panel: http://localhost:5181/?channel=main
-- OBS: http://localhost:5173/production?channel=main&transparent=true
+Open http://localhost:5173 and create the single local owner account. Studio redirects to this first-run setup until it is complete.
+
+Create a Show. Its **Production** workspace contains the editor, live panel, and current output.
 
 ## 4. OBS Setup
 
-Add a Browser Source and use:
+Open **Show → Output**, rotate the output token, and copy the complete one-time browser-source URL into OBS. The URL has this shape:
 
 ```text
-http://localhost:5173/production?channel=main&transparent=true&hideStatus=true&hideWatermark=true
+http://localhost:5183/production?channel=<show-id>&transparent=true&token=<output-token>
 ```
+
+The output credential is read-only. Rotating it invalidates every previously issued OBS URL.
 
 Use a 1920x1080 source for landscape scenes or 1080x1920 for portrait scenes.

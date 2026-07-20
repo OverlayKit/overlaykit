@@ -4,22 +4,42 @@ import { channelManager } from '../services/ChannelManager';
 import { channelKey, DEFAULT_TENANT_ID } from '../tenancy';
 import { logger } from '../utils/logger';
 import { ClientMessage, ServerMessage } from '../types/messages';
+import type { AuthService } from '../auth/AuthService';
+import { parseCookies, SESSION_COOKIE } from '../auth/http';
+import type { WebSocketAccess } from '../auth/types';
 
 function routeKey(channelId: string): string {
   return channelKey(DEFAULT_TENANT_ID, channelId);
 }
 
-export function setupWebSocketHandler(wss: WSServer): void {
+export function setupWebSocketHandler(
+  wss: WSServer,
+  auth: AuthService,
+  allowedOrigins: string[] = [],
+): void {
+  const originAllowlist = new Set(allowedOrigins);
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress || 'unknown';
-    logger.debug('WebSocket client connected', { clientIp });
+    const origin = req.headers.origin;
+    if (origin && !originAllowlist.has(origin)) {
+      ws.close(1008, 'Origin not allowed');
+      return;
+    }
+
+    const access = authenticateConnection(req, auth);
+    if (!access) {
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
+    logger.debug('WebSocket client connected', { clientIp, access: access.kind });
 
     const subscribedChannels = new Set<string>();
 
     ws.on('message', (data: Buffer) => {
       try {
         const message: unknown = JSON.parse(data.toString());
-        handleClientMessage(ws, message as ClientMessage, subscribedChannels);
+        handleClientMessage(ws, message as ClientMessage, subscribedChannels, access);
       } catch (error) {
         logger.warn('Failed to parse WebSocket message', { error: String(error) });
         sendErrorMessage(ws, 'PARSE_ERROR', 'Invalid JSON message');
@@ -40,7 +60,22 @@ export function setupWebSocketHandler(wss: WSServer): void {
   });
 }
 
-function handleClientMessage(ws: WebSocket, message: ClientMessage, subscribedChannels: Set<string>): void {
+function authenticateConnection(req: IncomingMessage, auth: AuthService): WebSocketAccess | null {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const outputToken = url.searchParams.get('token');
+  if (auth.verifyOutputToken(outputToken)) return { kind: 'output', user: null };
+
+  const sessionToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  const session = auth.authenticateSession(sessionToken);
+  return session ? { kind: 'studio', user: session.user } : null;
+}
+
+function handleClientMessage(
+  ws: WebSocket,
+  message: ClientMessage,
+  subscribedChannels: Set<string>,
+  access: WebSocketAccess,
+): void {
   if (!message || typeof message !== 'object' || !('type' in message)) {
     sendErrorMessage(ws, 'INVALID_MESSAGE', 'Message must have a type field');
     return;
@@ -54,9 +89,17 @@ function handleClientMessage(ws: WebSocket, message: ClientMessage, subscribedCh
       handleUnsubscribe(ws, message, subscribedChannels);
       break;
     case 'component_deploy':
+      if (access.kind === 'output') {
+        sendErrorMessage(ws, 'FORBIDDEN', 'Output connections are read-only');
+        break;
+      }
       handleComponentDeploy(ws, message);
       break;
     case 'scene_activate':
+      if (access.kind === 'output') {
+        sendErrorMessage(ws, 'FORBIDDEN', 'Output connections are read-only');
+        break;
+      }
       handleSceneActivate(ws, message);
       break;
     case 'ping':

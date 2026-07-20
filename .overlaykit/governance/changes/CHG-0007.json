@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0007",
+  "title": "Secure the local instance and establish Studio",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The current REST routes are mounted without authentication middleware and the WebSocket handler accepts subscribe and production mutation messages from every connection.",
+      "evidence": "server/src/index.ts and server/src/handlers/websocket.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current HTTP and WebSocket listeners omit a host argument, so Node binds beyond the local loopback interface by default.",
+      "evidence": "server/src/index.ts#startServer",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Editor, Panel, and the OBS output are separate Vite roots with no authenticated Studio shell.",
+      "evidence": "package.json#workspaces and editor/src/main.ts and panel/src/main.ts and client/src/main.ts",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A login screen alone cannot satisfy secure-by-default behavior while unauthenticated REST or WebSocket mutation paths remain reachable.",
+      "evidence": "SPEC-0001#REQ-SEC-001 and SPEC-0001#REQ-SEC-003",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A single local Owner carrying owner, producer, and designer roles is sufficient for the first OSS security boundary while the role model remains explicit for later users.",
+      "evidence": "SPEC-0001#US-001 and SPEC-0001#REQ-SEC-002",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The final Caddy path layout for serving Studio, Editor, Panel, and Output from one production origin is not represented in this repository yet; this change proves the local multi-port topology and documents the required credentials.",
+      "evidence": null,
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A fresh instance exposes only health and authentication bootstrap endpoints until exactly one Owner is created, after which bootstrap is permanently closed.",
+      "verification": "Server integration tests for setup status, owner creation, duplicate setup, and protected route denial."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Owner credentials use a memory-hard password verifier and interactive access uses expiring, server-managed, HttpOnly, SameSite cookies with logout invalidation.",
+      "verification": "Authentication service and HTTP cookie integration tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "State-changing browser requests are rejected when their Origin is absent from the configured Studio origin allowlist.",
+      "verification": "Adversarial cross-origin request tests for setup, login, and protected mutations."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Every existing REST API requires a Studio session and every WebSocket connection requires either a Studio session or a valid Output token; Output credentials can subscribe but cannot send mutation commands.",
+      "verification": "REST authorization and WebSocket capability integration tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The Owner can rotate a Show-independent bootstrap Output token that is returned once, stored only as a digest, and invalidates its predecessor.",
+      "verification": "Output-token lifecycle and timing-safe verification tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The server binds REST and WebSocket listeners to loopback by default and requires explicit environment configuration for LAN exposure.",
+      "verification": "Configuration unit tests and startup configuration evidence."
+    },
+    {
+      "id": "SC-007",
+      "statement": "Authenticated users can create, list, open, and archive Shows without seeing collection or channel identifiers.",
+      "verification": "Show storage/API tests and Studio Shows workflow tests."
+    },
+    {
+      "id": "SC-008",
+      "statement": "Studio provides guarded Setup, Login, Shows, Production, Scenes, Editor, Library, Security, and Integrations routes under one stable application shell.",
+      "verification": "Studio router, auth-state, and responsive shell tests plus desktop and mobile visual inspection."
+    },
+    {
+      "id": "SC-009",
+      "statement": "Existing Editor and Panel remain functional as authenticated transitional modules inside Studio while direct anonymous access is redirected to Setup or Login.",
+      "verification": "Browser workflow tests across Studio, Editor, Panel, REST, and WebSocket origins."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0007 references ADR-0004 and SPEC-0001 and its final implemented record contains no blocking unknown.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Authentication, origin enforcement, REST authorization, Output token rotation, WebSocket capabilities, local binding, and Show persistence have automated tests.",
+      "evidence": "server/tests/unit and server/tests/integration"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Studio setup, login, Show management, guarded navigation, embedded modules, and security settings are exercised in browser tests at desktop and mobile sizes.",
+      "evidence": "studio tests and Playwright screenshots"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Documentation and environment examples describe Studio as the entry point and require a tokenized OBS URL.",
+      "evidence": "README.md, QUICKSTART.md, server/.env.example, and landing/index.html"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "The complete governance, quality, test, and build suites pass for the current manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build"
+    },
+    {
+      "id": "DOD-006",
+      "statement": "The signed pull-request commit and GitHub observation are current for the final planHash and manifestHash.",
+      "evidence": "GitHub Constitution workflow artifacts"
+    }
+  ]
+}

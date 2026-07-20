@@ -9,6 +9,7 @@ const EDITOR_URL = (import.meta as any).env?.VITE_EDITOR_URL || 'http://localhos
 const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
 const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080';
 const channelId = new URLSearchParams(location.search).get('channel') || 'main';
+const embedded = new URLSearchParams(location.search).get('embedded') === 'true';
 const exampleVar = '{{ ejemplo }}';
 
 const status = ref<'disconnected' | 'connected'>('disconnected');
@@ -495,7 +496,7 @@ onUnmounted(() => {
 
 <template>
   <div class="panel">
-    <header class="hdr">
+    <header v-if="!embedded" class="hdr">
       <div class="brand">◆ Panel en vivo</div>
       <div class="hdr-right">
         <span class="chan">canal: <strong>{{ channelId }}</strong></span>

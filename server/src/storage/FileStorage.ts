@@ -3,13 +3,14 @@ import * as fsSync from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger';
 import { DEFAULT_TENANT_ID } from '../tenancy';
-import { Storage, CollectionRecord, CollectionMeta, ActionRecord, toMeta } from './Storage';
+import { Storage, CollectionRecord, CollectionMeta, ActionRecord, ShowRecord, toMeta } from './Storage';
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 
 export class FileStorage implements Storage {
   private collectionsCache: Map<string, CollectionRecord> | null = null;
   private actionsCache: Map<string, ActionRecord> | null = null;
+  private showsCache: Map<string, ShowRecord> | null = null;
   private ready = false;
 
   async init(): Promise<void> {
@@ -25,6 +26,10 @@ export class FileStorage implements Storage {
 
   private actionsFile(): string {
     return path.join(DATA_DIR, 'actions.json');
+  }
+
+  private showsFile(): string {
+    return path.join(DATA_DIR, 'shows.json');
   }
 
   private async migrateTenantFiles(): Promise<void> {
@@ -72,6 +77,21 @@ export class FileStorage implements Storage {
     return m;
   }
 
+  private shows(): Map<string, ShowRecord> {
+    if (this.showsCache) return this.showsCache;
+    const shows = new Map<string, ShowRecord>();
+    try {
+      if (fsSync.existsSync(this.showsFile())) {
+        const records: ShowRecord[] = JSON.parse(fsSync.readFileSync(this.showsFile(), 'utf8'));
+        for (const record of records) shows.set(record.id, record);
+      }
+    } catch (error) {
+      logger.warn('Failed to load shows', { error: String(error) });
+    }
+    this.showsCache = shows;
+    return shows;
+  }
+
   private async persistCollections(): Promise<void> {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -88,6 +108,40 @@ export class FileStorage implements Storage {
     } catch (e) {
       logger.error('Failed to persist actions', { error: String(e) });
     }
+  }
+
+  private async persistShows(): Promise<void> {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(this.showsFile(), JSON.stringify([...this.shows().values()], null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+  }
+
+  async listShows(includeArchived = false): Promise<ShowRecord[]> {
+    return [...this.shows().values()]
+      .filter((show) => includeArchived || show.archivedAt === null)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async getShow(id: string): Promise<ShowRecord | null> {
+    return this.shows().get(id) ?? null;
+  }
+
+  async saveShow(record: ShowRecord): Promise<ShowRecord> {
+    const saved = { ...record };
+    this.shows().set(saved.id, saved);
+    await this.persistShows();
+    return saved;
+  }
+
+  async archiveShow(id: string, archivedAt: number): Promise<ShowRecord | null> {
+    const show = this.shows().get(id);
+    if (!show) return null;
+    const archived = { ...show, archivedAt, updatedAt: archivedAt };
+    this.shows().set(id, archived);
+    await this.persistShows();
+    return archived;
   }
 
   async listCollections(_tenantId: string): Promise<CollectionMeta[]> {
