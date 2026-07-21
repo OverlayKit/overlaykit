@@ -124,6 +124,14 @@
       "id": "ADR-0007",
       "supersededBy": null,
       "title": "Control feedback separates server truth from delivery acknowledgement"
+    },
+    {
+      "contentHash": "713ff82019273526b5ce0f4cdebce565bc095667654abb01ceab040dae488659",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0008",
+      "supersededBy": null,
+      "title": "Feedback admission binds signed provenance to device authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -258,10 +266,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "ce5cfae2b7db856965caf42bcfad8c747a9fd649e3e76db354e449afb76a9e0a",
-  "profileHash": "19299bcace91fe2b3ec26988f0b01552258ad4726971cc7d2b55e160080db54f",
+  "planHash": "b442afe49d886f85aaf44784b9b31d07b1345cda8a8ee785ede2d6f793ec2c21",
+  "profileHash": "4699c9bbd452cfefbab81a4d1738122eed17379a537465a17b7f588eec9682ca",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.3.0",
+  "profileVersion": "2.4.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -342,16 +350,46 @@
       "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
     },
     {
+      "id": "feedback-authority-is-external",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "Credential audience and feedback scopes come from externally established authority and may never be granted by fields inside the feedback envelope."
+    },
+    {
+      "id": "feedback-envelope-is-canonical",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "Trusted feedback signs a canonical envelope containing its schema version, issuer key, credential audience, sequence, and complete normalized event."
+    },
+    {
       "id": "feedback-failure-needs-later-observation",
       "kind": "rule",
       "sourceDecision": "ADR-0007",
       "statement": "An explicit operation failure remains failed until a strictly later authoritative-server observation recovers the control."
     },
     {
+      "id": "feedback-issuer-is-externally-pinned",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "Feedback admission verifies the signature against an issuer key pinned outside the received envelope."
+    },
+    {
       "id": "feedback-lease-fails-closed",
       "kind": "rule",
       "sourceDecision": "ADR-0007",
       "statement": "A server observation is current for less than three seconds and becomes stale with unknown button state at exactly three seconds."
+    },
+    {
+      "id": "feedback-replay-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "A feedback sequence at or below the last admitted sequence is replay and cannot reach the projector."
+    },
+    {
+      "id": "feedback-scope-is-exact",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "A signed event is admitted only with feedback-read scope for its exact Show, Preview or Program target, and control identifier."
     },
     {
       "id": "feedback-scope-is-server-only",
@@ -376,6 +414,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0003",
       "statement": "Normative governance is the compiled plan derived from accepted immutable decisions, accepted immutable specifications, and the active profile."
+    },
+    {
+      "id": "only-normalized-feedback-is-admitted",
+      "kind": "rule",
+      "sourceDecision": "ADR-0008",
+      "statement": "Only bounded normalized fields covered by the signature may enter the trusted feedback projector; extra fields are discarded."
     },
     {
       "id": "operator-controls-are-declared",

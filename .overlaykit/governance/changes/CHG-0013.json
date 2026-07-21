@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0013",
+  "title": "Test authorized provenance before control feedback admission",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0007",
+    "ADR-0008"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "ADR-0007 assumes that authoritative-server feedback has already crossed a trusted source boundary and leaves provenance authentication unanswered.",
+      "evidence": "ADR-0007 consequences",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0004 requires separate revocable least-privilege device credentials, and US-009 and US-010 require Show-scoped device operation and feedback.",
+      "evidence": "ADR-0004#credentials-are-purpose-scoped and SPEC-0001 US-009/US-010",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current server authenticates only Studio sessions and read-only Output tokens; no device principal or device feedback admission boundary exists.",
+      "evidence": "server/src/auth/types.ts and server/src/handlers/websocket.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-004: A server-signed feedback envelope bound to a pinned issuer key, credential audience, explicit Show/target/control scope, and monotonic sequence can reject substitution and replay before the trusted projector, provided key trust and credential context are established outside the envelope.",
+      "evidence": "SDD-004 hypothesis H-004",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-004 only for pure admission under externally established key and credential authority after signature, substitution, issuer, key, audience, scope, replay, normalization, malformed-input, and bounded-input tests passed; credential lifecycle and network provenance were not inferred.",
+      "evidence": "protocol/tests/control-feedback-authority.test.ts and ADR-0008",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not determine signing algorithm policy, server key generation, pin distribution or rotation, device token issuance or revocation, sequence persistence across reconnects, network transport, clock synchronization, renderer observation, or hardware integration.",
+      "evidence": "SDD-004 Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A canonical feedback envelope binds schema version, issuer key, credential audience, monotonic sequence, and the complete normalized feedback event into deterministic signing bytes.",
+      "verification": "Protocol type checks and signature substitution tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Admission requires a valid signature from the pinned issuer and rejects both another issuer identifier and another signing key.",
+      "verification": "Adversarial asymmetric-signature tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A validly signed envelope is admitted only for the expected credential audience with feedback-read scope and the exact authorized Show, target, and control.",
+      "verification": "Audience and least-privilege scope tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "An envelope at or below the last accepted sequence is rejected before its event reaches the feedback projector.",
+      "verification": "Replay test with an otherwise valid signed envelope."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Unsigned extra event properties are discarded by normalization and cannot enter the trusted projector.",
+      "verification": "Canonical normalization test."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The Slice proves only pure envelope admission under externally established key and credential context and makes no device-token, network, or hardware claim.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0013 records SDD-004 as an accepted security experiment and separates facts, H-004, the reviewed inference, and remaining unknowns.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice adds only canonical envelope admission and focused protocol tests; no credential persistence, route, socket, UI, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0013"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-004 through payload, issuer, key, audience, Show, target, control, scope, replay, and unsigned-property substitution.",
+      "evidence": "protocol/tests/control-feedback-authority.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0008 was created only after the human authority accepted H-004 within the demonstrated pure admission boundary.",
+      "evidence": "ADR-0008 context and Human Doctrine review"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, quality, focused tests, and build suites pass for the final Slice manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build"
+    }
+  ]
+}
