@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0022",
+  "title": "Device WebSocket transport authenticates before upgrade and precedes readiness",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-websocket-admission",
+    "device-native-client-boundary",
+    "device-protocol-negotiation",
+    "device-transport-readiness"
+  ],
+  "context": "Discovery established that a Linux production controller must connect through a dedicated native WebSocket authenticated only by one device Authorization bearer. Invalid, expired, revoked, malformed, missing, duplicated, cookie-backed, or query-backed credential sources must not create a WebSocket or coordinator lease and must share one public 401 shape; exact credential diagnostics remain server-side evidence. A native client may omit Origin, while any request that contains Origin must be rejected as browser-originated. Device protocol compatibility must be explicit and versioned, with the highest mutually supported subprotocol selected. Discovery also separated transport from authority and readiness: 101 may complete while an older connection drains, but the new connection cannot buffer or execute work and must answer not_ready until exclusive authority and later snapshot acknowledgement evidence exist. The existing server authenticates Studio and Output clients only after upgrade and therefore cannot demonstrate this boundary. SDD-018 tested one independently composable noServer DeviceWebSocketGateway without mounting it in the production bootstrap. Raw HTTP and live WebSocket evidence demonstrated pre-upgrade rejection, indistinguishable public credential failures, native-only admission, highest-version negotiation, immutable credential-derived authority capture, 101 while coordinator admission remained unresolved, repeated not_ready responses before and after lease resolution, and fail-closed authentication or coordinator errors. Review corrected a false-positive negotiation test whose helper had duplicated protocol headers and normalized a synchronous or asynchronous transport-close port. The human authority accepted H-018 only within this unmounted gateway boundary.",
+  "decision": "A device WebSocket host adapter must own an exact dedicated path through a noServer WebSocket gateway. Before handleUpgrade, it rejects any Origin header, any cookie or query authority, any request without exactly one syntactically valid Authorization bearer, and any request without a mutually supported versioned device subprotocol. A credential that authenticates as absent, invalid, expired, revoked, or unknown receives the same cache-disabled 401 challenge and cannot reach coordinator admission; adapter infrastructure failure fails closed without upgrading. After successful credential authentication, the gateway captures only immutable credential identifier, generation audience, generation, Show, and expiration authority and selects the highest mutually supported device subprotocol. It may then complete 101 before DeviceConnectionAuthorityCoordinator.connect settles. That 101 proves only an open transport. Every inbound message is rejected immediately as not_ready without parsing, buffering, queueing, or execution until a later readiness component proves the accepted bootstrap contract. This decision accepts the independently composable gateway but does not authorize mounting it in production until lifecycle and natural-disconnect retirement, snapshot and acknowledgement readiness, and command execution boundaries are separately demonstrated.",
+  "consequences": [
+    "Invalid device credentials cannot consume a WebSocket or coordinator lease through this gateway.",
+    "Browser-originated device connections are rejected even when their bearer would otherwise authenticate.",
+    "A client and server select the highest mutually supported overlaykit.device protocol version instead of silently assuming compatibility.",
+    "An open WebSocket is not evidence of exclusive authority, synchronized state, or permission to execute a command.",
+    "Messages received before later readiness evidence are rejected and never become deferred work.",
+    "The existing Studio and Output WebSocket remains unchanged because the accepted gateway is not mounted by this Slice.",
+    "Exact invalid-credential diagnostics, admission timeout and rate limiting, TLS and proxy behavior, lifecycle composition, natural disconnects, snapshots, acknowledgements, retries, deadlines, commands, deltas, close codes, distributed operation and hardware remain later questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-websocket-authenticates-before-upgrade",
+      "statement": "A device request may reach handleUpgrade only after exactly one Authorization bearer authenticates into current credential authority; invalid credential outcomes must share one public 401 shape and must not reach coordinator admission."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-is-native-only",
+      "statement": "A device WebSocket handshake must reject every Origin header and every cookie or query authority source before upgrade."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-negotiates-highest-version",
+      "statement": "A device WebSocket handshake must select the highest mutually supported versioned device subprotocol and reject the request before upgrade when no supported version intersects."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-authority-is-credential-derived",
+      "statement": "Coordinator admission may receive only immutable credential identifier, generation audience, generation, Show, and expiration authority captured from the authenticated credential, never a client-selected Show or Studio or Output identity."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-transport-is-not-readiness",
+      "statement": "Completing 101 establishes transport only and cannot be represented as exclusive connection authority, synchronized device state, command authority, or successful device application."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-pre-ready-work-is-rejected",
+      "statement": "Every message received before later readiness evidence must be rejected as not_ready without parsing, buffering, queueing, or execution."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-admission-claims-are-bounded",
+      "statement": "Passing gateway evidence may not be represented as production mounting, exact credential-failure auditing, admission rate or timeout policy, TLS or proxy certification, lifecycle or natural-disconnect retirement, snapshot or acknowledgement delivery, retries, deadlines, ready command execution, deltas, close-code policy, distributed coordination, Companion integration, renderer or OBS observation, or hardware behavior."
+    }
+  ]
+}
