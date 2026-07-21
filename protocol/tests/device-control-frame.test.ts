@@ -21,14 +21,13 @@ import {
   buildDeviceControlDeltaFrame,
   deviceControlCatalogBytes,
   deviceControlCatalogHash,
-  deviceControlFrameSigningBytes,
+  deviceControlFramePayloadBytes,
   projectDeviceControl,
   reduceDeviceControlFrame,
   type DeviceControlFrame,
   type DeviceControlFrameAuthorityContext,
   type DeviceControlFrameInput,
   type DeviceControlFrameState,
-  type SignedDeviceControlFrameEnvelope,
   type UnsignedDeviceControlFrameEnvelope,
 } from '../src/device-control-frame.js';
 import type { ProductionBus } from '../src/production.js';
@@ -37,7 +36,7 @@ function action(
   componentId: string,
   label = componentId,
   target: ProductionBus = 'preview',
-  showId = 'show-1',
+  showId = 'show-1'
 ): ComponentVisibilityActionDescriptor {
   return {
     actionId: `component.visibility/${target}/${encodeURIComponent(componentId)}`,
@@ -51,7 +50,7 @@ function action(
 
 function catalog(
   actions: ReadonlyArray<ComponentVisibilityActionDescriptor>,
-  showId = 'show-1',
+  showId = 'show-1'
 ): AuthorizedControlActionCatalog {
   return {
     schemaVersion: CONTROL_ACTION_CATALOG_VERSION,
@@ -66,7 +65,7 @@ function observation(
   revision: number,
   observedAt: number,
   target: ProductionBus = 'preview',
-  showId = 'show-1',
+  showId = 'show-1'
 ): AuthoritativeServerObservation {
   return {
     kind: 'server.state.observed',
@@ -83,11 +82,13 @@ function input(
   revision: number,
   confirmedAt: number,
   target: ProductionBus = 'preview',
+  catalogGeneration = 1
 ): DeviceControlFrameInput {
   return {
     showId: 'show-1',
     target,
     revision,
+    catalogGeneration,
     confirmedAt,
     catalog: catalog(actions),
     observations,
@@ -96,7 +97,7 @@ function input(
 
 function unsignedEnvelope(
   frame: DeviceControlFrame,
-  overrides: Partial<UnsignedDeviceControlFrameEnvelope> = {},
+  overrides: Partial<UnsignedDeviceControlFrameEnvelope> = {}
 ): UnsignedDeviceControlFrameEnvelope {
   return {
     schemaVersion: DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,
@@ -108,21 +109,28 @@ function unsignedEnvelope(
   };
 }
 
-function signedEnvelope(
+interface SignedPayload {
+  readonly payloadBytes: Uint8Array;
+  readonly signature: string;
+  readonly unsigned: UnsignedDeviceControlFrameEnvelope;
+}
+
+function signedPayload(
   frame: DeviceControlFrame,
   privateKey: KeyObject,
-  overrides: Partial<UnsignedDeviceControlFrameEnvelope> = {},
-): SignedDeviceControlFrameEnvelope {
+  overrides: Partial<UnsignedDeviceControlFrameEnvelope> = {}
+): SignedPayload {
   const unsigned = unsignedEnvelope(frame, overrides);
+  const payloadBytes = deviceControlFramePayloadBytes(unsigned);
   return {
-    ...unsigned,
-    signature: signBytes(null, deviceControlFrameSigningBytes(unsigned), privateKey)
-      .toString('base64url'),
+    payloadBytes,
+    signature: signBytes(null, payloadBytes, privateKey).toString('base64url'),
+    unsigned,
   };
 }
 
 function authority(
-  overrides: Partial<DeviceControlFrameAuthorityContext> = {},
+  overrides: Partial<DeviceControlFrameAuthorityContext> = {}
 ): DeviceControlFrameAuthorityContext {
   return {
     issuerKeyId: 'server-key-1',
@@ -137,21 +145,27 @@ function authority(
 }
 
 function verifier(publicKey: KeyObject) {
-  return (bytes: Uint8Array, signature: string) => verifyBytes(
-    null,
-    bytes,
-    publicKey,
-    Buffer.from(signature, 'base64url'),
-  );
+  return (bytes: Uint8Array, signature: string) =>
+    verifyBytes(null, bytes, publicKey, Buffer.from(signature, 'base64url'));
+}
+
+function admit(
+  signed: SignedPayload,
+  acceptedAuthority: DeviceControlFrameAuthorityContext,
+  verify: ReturnType<typeof verifier> | (() => boolean)
+) {
+  return admitDeviceControlFrame(signed.payloadBytes, signed.signature, acceptedAuthority, verify);
 }
 
 async function initialState(): Promise<DeviceControlFrameState> {
-  const frame = await buildDeviceControlBootstrapFrame(input(
-    [action('zulu', 'Zulu'), action('alpha', 'Alpha')],
-    [observation('zulu', 'active', 1, 1_000), observation('alpha', 'inactive', 1, 1_000)],
-    1,
-    1_000,
-  ));
+  const frame = await buildDeviceControlBootstrapFrame(
+    input(
+      [action('zulu', 'Zulu'), action('alpha', 'Alpha')],
+      [observation('zulu', 'active', 1, 1_000), observation('alpha', 'inactive', 1, 1_000)],
+      1,
+      1_000
+    )
+  );
   return reduceDeviceControlFrame(null, frame);
 }
 
@@ -162,16 +176,17 @@ describe('device control frames', () => {
       [action('zulu', 'Zulu'), action('alpha', 'Alpha')],
       [observation('zulu', 'active', 3, 1_000), observation('alpha', 'inactive', 3, 1_000)],
       3,
-      1_000,
+      1_000
     );
     const before = structuredClone(source);
     const frame = await buildDeviceControlBootstrapFrame(source);
-    const envelope = signedEnvelope(frame, keys.privateKey);
+    const signed = signedPayload(frame, keys.privateKey);
 
     const admitted = await admitDeviceControlFrame(
-      envelope,
+      signed.payloadBytes,
+      signed.signature,
       authority(),
-      verifier(keys.publicKey),
+      verifier(keys.publicKey)
     );
     const state = await reduceDeviceControlFrame(null, admitted.frame);
 
@@ -185,18 +200,17 @@ describe('device control frames', () => {
       'zulu.visibility',
     ]);
     expect(admitted.acceptedSequence).toBe(1);
-    expect(state.controls.map((entry) => [
-      entry.action.subject.controlId,
-      entry.value,
-    ])).toEqual([
+    expect(state.controls.map((entry) => [entry.action.subject.controlId, entry.value])).toEqual([
       ['alpha.visibility', 'inactive'],
       ['zulu.visibility', 'active'],
     ]);
-    expect(state.catalogHash).toBe(await deviceControlCatalogHash(
-      'show-1',
-      'preview',
-      state.controls.map((entry) => entry.action),
-    ));
+    expect(state.catalogHash).toBe(
+      await deviceControlCatalogHash(
+        'show-1',
+        'preview',
+        state.controls.map((entry) => entry.action)
+      )
+    );
     expect(projectDeviceControl(state, action('alpha').subject, 3_999)).toMatchObject({
       available: true,
       status: 'current',
@@ -210,55 +224,61 @@ describe('device control frames', () => {
       reason: 'confirmation-timeout',
     });
 
-    const tampered: SignedDeviceControlFrameEnvelope = {
-      ...envelope,
+    const tamperedPayload = deviceControlFramePayloadBytes({
+      ...signed.unsigned,
       frame: {
-        ...envelope.frame,
-        observations: envelope.frame.observations.map((item) => (
-          item.subject.controlId === 'alpha.visibility'
-            ? { ...item, value: 'active' }
-            : item
-        )),
+        ...signed.unsigned.frame,
+        observations: signed.unsigned.frame.observations.map((item) =>
+          item.subject.controlId === 'alpha.visibility' ? { ...item, value: 'active' } : item
+        ),
       },
-    };
-    await expect(admitDeviceControlFrame(
-      tampered,
-      authority(),
-      verifier(keys.publicKey),
-    )).rejects.toMatchObject({ code: 'INVALID_SIGNATURE' });
+    });
+    await expect(
+      admitDeviceControlFrame(
+        tamperedPayload,
+        signed.signature,
+        authority(),
+        verifier(keys.publicKey)
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_SIGNATURE' });
   });
 
   it('emits only changed values and renews unchanged controls with a lease-only delta', async () => {
     const state = await initialState();
-    const changed = await buildDeviceControlDeltaFrame(state, input(
-      [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
-      [observation('alpha', 'active', 2, 1_500), observation('zulu', 'active', 2, 1_500)],
-      2,
-      1_500,
-    ));
+    const changed = await buildDeviceControlDeltaFrame(
+      state,
+      input(
+        [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
+        [observation('alpha', 'active', 2, 1_500), observation('zulu', 'active', 2, 1_500)],
+        2,
+        1_500
+      )
+    );
 
     expect(changed.addedActions).toEqual([]);
     expect(changed.removedControlIds).toEqual([]);
-    expect(changed.observations.map((item) => [
-      item.subject.controlId,
-      item.value,
-    ])).toEqual([['alpha.visibility', 'active']]);
+    expect(changed.observations.map((item) => [item.subject.controlId, item.value])).toEqual([
+      ['alpha.visibility', 'active'],
+    ]);
     const changedState = await reduceDeviceControlFrame(state, changed);
-    const zuluBeforeLease = changedState.controls.find((entry) => (
-      entry.action.subject.controlId === 'zulu.visibility'
-    ));
+    const zuluBeforeLease = changedState.controls.find(
+      (entry) => entry.action.subject.controlId === 'zulu.visibility'
+    );
     expect(zuluBeforeLease).toMatchObject({
       value: 'active',
       valueRevision: 1,
       valueObservedAt: 1_000,
     });
 
-    const lease = await buildDeviceControlDeltaFrame(changedState, input(
-      [action('zulu', 'Zulu'), action('alpha', 'Alpha')],
-      [observation('zulu', 'active', 2, 3_500), observation('alpha', 'active', 2, 3_500)],
-      2,
-      3_500,
-    ));
+    const lease = await buildDeviceControlDeltaFrame(
+      changedState,
+      input(
+        [action('zulu', 'Zulu'), action('alpha', 'Alpha')],
+        [observation('zulu', 'active', 2, 3_500), observation('alpha', 'active', 2, 3_500)],
+        2,
+        3_500
+      )
+    );
     expect(lease.addedActions).toEqual([]);
     expect(lease.removedControlIds).toEqual([]);
     expect(lease.observations).toEqual([]);
@@ -276,14 +296,56 @@ describe('device control frames', () => {
     });
   });
 
+  it('advances a shared catalog generation without inventing a target-local change', async () => {
+    const state = await initialState();
+    const generationOnly = await buildDeviceControlDeltaFrame(
+      state,
+      input(
+        [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
+        [observation('alpha', 'inactive', 1, 1_500), observation('zulu', 'active', 1, 1_500)],
+        1,
+        1_500,
+        'preview',
+        2
+      )
+    );
+    expect(generationOnly).toMatchObject({
+      catalogGeneration: 2,
+      addedActions: [],
+      removedControlIds: [],
+      observations: [],
+    });
+    const advanced = await reduceDeviceControlFrame(state, generationOnly);
+    expect(advanced.catalogGeneration).toBe(2);
+
+    await expect(
+      buildDeviceControlDeltaFrame(
+        advanced,
+        input(
+          [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
+          [observation('alpha', 'inactive', 1, 2_000), observation('zulu', 'active', 1, 2_000)],
+          1,
+          2_000,
+          'preview',
+          1
+        )
+      )
+    ).rejects.toMatchObject({ code: 'OUT_OF_ORDER_FRAME' });
+  });
+
   it('atomically removes unavailable controls and adds controls with initial state', async () => {
     const state = await initialState();
-    const delta = await buildDeviceControlDeltaFrame(state, input(
-      [action('alpha', 'Alpha'), action('beta', 'Beta')],
-      [observation('alpha', 'inactive', 2, 2_000), observation('beta', 'active', 2, 2_000)],
-      2,
-      2_000,
-    ));
+    const delta = await buildDeviceControlDeltaFrame(
+      state,
+      input(
+        [action('alpha', 'Alpha'), action('beta', 'Beta')],
+        [observation('alpha', 'inactive', 2, 2_000), observation('beta', 'active', 2, 2_000)],
+        2,
+        2_000,
+        'preview',
+        2
+      )
+    );
 
     expect(delta.removedControlIds).toEqual(['zulu.visibility']);
     expect(delta.addedActions.map((item) => item.subject.controlId)).toEqual(['beta.visibility']);
@@ -307,21 +369,28 @@ describe('device control frames', () => {
     });
 
     const before = structuredClone(state);
-    await expect(reduceDeviceControlFrame(state, {
-      ...delta,
-      catalogHash: '0'.repeat(64),
-    })).rejects.toMatchObject({ code: 'CATALOG_HASH_MISMATCH' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...delta,
+        catalogHash: '0'.repeat(64),
+      })
+    ).rejects.toMatchObject({ code: 'CATALOG_HASH_MISMATCH' });
     expect(state).toEqual(before);
   });
 
   it('represents descriptor replacement as one remove-plus-add with fresh state', async () => {
     const state = await initialState();
-    const delta = await buildDeviceControlDeltaFrame(state, input(
-      [action('alpha', 'Renamed alpha'), action('zulu', 'Zulu')],
-      [observation('alpha', 'inactive', 2, 2_000), observation('zulu', 'active', 2, 2_000)],
-      2,
-      2_000,
-    ));
+    const delta = await buildDeviceControlDeltaFrame(
+      state,
+      input(
+        [action('alpha', 'Renamed alpha'), action('zulu', 'Zulu')],
+        [observation('alpha', 'inactive', 2, 2_000), observation('zulu', 'active', 2, 2_000)],
+        2,
+        2_000,
+        'preview',
+        2
+      )
+    );
 
     expect(delta.removedControlIds).toEqual(['alpha.visibility']);
     expect(delta.addedActions).toHaveLength(1);
@@ -339,38 +408,40 @@ describe('device control frames', () => {
     const forward = [action('Alpha'), action('alpha'), action('zulu')];
     const reverse = [...forward].reverse();
     expect(await deviceControlCatalogHash('show-1', 'preview', forward)).toBe(
-      await deviceControlCatalogHash('show-1', 'preview', reverse),
+      await deviceControlCatalogHash('show-1', 'preview', reverse)
     );
     const catalogBytes = Buffer.from(deviceControlCatalogBytes('show-1', 'preview', forward));
-    expect(catalogBytes).toEqual(Buffer.from(
-      deviceControlCatalogBytes('show-1', 'preview', reverse),
-    ));
+    expect(catalogBytes).toEqual(
+      Buffer.from(deviceControlCatalogBytes('show-1', 'preview', reverse))
+    );
     expect(JSON.parse(catalogBytes.toString())).toMatchObject({
       schemaVersion: DEVICE_CONTROL_CATALOG_VERSION,
       showId: 'show-1',
       target: 'preview',
     });
     expect(await deviceControlCatalogHash('show-1', 'preview', forward)).toBe(
-      createHash('sha256').update(catalogBytes).digest('hex'),
+      createHash('sha256').update(catalogBytes).digest('hex')
     );
 
-    const frame = await buildDeviceControlBootstrapFrame(input(
-      reverse,
-      [
-        observation('zulu', 'active', 1, 1_000),
-        observation('alpha', 'active', 1, 1_000),
-        observation('Alpha', 'inactive', 1, 1_000),
-      ],
-      1,
-      1_000,
-    ));
+    const frame = await buildDeviceControlBootstrapFrame(
+      input(
+        reverse,
+        [
+          observation('zulu', 'active', 1, 1_000),
+          observation('alpha', 'active', 1, 1_000),
+          observation('Alpha', 'inactive', 1, 1_000),
+        ],
+        1,
+        1_000
+      )
+    );
     const reordered: DeviceControlFrame = {
       ...frame,
       addedActions: [...frame.addedActions].reverse(),
       observations: [...frame.observations].reverse(),
     };
-    expect(Buffer.from(deviceControlFrameSigningBytes(unsignedEnvelope(frame)))).toEqual(
-      Buffer.from(deviceControlFrameSigningBytes(unsignedEnvelope(reordered))),
+    expect(Buffer.from(deviceControlFramePayloadBytes(unsignedEnvelope(frame)))).toEqual(
+      Buffer.from(deviceControlFramePayloadBytes(unsignedEnvelope(reordered)))
     );
     expect(frame.addedActions.map((item) => item.subject.controlId)).toEqual([
       'Alpha.visibility',
@@ -380,152 +451,170 @@ describe('device control frames', () => {
   });
 
   it('rejects incomplete, malformed, duplicate, and oversized bootstrap input', async () => {
-    await expect(buildDeviceControlBootstrapFrame(input(
-      [action('alpha'), action('zulu')],
-      [observation('alpha', 'active', 1, 1_000)],
-      1,
-      1_000,
-    ))).rejects.toMatchObject({ code: 'INVALID_OBSERVATION' });
+    await expect(
+      buildDeviceControlBootstrapFrame(
+        input(
+          [action('alpha'), action('zulu')],
+          [observation('alpha', 'active', 1, 1_000)],
+          1,
+          1_000
+        )
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_OBSERVATION' });
 
-    await expect(buildDeviceControlBootstrapFrame(input(
-      [action('alpha')],
-      [observation('alpha', 'active', 2, 1_000)],
-      1,
-      1_000,
-    ))).rejects.toMatchObject({ code: 'INVALID_OBSERVATION' });
+    await expect(
+      buildDeviceControlBootstrapFrame(
+        input([action('alpha')], [observation('alpha', 'active', 2, 1_000)], 1, 1_000)
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_OBSERVATION' });
 
-    await expect(buildDeviceControlBootstrapFrame(input(
-      [action('alpha'), action('alpha')],
-      [observation('alpha', 'active', 1, 1_000)],
-      1,
-      1_000,
-    ))).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
+    await expect(
+      buildDeviceControlBootstrapFrame(
+        input(
+          [action('alpha'), action('alpha')],
+          [observation('alpha', 'active', 1, 1_000)],
+          1,
+          1_000
+        )
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
 
     const tooMany = Array.from({ length: 1_001 }, (_value, index) => action(`item-${index}`));
-    await expect(buildDeviceControlBootstrapFrame(input(
-      tooMany,
-      [],
-      1,
-      1_000,
-    ))).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
+    await expect(
+      buildDeviceControlBootstrapFrame(input(tooMany, [], 1, 1_000))
+    ).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
 
     const malformed = action('alpha') as ComponentVisibilityActionDescriptor & {
       actionId: string;
     };
     malformed.actionId = 'attacker/action';
-    await expect(buildDeviceControlBootstrapFrame(input(
-      [malformed],
-      [observation('alpha', 'active', 1, 1_000)],
-      1,
-      1_000,
-    ))).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
+    await expect(
+      buildDeviceControlBootstrapFrame(
+        input([malformed], [observation('alpha', 'active', 1, 1_000)], 1, 1_000)
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_CATALOG' });
   });
 
   it('fails closed for unsupported state transitions without partial mutation', async () => {
     const state = await initialState();
     const before = structuredClone(state);
-    await expect(buildDeviceControlDeltaFrame(state, input(
-      [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
-      [observation('alpha', 'active', 1, 1_500), observation('zulu', 'active', 1, 1_500)],
-      1,
-      1_500,
-    ))).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
-    const lease = await buildDeviceControlDeltaFrame(state, input(
-      [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
-      [observation('alpha', 'inactive', 1, 1_500), observation('zulu', 'active', 1, 1_500)],
-      1,
-      1_500,
-    ));
+    await expect(
+      buildDeviceControlDeltaFrame(
+        state,
+        input(
+          [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
+          [observation('alpha', 'active', 1, 1_500), observation('zulu', 'active', 1, 1_500)],
+          1,
+          1_500
+        )
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    const lease = await buildDeviceControlDeltaFrame(
+      state,
+      input(
+        [action('alpha', 'Alpha'), action('zulu', 'Zulu')],
+        [observation('alpha', 'inactive', 1, 1_500), observation('zulu', 'active', 1, 1_500)],
+        1,
+        1_500
+      )
+    );
 
     await expect(reduceDeviceControlFrame(null, lease)).rejects.toMatchObject({
       code: 'INVALID_TRANSITION',
     });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      mode: 'bootstrap',
-    })).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      revision: 0,
-      confirmedAt: 999,
-    })).rejects.toMatchObject({ code: 'OUT_OF_ORDER_FRAME' });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      removedControlIds: ['missing.visibility'],
-    })).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      observations: [observation('alpha', 'active', 1, 1_500)],
-    })).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      revision: 2,
-      observations: [observation('missing', 'active', 2, 1_500)],
-    })).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
-    await expect(reduceDeviceControlFrame(state, {
-      ...lease,
-      revision: 2,
-      addedActions: [action('beta')],
-      observations: [],
-    })).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        mode: 'bootstrap',
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        revision: 0,
+        confirmedAt: 999,
+      })
+    ).rejects.toMatchObject({ code: 'OUT_OF_ORDER_FRAME' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        removedControlIds: ['missing.visibility'],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        observations: [observation('alpha', 'active', 1, 1_500)],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        revision: 2,
+        observations: [observation('missing', 'active', 2, 1_500)],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+    await expect(
+      reduceDeviceControlFrame(state, {
+        ...lease,
+        revision: 2,
+        addedActions: [action('beta')],
+        observations: [],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
     expect(state).toEqual(before);
   });
 
   it('fails admission for untrusted, unauthorized, replayed, or invalid frames', async () => {
     const keys = generateKeyPairSync('ed25519');
-    const frame = await buildDeviceControlBootstrapFrame(input(
-      [action('alpha')],
-      [observation('alpha', 'active', 1, 1_000)],
-      1,
-      1_000,
-    ));
+    const frame = await buildDeviceControlBootstrapFrame(
+      input([action('alpha')], [observation('alpha', 'active', 1, 1_000)], 1, 1_000)
+    );
     const verify = verifier(keys.publicKey);
 
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey, { issuerKeyId: 'other-key' }),
-      authority(),
-      verify,
-    )).rejects.toMatchObject({ code: 'UNTRUSTED_ISSUER' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey, { audienceCredentialId: 'device-2.g1' }),
-      authority(),
-      verify,
-    )).rejects.toMatchObject({ code: 'AUDIENCE_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ scopes: ['component.visibility:write'] }),
-      verify,
-    )).rejects.toMatchObject({ code: 'SCOPE_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ scopes: ['feedback:read'] }),
-      verify,
-    )).rejects.toMatchObject({ code: 'SCOPE_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ showId: 'show-2' }),
-      verify,
-    )).rejects.toMatchObject({ code: 'SHOW_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ targets: ['program'] }),
-      verify,
-    )).rejects.toMatchObject({ code: 'TARGET_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ controlIds: ['zulu.visibility'] }),
-      verify,
-    )).rejects.toMatchObject({ code: 'CONTROL_FORBIDDEN' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority({ lastAcceptedSequence: 1 }),
-      verify,
-    )).rejects.toMatchObject({ code: 'FRAME_REPLAYED' });
-    await expect(admitDeviceControlFrame(
-      signedEnvelope(frame, keys.privateKey),
-      authority(),
-      () => false,
-    )).rejects.toMatchObject({ code: 'INVALID_SIGNATURE' });
+    await expect(
+      admit(
+        signedPayload(frame, keys.privateKey, { issuerKeyId: 'other-key' }),
+        authority(),
+        verify
+      )
+    ).rejects.toMatchObject({ code: 'UNTRUSTED_ISSUER' });
+    await expect(
+      admit(
+        signedPayload(frame, keys.privateKey, { audienceCredentialId: 'device-2.g1' }),
+        authority(),
+        verify
+      )
+    ).rejects.toMatchObject({ code: 'AUDIENCE_FORBIDDEN' });
+    await expect(
+      admit(
+        signedPayload(frame, keys.privateKey),
+        authority({ scopes: ['component.visibility:write'] }),
+        verify
+      )
+    ).rejects.toMatchObject({ code: 'SCOPE_FORBIDDEN' });
+    await expect(
+      admit(signedPayload(frame, keys.privateKey), authority({ scopes: ['feedback:read'] }), verify)
+    ).rejects.toMatchObject({ code: 'SCOPE_FORBIDDEN' });
+    await expect(
+      admit(signedPayload(frame, keys.privateKey), authority({ showId: 'show-2' }), verify)
+    ).rejects.toMatchObject({ code: 'SHOW_FORBIDDEN' });
+    await expect(
+      admit(signedPayload(frame, keys.privateKey), authority({ targets: ['program'] }), verify)
+    ).rejects.toMatchObject({ code: 'TARGET_FORBIDDEN' });
+    await expect(
+      admit(
+        signedPayload(frame, keys.privateKey),
+        authority({ controlIds: ['zulu.visibility'] }),
+        verify
+      )
+    ).rejects.toMatchObject({ code: 'CONTROL_FORBIDDEN' });
+    await expect(
+      admit(signedPayload(frame, keys.privateKey), authority({ lastAcceptedSequence: 1 }), verify)
+    ).rejects.toMatchObject({ code: 'FRAME_REPLAYED' });
+    await expect(
+      admit(signedPayload(frame, keys.privateKey), authority(), () => false)
+    ).rejects.toMatchObject({ code: 'INVALID_SIGNATURE' });
   });
 
   it('filters the complete authorized catalog to one exact frame target', async () => {
@@ -533,6 +622,7 @@ describe('device control frames', () => {
       showId: 'show-1',
       target: 'preview',
       revision: 1,
+      catalogGeneration: 1,
       confirmedAt: 1_000,
       catalog: catalog([
         action('preview-control', 'Preview', 'preview'),
@@ -557,20 +647,19 @@ describe('device control frames', () => {
 
   it('rejects a signature over another catalog hash even when the frame is otherwise valid', async () => {
     const keys = generateKeyPairSync('ed25519');
-    const frame = await buildDeviceControlBootstrapFrame(input(
-      [action('alpha')],
-      [observation('alpha', 'active', 1, 1_000)],
-      1,
-      1_000,
-    ));
+    const frame = await buildDeviceControlBootstrapFrame(
+      input([action('alpha')], [observation('alpha', 'active', 1, 1_000)], 1, 1_000)
+    );
     const wrongHashFrame: DeviceControlFrame = {
       ...frame,
       catalogHash: 'f'.repeat(64),
     };
+    const signed = signedPayload(wrongHashFrame, keys.privateKey);
     const admitted = await admitDeviceControlFrame(
-      signedEnvelope(wrongHashFrame, keys.privateKey),
+      signed.payloadBytes,
+      signed.signature,
       authority(),
-      verifier(keys.publicKey),
+      verifier(keys.publicKey)
     );
     await expect(reduceDeviceControlFrame(null, admitted.frame)).rejects.toMatchObject({
       code: 'CATALOG_HASH_MISMATCH',
@@ -579,7 +668,23 @@ describe('device control frames', () => {
 
   it('uses explicit schema versions for frames and envelopes', async () => {
     const frame = await buildDeviceControlBootstrapFrame(input([], [], 0, 1_000));
-    expect(frame.schemaVersion).toBe(DEVICE_CONTROL_FRAME_VERSION);
-    expect(unsignedEnvelope(frame).schemaVersion).toBe(DEVICE_CONTROL_FRAME_ENVELOPE_VERSION);
+    expect(frame.schemaVersion).toBe('overlaykit-device-control-frame/v2');
+    expect(frame.catalogGeneration).toBe(1);
+    expect(unsignedEnvelope(frame).schemaVersion).toBe(
+      'overlaykit-device-control-frame-envelope/v2'
+    );
+    expect(DEVICE_CONTROL_FRAME_VERSION).toBe(frame.schemaVersion);
+    expect(DEVICE_CONTROL_FRAME_ENVELOPE_VERSION).toBe(unsignedEnvelope(frame).schemaVersion);
+  });
+
+  it('rejects non-canonical payload bytes even when their signature is valid', async () => {
+    const keys = generateKeyPairSync('ed25519');
+    const frame = await buildDeviceControlBootstrapFrame(input([], [], 0, 1_000));
+    const nonCanonical = new TextEncoder().encode(JSON.stringify(unsignedEnvelope(frame), null, 2));
+    const signature = signBytes(null, nonCanonical, keys.privateKey).toString('base64url');
+
+    await expect(
+      admitDeviceControlFrame(nonCanonical, signature, authority(), verifier(keys.publicKey))
+    ).rejects.toMatchObject({ code: 'INVALID_ENVELOPE' });
   });
 });

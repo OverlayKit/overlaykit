@@ -2,9 +2,11 @@ import type {
   AuthorizedControlActionCatalog,
   ControlActionInventory,
 } from '@overlaykit/protocol/control-action-catalog' with { 'resolution-mode': 'import' };
-import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential' with { 'resolution-mode': 'import' };
+import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential' with {
+  'resolution-mode': 'import',
+};
 import type { ElementNode } from '../types/element';
-import type { ProductionBus } from '../types/production';
+import type { ProductionBus, ProductionState } from '../types/production';
 import type { ProductionService } from './ProductionService';
 
 const MAX_CATALOG_LABEL_LENGTH = 160;
@@ -17,7 +19,7 @@ type ControlActionCatalogProtocolModule = typeof import(
 
 export type DeviceActionCatalogProjector = (
   inventory: ControlActionInventory,
-  authority: DeviceCredentialAuthority,
+  authority: DeviceCredentialAuthority
 ) => AuthorizedControlActionCatalog;
 
 export interface DeviceActionCatalogRuntime {
@@ -41,19 +43,13 @@ function boundedLabel(value: string): string {
 }
 
 function componentLabel(element: ElementNode): string {
-  const declared = [
-    element.attributes?.['aria-label'],
-    element.attributes?.['data-label'],
-  ]
+  const declared = [element.attributes?.['aria-label'], element.attributes?.['data-label']]
     .filter((value): value is string => typeof value === 'string')
     .map(boundedLabel)
     .find(Boolean);
   if (declared) return declared;
 
-  const className = element.attributes?.class
-    ?.split(/\s+/)
-    .map(boundedLabel)
-    .find(Boolean);
+  const className = element.attributes?.class?.split(/\s+/).map(boundedLabel).find(Boolean);
   if (className) return className;
 
   const content = boundedLabel(element.content ?? '');
@@ -64,7 +60,7 @@ function componentLabel(element: ElementNode): string {
 function appendCapabilities(
   capabilities: ControlActionInventory['capabilities'][number][],
   target: ProductionBus,
-  elements: readonly ElementNode[],
+  elements: readonly ElementNode[]
 ): void {
   const pending = [...elements].reverse();
   while (pending.length > 0) {
@@ -84,17 +80,23 @@ function appendCapabilities(
 
 export function buildDeviceActionInventory(
   production: ProductionService,
-  showId: string,
+  showId: string
+): ControlActionInventory {
+  return buildDeviceActionInventoryFromState(production.getState(showId));
+}
+
+export function buildDeviceActionInventoryFromState(
+  state: ProductionState
 ): ControlActionInventory {
   const capabilities: ControlActionInventory['capabilities'][number][] = [];
   for (const target of ['preview', 'program'] as const) {
-    appendCapabilities(capabilities, target, production.getSnapshot(showId, target).elements);
+    appendCapabilities(capabilities, target, state[target].elements);
   }
-  return { showId, capabilities };
+  return { showId: state.showId, capabilities };
 }
 
 export async function createDeviceActionCatalogRuntime(
-  options: DeviceActionCatalogRuntimeOptions = {},
+  options: DeviceActionCatalogRuntimeOptions = {}
 ): Promise<DeviceActionCatalogRuntime> {
   const protocol = await (options.loadProtocol ?? loadControlActionCatalogProtocol)();
   return {

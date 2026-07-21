@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "audienceCredentialId", "generation", "catalogHash"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "audienceCredentialId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "catalogHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

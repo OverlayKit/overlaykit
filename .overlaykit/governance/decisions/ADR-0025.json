@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0025",
+  "title": "Device bootstrap payloads require atomic current signed issuance",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-bootstrap-frame-v2",
+    "device-bootstrap-issuance",
+    "device-catalog-generation",
+    "device-bootstrap-freshness"
+  ],
+  "context": "ADR-0020 established target-complete signed bootstrap frames and catalog-relative deltas, but its unpublished version-one contract did not carry a durable catalog generation and no accepted server component constructed its bootstrap payload from ProductionService. ADR-0023 accepted an isolated readiness coordinator over opaque snapshot bytes and explicitly left real construction, detached signing, durable sequence reservation, and snapshot currency unanswered. ADR-0024 then established one observable durable sequence authority shared by issuer and audience. Discovery for SDD-021 required an immediate complete snapshot for every authorized target, including a valid revision-zero empty snapshot, from one atomic ProductionState cut. The human authority required one durable positive catalog generation keyed by the full audience credential and shared across Preview and Program, immediate in-memory invalidation, persistence before emission, ABA advancement, audience-local failure and recovery, and exclusive canonical file authority. Snapshot construction had to confirm catalog durability, then reserve a durable sequence, then construct canonical payload bytes and sign those exact bytes separately. A target change had to invalidate only that target, while catalog or signing-key changes invalidate all affected targets. Freshness had to be rechecked before transport, at acknowledgement, and before readiness, and capture evidence could remain valid for at most three seconds. SDD-021 replaced the unpublished frame v1 with v2, introduced one production-unmounted issuer and catalog-generation store, and strengthened readiness with synchronous freshness evidence. Refutation found a catalog mutation during persistence could stale the pending generation before sequence reservation; issuance was changed to recapture current truth and retry without consuming a sequence. It also showed signer rotation cannot share one numeric connection-local comparison because sequences are scoped by immutable issuer key and audience; readiness therefore tracks monotonicity independently per issuer key. Hostile tests demonstrated one-cut projection, empty targets, exact detached signing, ABA progression, persistence order, second-process exclusion, audience-local failure recovery, sequence burning, mutation and signing failure, race coalescence, target-local and shared invalidation, three-boundary freshness, installed package admission, and compiled CommonJS-to-ESM execution. The dependency audit exposed vulnerable fast-uri 3.1.3 through AJV; the accepted tree pins the corrected 3.1.4 and audits with zero known vulnerabilities. The human authority accepted H-021 only within this unmounted issuer boundary.",
+  "decision": "DeviceControlFrame version two is the only supported unpublished device frame contract. A frame payload must include one positive catalogGeneration, be normalized to canonical JSON bytes, and be transmitted with a detached signature over exactly those immutable bytes; admission rejects malformed UTF-8, non-canonical bytes, invalid signatures, authority mismatch, catalog mismatch, and sequence or generation regression. A bootstrap issuer must capture ProductionState exactly once per attempt and derive both the complete authorized target snapshot and the full effective audience catalog observation from that same cut. An authorized empty target is represented by a complete revision-zero snapshot and may satisfy readiness after current applied acknowledgement. confirmedAt records capture time and must not precede target updatedAt. One catalog-generation authority is keyed by full audience credential and shared across its Preview and Program targets. Every observed effective catalog change, including ABA, advances a positive generation immediately in memory, invalidates prior tokens, and blocks issuance until the current generation is persisted by private temporary-file write and sync, atomic replacement, and directory sync when supported. A second cooperating authority for the canonical generation file fails closed. Unsupported directory synchronization degrades observably to process_restart_resilient; other persistence uncertainty blocks only the affected audience. Reconfirming the same current pending token retries persistence and restores that audience only after durability succeeds; an older generation can never become current again. Issuance order is current catalog confirmation, shared durable issuer-audience sequence reservation, canonical payload construction, and detached signing. Catalog churn before sequence reservation recaptures latest truth without charging a target retry or consuming a sequence. Every successfully returned sequence is consumed forever after later construction, signing, freshness, transport, or acknowledgement failure. Signer output cannot mutate the payload. Snapshot freshness binds target revision, capture time, immutable issuer key, and current durable catalog token. The host must synchronously reject or invalidate stale evidence immediately before send, while admitting an acknowledgement, and before granting readiness. Target revision changes invalidate only that target without retry charge; catalog or signer changes invalidate all affected targets. Snapshot age reaches stale at three seconds. Sequence monotonicity is evaluated per issuer-key and audience lane, so a rotated issuer key begins an independent lane and invalidates snapshots from the prior signer. This decision accepts only the public v2 contract, file catalog-generation authority, production-unmounted issuer, and freshness-aware isolated coordinator. Production mounting requires separate evidence that every committed production mutation observes catalog state and that gateway lifecycle, permission closure, network framing, key trust, commands, deltas, and device behavior preserve these contracts.",
+  "consequences": [
+    "A bootstrap payload can no longer combine target state and catalog authority read from different ProductionState cuts.",
+    "Preview and Program share one catalog generation for a credential audience even though target revision changes remain target-local.",
+    "Catalog ABA changes cannot make older signed bytes current again because every observed effective change advances the durable generation.",
+    "No sequence reaches a payload until catalog authority is durable, and no signed or otherwise failed reserved sequence may be reused.",
+    "Readiness cannot be granted from a snapshot that becomes stale before send, before acknowledgement admission, or before the final authority transition.",
+    "A valid empty authorized target has explicit complete state rather than being omitted or treated as unavailable.",
+    "A persistence failure blocks the affected audience while independent audience stores remain available, and recovery requires durability of the current pending generation.",
+    "Rotating the signing key invalidates prior snapshot evidence and establishes a distinct monotonic sequence lane.",
+    "The catalog authority inherits the accepted observable durability degradation and orphan-marker availability limits of the cooperative file-authority pattern.",
+    "The accepted evidence does not prove production mounting, complete mutation observation, key distribution trust, physical media behavior, network delivery, hardware application, rendered pixels, OBS output, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-v2-signs-exact-canonical-payload",
+      "statement": "A device bootstrap frame must use version two, carry a positive catalog generation inside canonical payload bytes, and admit only a detached signature over those exact immutable bytes."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-issuance-uses-one-production-cut",
+      "statement": "One issuance attempt must read ProductionState exactly once and derive its complete target snapshot and effective authorized catalog observation from that same cut."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-generation-is-durable-and-audience-wide",
+      "statement": "One full audience credential shares a positive catalog generation across Preview and Program; every effective catalog change including ABA invalidates prior generations immediately and emission remains blocked until the current generation is durably committed."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-generation-failure-is-audience-local",
+      "statement": "Unexpected catalog persistence uncertainty must block the affected audience without lowering its guarantee or reusing an old generation, while recovery may occur only after the current pending generation is successfully persisted."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-sequence-precedes-signature-and-is-consumed",
+      "statement": "After current catalog persistence, issuance must reserve from the shared durable issuer-audience sequence lane before payload construction and signing, and every returned sequence remains consumed after any later outcome."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-freshness-is-checked-at-every-authority-boundary",
+      "statement": "Snapshot currency must be checked synchronously immediately before transport, during acknowledgement admission, and before readiness grant against target revision, current durable catalog generation, immutable signer, and the three-second capture-age limit."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-invalidation-follows-authority-scope",
+      "statement": "A target revision change invalidates only that target without consuming a retry, while a shared catalog or signing-key change invalidates all affected target evidence and requires fresh issuance."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-empty-target-is-complete",
+      "statement": "An authorized target with no current scene or components must be represented as a valid complete revision-zero snapshot and may satisfy readiness through the ordinary current applied acknowledgement."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-issuer-claims-are-bounded",
+      "statement": "Passing issuer evidence may not be represented as production mounting, proof that all mutations are observed, automatic orphan-marker recovery, signing-key distribution or certification, permission-change lifecycle closure, certified network delivery, command or delta authority, Companion integration, renderer or OBS observation, physical device state, or operator perception."
+    }
+  ]
+}

@@ -42,13 +42,13 @@ beforeAll(async () => {
   const { stdout } = await execFileAsync(
     'npm',
     ['pack', '--json', '--silent', '--pack-destination', temporaryDirectory],
-    { cwd: protocolRoot },
+    { cwd: protocolRoot }
   );
   [packed] = JSON.parse(stdout) as PackResult[];
   await writeFile(
     path.join(temporaryDirectory, 'package.json'),
     JSON.stringify({ private: true }),
-    'utf8',
+    'utf8'
   );
   await execFileAsync(
     'npm',
@@ -60,7 +60,7 @@ beforeAll(async () => {
       '--no-fund',
       path.join(temporaryDirectory, packed.filename),
     ],
-    { cwd: temporaryDirectory },
+    { cwd: temporaryDirectory }
   );
   consumerDirectory = temporaryDirectory;
 }, 30_000);
@@ -80,10 +80,12 @@ describe('published protocol package', () => {
     expect(paths).toContain('NOTICE');
     expect(paths).toContain('README.md');
 
-    const manifest = JSON.parse(await readFile(
-      path.join(consumerDirectory, 'node_modules/@overlaykit/protocol/package.json'),
-      'utf8',
-    )) as {
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(consumerDirectory, 'node_modules/@overlaykit/protocol/package.json'),
+        'utf8'
+      )
+    ) as {
       bugs: { url: string };
       author: { name: string; url: string };
       engines: { node: string };
@@ -136,14 +138,15 @@ describe('published protocol package', () => {
     const specifiers = PUBLIC_SUBPATHS.map((subpath) => `@overlaykit/protocol${subpath}`);
     const runtime = [
       `for (const specifier of ${JSON.stringify(specifiers)}) await import(specifier);`,
+      "const { generateKeyPairSync, sign, verify } = await import('node:crypto');",
       "const { DeviceCredentialLifecycle, MemoryDeviceCredentialStore } = await import('@overlaykit/protocol/device-credential');",
       'const lifecycle = new DeviceCredentialLifecycle(new MemoryDeviceCredentialStore(), {',
       '  now: () => 1000,',
       "  generateCredentialId: () => 'device-1',",
       "  generateSecret: () => 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG',",
       '  secretCodec: {',
-      "    seal: (token) => `sealed:${token}` ,",
-      "    matches: (token, sealed) => sealed === `sealed:${token}` ,",
+      '    seal: (token) => `sealed:${token}` ,',
+      '    matches: (token, sealed) => sealed === `sealed:${token}` ,',
       '  },',
       '});',
       'const issued = await lifecycle.issue(',
@@ -172,15 +175,32 @@ describe('published protocol package', () => {
       '  1001,',
       ');',
       "if (feedback.observations[0]?.value !== 'active' || feedback.observations[0]?.revision !== 3) process.exit(1);",
-      "const { buildDeviceControlBootstrapFrame, reduceDeviceControlFrame, projectDeviceControl } = await import('@overlaykit/protocol/device-control-frame');",
+      "const { DEVICE_CONTROL_FRAME_ENVELOPE_VERSION, admitDeviceControlFrame, buildDeviceControlBootstrapFrame, deviceControlFramePayloadBytes, reduceDeviceControlFrame, projectDeviceControl } = await import('@overlaykit/protocol/device-control-frame');",
       'const frame = await buildDeviceControlBootstrapFrame({',
       "  showId: 'show-1',",
       "  target: 'program',",
       '  revision: 3,',
+      '  catalogGeneration: 1,',
       '  confirmedAt: 1001,',
       '  catalog,',
       '  observations: feedback.observations,',
       '});',
+      "const keys = generateKeyPairSync('ed25519');",
+      'const payloadBytes = deviceControlFramePayloadBytes({',
+      '  schemaVersion: DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,',
+      "  issuerKeyId: 'server-key-1',",
+      '  audienceCredentialId: authenticated.audienceCredentialId,',
+      '  sequence: 1,',
+      '  frame,',
+      '});',
+      "const signature = sign(null, payloadBytes, keys.privateKey).toString('base64url');",
+      'const admitted = await admitDeviceControlFrame(',
+      '  payloadBytes,',
+      '  signature,',
+      "  { ...authenticated, issuerKeyId: 'server-key-1', lastAcceptedSequence: 0 },",
+      "  (bytes, detached) => verify(null, bytes, keys.publicKey, Buffer.from(detached, 'base64url')),",
+      ');',
+      'if (admitted.frame.catalogGeneration !== 1 || admitted.acceptedSequence !== 1) process.exit(1);',
       'const frameState = await reduceDeviceControlFrame(null, frame);',
       "const frameView = projectDeviceControl(frameState, { showId: 'show-1', target: 'program', controlId: 'lower-third.visibility' }, 1002);",
       "if (!frameView.available || frameView.buttonState !== 'active') process.exit(1);",
@@ -194,35 +214,35 @@ describe('published protocol package', () => {
       '});',
       "if (acknowledgement.status !== 'applied' || !Object.isFrozen(acknowledgement)) process.exit(1);",
     ].join('\n');
-    await expect(execFileAsync(
-      process.execPath,
-      [
-        '--input-type=module',
-        '--eval',
-        runtime,
-      ],
-      { cwd: consumerDirectory },
-    )).resolves.toMatchObject({ stderr: '' });
+    await expect(
+      execFileAsync(process.execPath, ['--input-type=module', '--eval', runtime], {
+        cwd: consumerDirectory,
+      })
+    ).resolves.toMatchObject({ stderr: '' });
   });
 
   it('loads from CommonJS through import() and rejects synchronous require()', async () => {
-    await expect(execFileAsync(
-      process.execPath,
-      [
-        '--eval',
-        "import('@overlaykit/protocol/device-credential').then((value) => { if (typeof value.DeviceCredentialLifecycle !== 'function') process.exit(1); });",
-      ],
-      { cwd: consumerDirectory },
-    )).resolves.toMatchObject({ stderr: '' });
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [
+          '--eval',
+          "import('@overlaykit/protocol/device-credential').then((value) => { if (typeof value.DeviceCredentialLifecycle !== 'function') process.exit(1); });",
+        ],
+        { cwd: consumerDirectory }
+      )
+    ).resolves.toMatchObject({ stderr: '' });
 
-    await expect(execFileAsync(
-      process.execPath,
-      [
-        '--eval',
-        "try { require('@overlaykit/protocol/device-credential'); process.exit(1); } catch (error) { if (error.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED' && error.code !== 'ERR_REQUIRE_ESM') process.exit(2); }",
-      ],
-      { cwd: consumerDirectory },
-    )).resolves.toMatchObject({ stderr: '' });
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [
+          '--eval',
+          "try { require('@overlaykit/protocol/device-credential'); process.exit(1); } catch (error) { if (error.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED' && error.code !== 'ERR_REQUIRE_ESM') process.exit(2); }",
+        ],
+        { cwd: consumerDirectory }
+      )
+    ).resolves.toMatchObject({ stderr: '' });
   });
 
   it('resolves declarations for ESM and CommonJS TypeScript consumers', async () => {
@@ -247,7 +267,7 @@ describe('published protocol package', () => {
         'void frameState;',
         'void bootstrapAck;',
       ].join('\n'),
-      'utf8',
+      'utf8'
     );
     await writeFile(
       commonJsConsumer,
@@ -258,25 +278,27 @@ describe('published protocol package', () => {
         '}',
         'void load;',
       ].join('\n'),
-      'utf8',
+      'utf8'
     );
 
-    await expect(execFileAsync(
-      process.execPath,
-      [
-        tscPath,
-        '--noEmit',
-        '--strict',
-        '--target',
-        'ES2022',
-        '--module',
-        'Node16',
-        '--moduleResolution',
-        'Node16',
-        esmConsumer,
-        commonJsConsumer,
-      ],
-      { cwd: consumerDirectory },
-    )).resolves.toMatchObject({ stderr: '' });
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [
+          tscPath,
+          '--noEmit',
+          '--strict',
+          '--target',
+          'ES2022',
+          '--module',
+          'Node16',
+          '--moduleResolution',
+          'Node16',
+          esmConsumer,
+          commonJsConsumer,
+        ],
+        { cwd: consumerDirectory }
+      )
+    ).resolves.toMatchObject({ stderr: '' });
   });
 });

@@ -260,6 +260,14 @@
       "id": "ADR-0024",
       "supersededBy": null,
       "title": "Device sequences require exclusive observable durable reservation"
+    },
+    {
+      "contentHash": "3ac1c321155926ed69de98e70a7562a0efcdfc860be282e73e8014f60f6efd34",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0025",
+      "supersededBy": null,
+      "title": "Device bootstrap payloads require atomic current signed issuance"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -394,10 +402,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "0f16dcb2d446f3145236df35afe908574d33a6fe24da4eac57c9274e66ae25d1",
-  "profileHash": "e2e3af1312efc53da07df07b322b8980dc820e1f191ace85c617c8c3340bfd29",
+  "planHash": "e7b7fa8e122594bbbb9f1e87d4cee2c74bcd256084cc8e735340cbd1176c9953",
+  "profileHash": "0d5324848660494cc1cb13acc94e84c50a7267cde913656f067bc0dbb926d802",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.20.0",
+  "profileVersion": "2.21.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -586,6 +594,36 @@
       "statement": "All target snapshot attempts on one connection must use one serialized emission lane and strictly increasing positive global issuer-audience sequences; retries must capture current truth into fresh bytes and sequence."
     },
     {
+      "id": "device-bootstrap-empty-target-is-complete",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "An authorized target with no current scene or components must be represented as a valid complete revision-zero snapshot and may satisfy readiness through the ordinary current applied acknowledgement."
+    },
+    {
+      "id": "device-bootstrap-freshness-is-checked-at-every-authority-boundary",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "Snapshot currency must be checked synchronously immediately before transport, during acknowledgement admission, and before readiness grant against target revision, current durable catalog generation, immutable signer, and the three-second capture-age limit."
+    },
+    {
+      "id": "device-bootstrap-invalidation-follows-authority-scope",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "A target revision change invalidates only that target without consuming a retry, while a shared catalog or signing-key change invalidates all affected target evidence and requires fresh issuance."
+    },
+    {
+      "id": "device-bootstrap-issuance-uses-one-production-cut",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "One issuance attempt must read ProductionState exactly once and derive its complete target snapshot and effective authorized catalog observation from that same cut."
+    },
+    {
+      "id": "device-bootstrap-issuer-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "Passing issuer evidence may not be represented as production mounting, proof that all mutations are observed, automatic orphan-marker recovery, signing-key distribution or certification, permission-change lifecycle closure, certified network delivery, command or delta authority, Companion integration, renderer or OBS observation, physical device state, or operator perception."
+    },
+    {
       "id": "device-bootstrap-protocol-and-internal-failures-close",
       "kind": "rule",
       "sourceDecision": "ADR-0023",
@@ -604,10 +642,22 @@
       "statement": "Each target permits one initial attempt plus three retries shared equally by send failure, a three-second post-send acknowledgement timeout, and current bounded error acknowledgement; exhaustion by any target closes the whole connection."
     },
     {
+      "id": "device-bootstrap-sequence-precedes-signature-and-is-consumed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "After current catalog persistence, issuance must reserve from the shared durable issuer-audience sequence lane before payload construction and signing, and every returned sequence remains consumed after any later outcome."
+    },
+    {
       "id": "device-bootstrap-state-change-invalidates-only-its-target",
       "kind": "rule",
       "sourceDecision": "ADR-0023",
       "statement": "A target state change must invalidate that target's pending or applied pair, preserve its accumulated retries, retain other targets' evidence, coalesce intermediate changes, and schedule latest truth without charging a retry."
+    },
+    {
+      "id": "device-bootstrap-v2-signs-exact-canonical-payload",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "A device bootstrap frame must use version two, carry a positive catalog generation inside canonical payload bytes, and admit only a detached signature over those exact immutable bytes."
     },
     {
       "id": "device-catalog-adapter-is-bounded-and-fails-closed",
@@ -638,6 +688,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0016",
       "statement": "A CommonJS server must load the ESM catalog projector through native asynchronous import behind an injected port and must verify the compiled runtime rather than synchronously requiring the ESM package."
+    },
+    {
+      "id": "device-catalog-generation-failure-is-audience-local",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "Unexpected catalog persistence uncertainty must block the affected audience without lowering its guarantee or reusing an old generation, while recovery may occur only after the current pending generation is successfully persisted."
+    },
+    {
+      "id": "device-catalog-generation-is-durable-and-audience-wide",
+      "kind": "rule",
+      "sourceDecision": "ADR-0025",
+      "statement": "One full audience credential shares a positive catalog generation across Preview and Program; every effective catalog change including ABA invalidates prior generations immediately and emission remains blocked until the current generation is durably committed."
     },
     {
       "id": "device-catalog-http-claims-are-bounded",
