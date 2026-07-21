@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0017",
+  "title": "Test the compiled protocol package boundary",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0009", "ADR-0011", "ADR-0012"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The current @overlaykit/protocol package exports TypeScript source files, includes only src in its publish allowlist, emits declarations only, and has no build artifact that Node.js can execute from a registry tarball.",
+      "evidence": "protocol/package.json and protocol/tsconfig.json on main before CHG-0017",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The CommonJS server therefore avoids a production runtime import and mirrors protocol contracts structurally, leaving lifecycle composition across the package boundary unanswered.",
+      "evidence": "server/tsconfig.json, server/src/types/production.ts, ADR-0010, and ADR-0011",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Node.js package exports encapsulate public subpaths and may select an import target separately from require; TypeScript node16 and nodenext resolution follow package exports and select the types and import conditions for ESM imports and dynamic import expressions.",
+      "evidence": "https://nodejs.org/api/packages.html and https://www.typescriptlang.org/docs/handbook/modules/reference",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "npm documents npm pack as the way to inspect the exact publication payload and the package files allowlist as the mechanism that restricts included paths.",
+      "evidence": "https://docs.npmjs.com/cli/publish/ and https://docs.npmjs.com/cli/commands/npm-pack/",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "npm documents prepare as the lifecycle for platform-independent TypeScript compilation before local package use and before pack or publish.",
+      "evidence": "https://docs.npmjs.com/cli/using-npm/scripts/",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-008: A single compiled ESM distribution with declarations, explicit types-and-import exports for every public subpath, a dist-only publication allowlist, and tests against the installed npm tarball can provide one executable protocol implementation to ESM consumers and to CommonJS Node consumers through native dynamic import, while rejecting unpublished internals and unsupported synchronous require without maintaining a second CommonJS implementation.",
+      "evidence": "SDD-008 hypothesis H-008",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-008 only for the installed npm tarball boundary after payload, explicit export-target, ESM runtime, CommonJS dynamic-import, synchronous-require rejection, declaration-resolution, lifecycle-execution, clean-install, repository-quality, build, and audit evidence passed.",
+      "evidence": "protocol/tests/package-distribution.test.ts, ADR-0012, and Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The accepted Slice does not establish registry publication or provenance, semantic-version compatibility, browser-runtime compatibility, bundler-specific behavior, synchronous CommonJS require support, mixed import-and-require identity, server compiler migration, server composition, endpoint integration, or downstream packages outside the tested consumers.",
+      "evidence": "SDD-008 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The protocol prepare and build lifecycle emits executable ESM JavaScript, source maps, declarations, and declaration maps from the existing TypeScript source without maintaining a second implementation.",
+      "verification": "Clean local installation, protocol build, and generated artifact inspection."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The packed npm payload contains package metadata, README, MIT license, and dist artifacts but no src or tests, and every declared root or subpath export resolves to an included JavaScript and declaration file.",
+      "verification": "npm pack JSON manifest and installed package export inspection."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A fresh ESM Node consumer can import every public subpath from the installed tarball and execute the device credential lifecycle export.",
+      "verification": "Temporary ESM consumer process using only the packed tarball."
+    },
+    {
+      "id": "SC-004",
+      "statement": "A fresh CommonJS Node consumer can load the same ESM artifact through native dynamic import, while synchronous require fails instead of silently selecting a divergent implementation.",
+      "verification": "Temporary CommonJS dynamic-import and synchronous-require consumer processes."
+    },
+    {
+      "id": "SC-005",
+      "statement": "TypeScript node16 consumers resolve declarations for both static ESM imports and dynamic imports from CommonJS source through the installed package exports.",
+      "verification": "Temporary .mts and .cts consumers compiled with strict TypeScript node16 resolution."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The Slice proves only the packed protocol boundary and leaves registry publication, compatibility policy, server wiring, browser and bundler matrices, and synchronous CommonJS support unanswered.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0017 records SDD-008 as an accepted architecture experiment and separates observed package facts, H-008, the reviewed inference, measurable criteria, and unresolved guarantees.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only protocol build, export, publication, import specifiers, package-boundary tests, and the accepted governance decision; no server route, credential composition, or UI is added.",
+      "evidence": "git diff for CHG-0017"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-008 from the actual tarball through payload, export-target, ESM runtime, CommonJS dynamic import, synchronous require, and TypeScript declaration cases.",
+      "evidence": "protocol/tests/package-distribution.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0012 was created only after the human authority accepted H-008 within the demonstrated tarball-consumer boundary.",
+      "evidence": "ADR-0012 context and Human Doctrine review on 2026-07-21"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, focused protocol checks, package-consumer evidence, full repository checks, build, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, protocol checks, npm run check, npm run build, and npm audit"
+    }
+  ]
+}

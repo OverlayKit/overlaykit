@@ -1,5 +1,5 @@
-import type { ControlDefinition, ControlValue, ElementNode } from './element';
-import type { Orientation, Scene } from './scene';
+import type { ControlDefinition, ControlValue, ElementNode } from './element.js';
+import type { Orientation, Scene } from './scene.js';
 
 export type ProductionBus = 'preview' | 'program';
 

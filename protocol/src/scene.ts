@@ -1,1 +1,1 @@
-export type { Scene, SceneBackgroundMusic, Orientation } from './element';
+export type { Scene, SceneBackgroundMusic, Orientation } from './element.js';

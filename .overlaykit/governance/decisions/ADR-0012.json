@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0012",
+  "title": "Protocol publishes one compiled ESM implementation",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "protocol-packaging",
+    "protocol-runtime-boundary",
+    "public-package-exports",
+    "self-hosted-runtime"
+  ],
+  "context": "ADR-0004 established protocol contracts as the authority for cross-package semantics, while ADR-0009 and ADR-0011 added executable device credential behavior. The protocol package nevertheless exported TypeScript source, emitted declarations only, and included src rather than executable artifacts in its publication allowlist. The CommonJS server therefore mirrored protocol contracts structurally instead of loading the package at runtime. SDD-008 asked how one executable and typed protocol implementation could serve ESM consumers and the existing CommonJS server path without maintaining separate ESM and CommonJS implementations. Slice 1 compiled the existing TypeScript source as ESM with declarations, exposed explicit types-and-import targets, packed only dist plus npm-required metadata, installed the resulting tarball into fresh consumers, imported every public subpath, executed the device credential lifecycle, loaded the same artifact from CommonJS through native dynamic import, rejected synchronous require, and resolved declarations from strict Node16 ESM and CommonJS TypeScript consumers. The human authority accepted H-008 only within that installed-tarball boundary.",
+  "decision": "@overlaykit/protocol publishes one compiled ESM implementation and its TypeScript declarations from dist. Every supported root or subpath import is listed explicitly in package exports with types and import targets that resolve to files included in the packed artifact. Source files and tests are not part of the publication payload. Package preparation compiles the TypeScript source before local package use, pack, or publish. ESM consumers use static or dynamic import. CommonJS consumers may load the same ESM implementation through native dynamic import; synchronous require is not supported and no parallel CommonJS implementation or require target is published. Publication-boundary tests must install the actual npm tarball and exercise its payload, export targets, runtime behavior, and declaration resolution rather than importing workspace source directly.",
+  "consequences": [
+    "Runtime consumers execute compiled JavaScript instead of TypeScript source from the repository.",
+    "All public package entry points are explicit, so unpublished internals are encapsulated and additions require an intentional export change.",
+    "ESM and CommonJS dynamic-import consumers observe the same implementation and cannot silently diverge through separate builds.",
+    "CommonJS composition that needs protocol runtime values becomes asynchronous at the package boundary unless the consumer migrates to ESM.",
+    "The publication allowlist contains dist artifacts while README, license, and npm package metadata remain available in the tarball.",
+    "Registry publication, provenance, semantic-version compatibility, browser runtime, bundler behavior, mixed loader identity, synchronous require, server composition, endpoints, and downstream integration remain separate questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "protocol-publishes-compiled-esm",
+      "statement": "The public protocol runtime must be compiled from its TypeScript source as one ESM implementation accompanied by declarations."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-exports-are-explicit-and-packed",
+      "statement": "Every supported protocol entry point must declare explicit types and import targets, and every target must be present in the publication payload."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-publication-excludes-source-and-tests",
+      "statement": "The protocol publication allowlist must expose compiled dist artifacts rather than repository source or tests."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-commonjs-uses-dynamic-import",
+      "statement": "A CommonJS consumer that loads protocol runtime values must use native dynamic import; synchronous require and a separate CommonJS implementation are outside the accepted contract."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-package-tests-use-installed-tarball",
+      "statement": "Publication-boundary evidence must exercise an installed npm tarball and may not substitute direct workspace-source imports for packed-consumer behavior."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-package-claims-are-bounded",
+      "statement": "Passing tarball-consumer tests may not be presented as registry publication, provenance, semantic-version compatibility, browser or bundler compatibility, mixed loader identity, synchronous require support, server composition, endpoint integration, or complete downstream compatibility."
+    }
+  ]
+}

@@ -4,8 +4,8 @@ import {
   reduceControlFeedback,
   type ControlFeedbackEvent,
   type ControlFeedbackSubject,
-} from './control-feedback';
-import type { ProductionBus } from './production';
+} from './control-feedback.js';
+import type { ProductionBus } from './production.js';
 
 export const CONTROL_FEEDBACK_ENVELOPE_VERSION = 'overlaykit-control-feedback/v1' as const;
 const MAX_IDENTIFIER_LENGTH = 200;
