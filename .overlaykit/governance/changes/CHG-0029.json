@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0029",
+  "title": "Test durable single-authority device sequences",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires one global monotonically increasing sequence lane per immutable issuer-key and credential-generation audience across bootstrap snapshots, retries, future deltas, and feedback; every reserved sequence remains consumed even when later construction or signing fails.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires sequence persistence to complete before signing or exposing payload bytes, prefers persistence that survives abrupt power loss, and permits automatic degradation to process-restart continuity only when directory synchronization is unsupported and the effective guarantee remains observable.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires the server to impose one sequence-store authority rather than relying on an operational convention; a second live authority sharing the same store must be rejected.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted file-backed sequence store serializes reservations and synchronizes a temporary file before atomic replacement, but it does not synchronize the parent directory, impose authority across store instances or processes, expose its effective durability, or close its lifetime explicitly.",
+      "evidence": "ADR-0019 and server/src/services/FileFeedbackSequenceStore.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-020: One lifetime-held exclusive file authority and one write-file-sync, atomic-replace, directory-sync commit protocol can prevent simultaneous live sequence writers, expose a reservation only after its strongest available commit completes, preserve issuer-audience monotonicity across restart, and automatically report a process-restart-only guarantee when directory synchronization is specifically unsupported while failing closed for other persistence faults.",
+      "evidence": "SDD-020 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-020 only for a cooperative single-host FileFeedbackSequenceStore whose canonical-path authority marker, same-process and real second-process exclusion, explicit draining close, global issuer-audience lane, file-sync, atomic-replace, directory-sync commit order, pre-return synchronization barrier, restart continuation, automatic observable unsupported-directory degradation, and fail-closed unexpected persistence behavior were demonstrated by hostile tests, existing feedback-issuer composition, full repository checks, builds, audit, and governance verification.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-020 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This accepted Slice does not demonstrate physical media behavior, filesystems that acknowledge synchronization dishonestly, adversarial writers that ignore the marker, network or multi-host distributed authority, automatic recovery from an uncleanly orphaned authority marker, a mounted health endpoint or operator UI for the observable durability state, real DeviceControlFrame construction, detached signatures, atomic ProductionService capture, snapshot currency at transport or acknowledgement, WebSocket mounting, deltas, renderer or OBS state, Companion integration, or hardware behavior.",
+      "evidence": "SDD-020 accepted Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Initialization acquires one lifetime-held exclusive authority before loading sequence state, rejects a second live authority for the same canonical store path, and releases authority only through explicit close after queued reservations settle.",
+      "verification": "Concurrent store-instance, canonical-path alias, close-race, and reacquisition tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A reservation is returned only after temporary-file synchronization, atomic replacement, and supported directory synchronization complete in that order; restart continues above every returned sequence and signing gaps remain consumed.",
+      "verification": "Ordered filesystem trace, restart, concurrency, issuer-audience isolation, signing-gap, and safe-integer tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A specifically unsupported directory synchronization degrades automatically to process_restart_resilient and remains observable, while file synchronization, replacement, malformed-state, permission, exhaustion, and unexpected directory synchronization failures expose no reservation and fail closed.",
+      "verification": "Filesystem fault injection at every commit boundary and durability-state assertions."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Existing feedback issuance uses the strengthened authority without changing its signed protocol behavior, and bootstrap or delta callers can share the same issuer-audience reservation lane through the common store contract.",
+      "verification": "Existing issuer composition, shared-store mixed-caller, compiled CommonJS runtime, and full repository tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0029 records Discovery facts, H-020, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the common sequence authority, its server composition and focused tests plus proposed governance records; snapshot construction and production WebSocket composition remain unmodified.",
+      "evidence": "git diff for CHG-0029"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-020 across authority overlap, path aliases, queue and close races, commit ordering, unsupported synchronization, unexpected I/O failure, restart continuity, mixed callers, mutation, and exhaustion.",
+      "evidence": "Focused sequence-store and feedback-issuer tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0024 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-020.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0024"
+    }
+  ]
+}

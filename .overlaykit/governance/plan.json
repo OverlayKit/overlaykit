@@ -252,6 +252,14 @@
       "id": "ADR-0023",
       "supersededBy": null,
       "title": "Device readiness requires current target-complete snapshot application"
+    },
+    {
+      "contentHash": "b458ec80f45d521fb4b07e6ee15694fb722584207e182f0fe128fe16e1c6c086",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0024",
+      "supersededBy": null,
+      "title": "Device sequences require exclusive observable durable reservation"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -386,10 +394,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "3ebaa19621808e80d8ac5aba3f0164d7e1da4339d81c58de0ed3743d27cf6cf8",
-  "profileHash": "5cd813539cba7d90228106fd93eed188eb4f47b8d088581d06483e29420ab6e6",
+  "planHash": "0f16dcb2d446f3145236df35afe908574d33a6fe24da4eac57c9274e66ae25d1",
+  "profileHash": "e2e3af1312efc53da07df07b322b8980dc820e1f191ace85c617c8c3340bfd29",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.19.0",
+  "profileVersion": "2.20.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -888,6 +896,54 @@
       "kind": "rule",
       "sourceDecision": "ADR-0011",
       "statement": "A production device secret must be generated from exactly 32 bytes returned by the approved cryptographic random source and encoded as canonical unpadded base64url."
+    },
+    {
+      "id": "device-sequence-authority-is-exclusive-per-canonical-store",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "A cooperating server sequence store must acquire one exclusive ownership marker for the canonical document path before loading or reserving, and a second live authority for that path must fail closed."
+    },
+    {
+      "id": "device-sequence-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "Passing file-store evidence may not be represented as physical-media proof, protection from non-cooperating writers, distributed authority, automatic orphan recovery, mounted operator health visibility, real frame construction or signing, WebSocket delivery, renderer or OBS observation, Companion integration, or hardware state."
+    },
+    {
+      "id": "device-sequence-close-is-a-barrier",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "Explicit close must reject newly requested reservations, drain reservations accepted before close, verify marker ownership, and remove only the closing authority's marker."
+    },
+    {
+      "id": "device-sequence-commit-precedes-exposure",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "No reserved sequence may be returned, signed, or exposed to transport before the complete next document is written to a private temporary file, file-synchronized, atomically replaced, and directory-synchronized when supported."
+    },
+    {
+      "id": "device-sequence-degradation-is-narrow",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "Only a directory synchronization operation specifically reported unsupported may lower the guarantee and continue; malformed state, exhaustion, ownership conflict, file synchronization, replacement, unexpected directory synchronization, permission, and other I/O failures must fail closed without returning a reservation."
+    },
+    {
+      "id": "device-sequence-durability-is-observable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "The sequence authority must report power_loss_resilient only while directory synchronization succeeds and must report process_restart_resilient whenever unsupported directory synchronization forces automatic degradation."
+    },
+    {
+      "id": "device-sequence-lane-is-global-per-issuer-audience",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "All device message producers using one authority must reserve from the same monotonically increasing lane keyed only by immutable issuer key and credential-generation audience; targets and message kinds may not create independent counters."
+    },
+    {
+      "id": "device-sequence-reservations-are-never-reused",
+      "kind": "rule",
+      "sourceDecision": "ADR-0024",
+      "statement": "Every successfully returned sequence remains consumed forever even when later frame construction, signing, sending, or acknowledgement fails."
     },
     {
       "id": "device-server-composition-claims-are-bounded",

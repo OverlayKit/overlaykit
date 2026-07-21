@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
+import type { FileHandle } from 'fs/promises';
 import path from 'path';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import feedbackSequenceSchema from '../validation/schemas/feedback-sequences.schema.json';
@@ -30,10 +31,35 @@ export interface FeedbackSequenceStore {
   ): Promise<ReadonlyArray<number>>;
 }
 
+export type FeedbackSequenceDurability =
+  | 'power_loss_resilient'
+  | 'process_restart_resilient';
+
+export type FeedbackSequenceStorePhase =
+  | 'new'
+  | 'initializing'
+  | 'ready'
+  | 'failed'
+  | 'closing'
+  | 'closed';
+
+export interface FeedbackSequenceStoreState {
+  readonly phase: FeedbackSequenceStorePhase;
+  readonly durability: FeedbackSequenceDurability | null;
+  readonly authorityHeld: boolean;
+}
+
+export interface ManagedFeedbackSequenceStore extends FeedbackSequenceStore {
+  close(): Promise<void>;
+  getState(): FeedbackSequenceStoreState;
+}
+
 export type FeedbackSequenceStoreErrorCode =
   | 'INVALID_FEEDBACK_SEQUENCE_REQUEST'
   | 'INVALID_FEEDBACK_SEQUENCE_STORE'
   | 'FEEDBACK_SEQUENCE_EXHAUSTED'
+  | 'FEEDBACK_SEQUENCE_AUTHORITY_UNAVAILABLE'
+  | 'FEEDBACK_SEQUENCE_STORE_CLOSED'
   | 'FEEDBACK_SEQUENCE_STORE_IO';
 
 export class FeedbackSequenceStoreError extends Error {
@@ -149,15 +175,47 @@ function requiredIdentifier(value: unknown, field: string): string {
   return value;
 }
 
-export class FileFeedbackSequenceStore implements FeedbackSequenceStore {
+export type FeedbackSequenceSyncPurpose = 'authority' | 'directory' | 'sequence';
+
+function isUnsupportedDirectorySync(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  return code === 'EINVAL'
+    || code === 'ENOTSUP'
+    || code === 'EOPNOTSUPP'
+    || code === 'ENOSYS'
+    || (process.platform === 'win32' && (
+      code === 'EACCES'
+      || code === 'EPERM'
+      || code === 'EISDIR'
+    ));
+}
+
+function storeClosedError(): FeedbackSequenceStoreError {
+  return new FeedbackSequenceStoreError(
+    'FEEDBACK_SEQUENCE_STORE_CLOSED',
+    'Feedback sequence store is closing or closed',
+  );
+}
+
+export class FileFeedbackSequenceStore implements ManagedFeedbackSequenceStore {
   private records: Map<string, FeedbackSequenceRecord> | null = null;
   private queue: Promise<void> = Promise.resolve();
+  private phase: FeedbackSequenceStorePhase = 'new';
+  private durability: FeedbackSequenceDurability | null = null;
+  private authorityHandle: Awaited<ReturnType<typeof fs.open>> | null = null;
+  private authorityPath: string | null = null;
+  private authorityDocument: string | null = null;
+  private effectiveFilePath: string | null = null;
+  private failure: FeedbackSequenceStoreError | null = null;
+  private closeRequested = false;
+  private closePromise: Promise<void> | null = null;
 
   constructor(private readonly filePath = defaultFeedbackSequenceFile()) {}
 
   async init(): Promise<void> {
+    if (this.closeRequested) throw storeClosedError();
     await this.exclusive(async () => {
-      await this.loadOnce();
+      await this.initializeOnce();
     });
   }
 
@@ -166,17 +224,18 @@ export class FileFeedbackSequenceStore implements FeedbackSequenceStore {
     audienceCredentialId: string,
     count: number,
   ): Promise<ReadonlyArray<number>> {
-    return this.exclusive(async () => {
-      const issuer = requiredIdentifier(issuerKeyId, 'Issuer key identifier');
-      const audience = requiredIdentifier(audienceCredentialId, 'Credential audience');
-      if (!Number.isSafeInteger(count) || count < 1 || count > MAX_RESERVATION_SIZE) {
-        throw new FeedbackSequenceStoreError(
-          'INVALID_FEEDBACK_SEQUENCE_REQUEST',
-          'Feedback sequence reservation size is invalid',
-        );
-      }
+    const issuer = requiredIdentifier(issuerKeyId, 'Issuer key identifier');
+    const audience = requiredIdentifier(audienceCredentialId, 'Credential audience');
+    if (!Number.isSafeInteger(count) || count < 1 || count > MAX_RESERVATION_SIZE) {
+      throw new FeedbackSequenceStoreError(
+        'INVALID_FEEDBACK_SEQUENCE_REQUEST',
+        'Feedback sequence reservation size is invalid',
+      );
+    }
+    if (this.closeRequested) throw storeClosedError();
 
-      const records = await this.loadOnce();
+    return this.exclusive(async () => {
+      const records = await this.initializeOnce();
       const identity = recordKey(issuer, audience);
       const current = records.get(identity);
       if (!current && records.size >= MAX_RECORDS) {
@@ -201,14 +260,80 @@ export class FileFeedbackSequenceStore implements FeedbackSequenceStore {
         audienceCredentialId: audience,
         lastSequence,
       });
-      await this.persist(next);
+      try {
+        await this.persist(next);
+      } catch (error) {
+        const failure = error instanceof FeedbackSequenceStoreError
+          ? error
+          : new FeedbackSequenceStoreError(
+            'FEEDBACK_SEQUENCE_STORE_IO',
+            'Failed to persist feedback sequence store',
+            error,
+          );
+        this.failure = failure;
+        this.phase = 'failed';
+        throw failure;
+      }
       this.records = next;
       return Array.from({ length: count }, (_value, index) => firstSequence + index);
     });
   }
 
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closeRequested = true;
+    this.closePromise = this.exclusive(async () => {
+      if (this.phase === 'closed') return;
+      this.phase = 'closing';
+      try {
+        await this.releaseAuthority();
+        this.records = null;
+        this.phase = 'closed';
+      } catch (error) {
+        const failure = error instanceof FeedbackSequenceStoreError
+          ? error
+          : new FeedbackSequenceStoreError(
+            'FEEDBACK_SEQUENCE_STORE_IO',
+            'Failed to release feedback sequence authority',
+            error,
+          );
+        this.failure = failure;
+        this.phase = 'failed';
+        throw failure;
+      }
+    });
+    return this.closePromise;
+  }
+
+  getState(): FeedbackSequenceStoreState {
+    return Object.freeze({
+      phase: this.phase,
+      durability: this.durability,
+      authorityHeld: this.authorityHandle !== null,
+    });
+  }
+
+  protected async synchronizeFile(
+    handle: FileHandle,
+    _purpose: FeedbackSequenceSyncPurpose,
+  ): Promise<void> {
+    await handle.sync();
+  }
+
   protected async replaceFile(temporaryPath: string, targetPath: string): Promise<void> {
     await fs.rename(temporaryPath, targetPath);
+  }
+
+  protected async synchronizeDirectory(
+    directory: string,
+    _purpose: FeedbackSequenceSyncPurpose,
+  ): Promise<void> {
+    const handle = await fs.open(directory, 'r');
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
   }
 
   private async exclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -220,10 +345,157 @@ export class FileFeedbackSequenceStore implements FeedbackSequenceStore {
     return result;
   }
 
+  private async initializeOnce(): Promise<Map<string, FeedbackSequenceRecord>> {
+    if (this.phase === 'ready' && this.records) return this.records;
+    if (this.failure) throw this.failure;
+    if (this.phase === 'closing' || this.phase === 'closed') throw storeClosedError();
+
+    this.phase = 'initializing';
+    this.durability = 'power_loss_resilient';
+    try {
+      const directory = await this.prepareDirectory();
+      this.effectiveFilePath = path.join(directory, path.basename(this.filePath));
+      await this.acquireAuthority(directory);
+      const records = await this.loadOnce();
+      this.phase = 'ready';
+      return records;
+    } catch (error) {
+      const failure = error instanceof FeedbackSequenceStoreError
+        ? error
+        : new FeedbackSequenceStoreError(
+          'FEEDBACK_SEQUENCE_STORE_IO',
+          'Failed to initialize feedback sequence store',
+          error,
+        );
+      await this.releaseAuthority(true);
+      this.failure = failure;
+      this.phase = 'failed';
+      throw failure;
+    }
+  }
+
+  private async prepareDirectory(): Promise<string> {
+    const requestedDirectory = path.resolve(path.dirname(this.filePath));
+    try {
+      await fs.mkdir(requestedDirectory, { recursive: true, mode: 0o700 });
+      await fs.chmod(requestedDirectory, 0o700);
+      const directory = await fs.realpath(requestedDirectory);
+      let current = directory;
+      let reachedRoot = false;
+      while (!reachedRoot && this.durability === 'power_loss_resilient') {
+        await this.confirmDirectorySync(current, 'directory');
+        const parent = path.dirname(current);
+        reachedRoot = parent === current;
+        current = parent;
+      }
+      return directory;
+    } catch (error) {
+      if (error instanceof FeedbackSequenceStoreError) throw error;
+      throw new FeedbackSequenceStoreError(
+        'FEEDBACK_SEQUENCE_STORE_IO',
+        'Failed to prepare feedback sequence directory',
+        error,
+      );
+    }
+  }
+
+  private async acquireAuthority(directory: string): Promise<void> {
+    const targetPath = this.requiredEffectiveFilePath();
+    const authorityPath = `${targetPath}.authority.lock`;
+    const authorityDocument = `${JSON.stringify({
+      schemaVersion: 1,
+      owner: randomUUID(),
+      pid: process.pid,
+    })}\n`;
+    let handle: FileHandle | null = null;
+    try {
+      handle = await fs.open(authorityPath, 'wx', 0o600);
+      await handle.writeFile(authorityDocument, 'utf8');
+      await this.synchronizeFile(handle, 'authority');
+      this.authorityHandle = handle;
+      this.authorityPath = authorityPath;
+      this.authorityDocument = authorityDocument;
+      await this.confirmDirectorySync(directory, 'authority');
+    } catch (error) {
+      if (handle && this.authorityHandle !== handle) {
+        await handle.close().catch(() => undefined);
+        await fs.unlink(authorityPath).catch(() => undefined);
+      }
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw new FeedbackSequenceStoreError(
+          'FEEDBACK_SEQUENCE_AUTHORITY_UNAVAILABLE',
+          'Another feedback sequence authority already owns this store',
+          error,
+        );
+      }
+      if (error instanceof FeedbackSequenceStoreError) throw error;
+      throw new FeedbackSequenceStoreError(
+        'FEEDBACK_SEQUENCE_STORE_IO',
+        'Failed to acquire feedback sequence authority',
+        error,
+      );
+    }
+  }
+
+  private async releaseAuthority(suppressErrors = false): Promise<void> {
+    const handle = this.authorityHandle;
+    const authorityPath = this.authorityPath;
+    const authorityDocument = this.authorityDocument;
+    this.authorityHandle = null;
+    this.authorityPath = null;
+    this.authorityDocument = null;
+    if (!handle || !authorityPath || !authorityDocument) return;
+
+    try {
+      const currentDocument = await fs.readFile(authorityPath, 'utf8');
+      if (currentDocument !== authorityDocument) {
+        throw new FeedbackSequenceStoreError(
+          'FEEDBACK_SEQUENCE_AUTHORITY_UNAVAILABLE',
+          'Feedback sequence authority marker changed unexpectedly',
+        );
+      }
+      await fs.unlink(authorityPath);
+      await this.confirmDirectorySync(path.dirname(authorityPath), 'authority');
+    } catch (error) {
+      if (!suppressErrors) throw error;
+    } finally {
+      await handle.close().catch((error: unknown) => {
+        if (!suppressErrors) throw error;
+      });
+    }
+  }
+
+  private async confirmDirectorySync(
+    directory: string,
+    purpose: FeedbackSequenceSyncPurpose,
+  ): Promise<void> {
+    if (this.durability === 'process_restart_resilient') return;
+    try {
+      await this.synchronizeDirectory(directory, purpose);
+    } catch (error) {
+      if (isUnsupportedDirectorySync(error)) {
+        this.durability = 'process_restart_resilient';
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private requiredEffectiveFilePath(): string {
+    if (!this.effectiveFilePath) {
+      throw new FeedbackSequenceStoreError(
+        'FEEDBACK_SEQUENCE_STORE_IO',
+        'Feedback sequence store path is unavailable',
+      );
+    }
+    return this.effectiveFilePath;
+  }
+
   private async loadOnce(): Promise<Map<string, FeedbackSequenceRecord>> {
     if (this.records) return this.records;
+    const filePath = this.requiredEffectiveFilePath();
     try {
-      const raw = await fs.readFile(this.filePath, 'utf8');
+      const raw = await fs.readFile(filePath, 'utf8');
       const document = parseDocument(raw);
       this.records = new Map(document.records.map((record) => [
         recordKey(record.issuerKeyId, record.audienceCredentialId),
@@ -246,18 +518,18 @@ export class FileFeedbackSequenceStore implements FeedbackSequenceStore {
   }
 
   private async persist(records: ReadonlyMap<string, FeedbackSequenceRecord>): Promise<void> {
-    const directory = path.dirname(this.filePath);
-    const temporaryPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
-    let handle: Awaited<ReturnType<typeof fs.open>> | null = null;
+    const filePath = this.requiredEffectiveFilePath();
+    const directory = path.dirname(filePath);
+    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+    let handle: FileHandle | null = null;
     try {
-      await fs.mkdir(directory, { recursive: true, mode: 0o700 });
-      await fs.chmod(directory, 0o700);
       handle = await fs.open(temporaryPath, 'wx', 0o600);
       await handle.writeFile(`${JSON.stringify(documentFor(records), null, 2)}\n`, 'utf8');
-      await handle.sync();
+      await this.synchronizeFile(handle, 'sequence');
       await handle.close();
       handle = null;
-      await this.replaceFile(temporaryPath, this.filePath);
+      await this.replaceFile(temporaryPath, filePath);
+      await this.confirmDirectorySync(directory, 'sequence');
     } catch (error) {
       if (handle) await handle.close().catch(() => undefined);
       await fs.unlink(temporaryPath).catch(() => undefined);

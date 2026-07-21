@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0024",
+  "title": "Device sequences require exclusive observable durable reservation",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-sequence-authority",
+    "device-sequence-durability",
+    "device-sequence-lifecycle",
+    "device-sequence-observability"
+  ],
+  "context": "ADR-0019 established that device feedback sequences are reserved by issuer key and credential-generation audience before signing, but accepted only one initialized process instance, atomic replacement, and restart continuity; it explicitly left simultaneous instances, multi-process coordination, and directory-fsync power-loss durability unanswered. Discovery for SDD-020 required one global sequence lane per issuer and audience across feedback, bootstrap, retries, and future deltas, with every successfully reserved sequence consumed forever before signing or payload exposure. The human authority required the server to impose one writer, preferred abrupt-power-loss durability, permitted automatic degradation to process-restart continuity when directory synchronization is specifically unsupported, and required the effective guarantee to remain observable. SDD-020 hardened the shared file-backed sequence store with a canonical-path authority marker created exclusively and retained for the store lifetime, explicit draining close, temporary-file synchronization, atomic replacement, parent-directory synchronization, and a queryable lifecycle and durability state. Refutation first showed that earlier restart tests created an overlapping second instance, which the new authority correctly rejected; the tests were corrected to close the prior authority before restart. Hostile evidence then demonstrated same-process and real second-process rejection, canonical path alias rejection, global issuer-audience ordering, no reservation before directory synchronization settles, exact file-sync, rename, directory-sync order, automatic unsupported-directory degradation, fail-closed unexpected file and directory I/O, post-replacement sequence consumption, close races, ownership-marker substitution rejection, restart continuation, existing feedback-issuer compatibility, full repository checks, builds, and audit. The human authority accepted H-020 only within this cooperative single-host file-store and reported-filesystem boundary.",
+  "decision": "One initialized FileFeedbackSequenceStore is the sequence authority for one canonical sequence document path. Initialization must prepare a private directory, canonicalize its containing path, and atomically create a private ownership marker before loading or exposing sequence state. Another cooperating store instance or server process that names the same canonical path must fail before reservation while that marker exists. The authority marker is retained for the store lifetime. Explicit close blocks newly requested reservations immediately, lets already accepted serialized reservations settle, verifies the exact ownership document, removes only its own marker, and completes only after authority release. Sequence allocation remains one serialized global lane keyed solely by immutable issuer key identifier and credential-generation audience, so feedback, bootstrap, retries, and future deltas share ordering when they use the same authority. A reservation writes the complete next document to a unique private temporary file, synchronizes that file, closes it, atomically replaces the committed document, and, when supported, synchronizes the containing directory before returning any sequence. The store reports power_loss_resilient only while required directory synchronization succeeds. A directory-sync operation specifically reported unsupported degrades automatically to process_restart_resilient and permits reservations under that explicitly weaker state. Invalid state, exhaustion, ownership conflict, file synchronization failure, replacement failure, unexpected directory synchronization failure, permission failure, or other I/O uncertainty fails closed without returning a reservation; after a persistence failure the authority admits no further reservation. A successfully returned sequence is consumed forever, so later signing or construction failure may create a gap but cannot permit reuse. This decision refines the sequence-persistence boundary of ADR-0019; its authentication, projection, signing, and issuer requirements remain in force. The evidence does not establish physical media truth, filesystems that falsely acknowledge synchronization, adversarial writers that ignore the authority protocol, network or multi-host distributed locking, automatic recovery of an orphaned marker after abrupt termination, a mounted health or operator UI projection, real bootstrap or delta construction, WebSocket composition, renderer or OBS state, Companion integration, or hardware behavior.",
+  "consequences": [
+    "Two cooperating server processes cannot concurrently reserve through the same canonical sequence store while one authority marker remains present.",
+    "A sequence cannot reach signing or transport through the store contract until its strongest available persistence commit completes.",
+    "A supported directory-sync path reports power_loss_resilient, while a specifically unsupported path continues automatically with the observable process_restart_resilient guarantee.",
+    "Unexpected persistence uncertainty makes the current store fail closed instead of silently lowering its claim or continuing from stale memory.",
+    "Feedback, bootstrap, retries, and future deltas share monotonic ordering only when production composition injects the same initialized sequence authority.",
+    "Explicit close is a lifecycle barrier: earlier reservations drain, later reservations fail, and marker ownership is checked before release.",
+    "An orphaned authority marker favors safety over availability and currently requires separate recovery evidence before automatic removal can be allowed.",
+    "Reported synchronization and tests do not prove physical storage behavior, network filesystems, rendered output, device application, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-sequence-authority-is-exclusive-per-canonical-store",
+      "statement": "A cooperating server sequence store must acquire one exclusive ownership marker for the canonical document path before loading or reserving, and a second live authority for that path must fail closed."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-commit-precedes-exposure",
+      "statement": "No reserved sequence may be returned, signed, or exposed to transport before the complete next document is written to a private temporary file, file-synchronized, atomically replaced, and directory-synchronized when supported."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-durability-is-observable",
+      "statement": "The sequence authority must report power_loss_resilient only while directory synchronization succeeds and must report process_restart_resilient whenever unsupported directory synchronization forces automatic degradation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-degradation-is-narrow",
+      "statement": "Only a directory synchronization operation specifically reported unsupported may lower the guarantee and continue; malformed state, exhaustion, ownership conflict, file synchronization, replacement, unexpected directory synchronization, permission, and other I/O failures must fail closed without returning a reservation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-lane-is-global-per-issuer-audience",
+      "statement": "All device message producers using one authority must reserve from the same monotonically increasing lane keyed only by immutable issuer key and credential-generation audience; targets and message kinds may not create independent counters."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-reservations-are-never-reused",
+      "statement": "Every successfully returned sequence remains consumed forever even when later frame construction, signing, sending, or acknowledgement fails."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-close-is-a-barrier",
+      "statement": "Explicit close must reject newly requested reservations, drain reservations accepted before close, verify marker ownership, and remove only the closing authority's marker."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sequence-claims-are-bounded",
+      "statement": "Passing file-store evidence may not be represented as physical-media proof, protection from non-cooperating writers, distributed authority, automatic orphan recovery, mounted operator health visibility, real frame construction or signing, WebSocket delivery, renderer or OBS observation, Companion integration, or hardware state."
+    }
+  ]
+}
