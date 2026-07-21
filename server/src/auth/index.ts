@@ -8,5 +8,6 @@ export const authService = new AuthService(new FileAuthStore(), {
 
 export * from './AuthService';
 export * from './AuthStore';
+export * from './DeviceCredentialRuntime';
 export * from './http';
 export * from './types';

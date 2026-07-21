@@ -18,8 +18,17 @@ import eventsRoutes from './routes/events';
 import actionsRoutes from './routes/actions';
 import soundsRoutes from './routes/sounds';
 import healthRoutes from './routes/health';
-import { authService, enforceBrowserOrigin, requireRole, requireSession, type AuthService } from './auth';
+import {
+  authService,
+  createDeviceCredentialRuntime,
+  enforceBrowserOrigin,
+  requireRole,
+  requireSession,
+  type AuthService,
+  type DeviceCredentialRuntime,
+} from './auth';
 import { createAuthRouter } from './routes/auth';
+import { createDeviceCredentialsRouter } from './routes/deviceCredentials';
 import { createShowsRouter } from './routes/shows';
 import { createProductionRouter } from './routes/production';
 import { productionService, type ProductionService } from './services/ProductionService';
@@ -28,6 +37,19 @@ export interface AppDependencies {
   auth?: AuthService;
   dataStorage?: Storage;
   production?: ProductionService;
+  deviceCredentials?: DeviceCredentialRuntime;
+}
+
+export interface ServerRuntimeDependencies extends AppDependencies {
+  createDeviceCredentials?: () => Promise<DeviceCredentialRuntime>;
+}
+
+export interface ServerRuntime {
+  app: Express;
+  auth: AuthService;
+  dataStorage: Storage;
+  production: ProductionService;
+  deviceCredentials: DeviceCredentialRuntime;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
@@ -35,6 +57,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const auth = dependencies.auth ?? authService;
   const dataStorage = dependencies.dataStorage ?? storage;
   const production = dependencies.production ?? productionService;
+  const deviceCredentials = dependencies.deviceCredentials;
 
   if (config.trustProxy !== undefined) app.set('trust proxy', config.trustProxy);
 
@@ -71,6 +94,13 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   }));
   app.use('/api', createAuthRouter(auth, config.cookieSecure));
   app.use('/api', requireSession(auth));
+  if (deviceCredentials) {
+    app.use(
+      '/api',
+      requireRole('owner'),
+      createDeviceCredentialsRouter(dataStorage, deviceCredentials),
+    );
+  }
   app.use('/api', requireRole('producer'), createShowsRouter(dataStorage));
   app.use('/api', requireRole('producer'), createProductionRouter(dataStorage, production));
 
@@ -97,18 +127,38 @@ export function createApp(dependencies: AppDependencies = {}): Express {
 
 export const app: Express = createApp();
 
+export async function createServerRuntime(
+  dependencies: ServerRuntimeDependencies = {},
+): Promise<ServerRuntime> {
+  const auth = dependencies.auth ?? authService;
+  const dataStorage = dependencies.dataStorage ?? storage;
+  const production = dependencies.production ?? productionService;
+
+  await dataStorage.init();
+  await auth.init();
+  const deviceCredentials = dependencies.deviceCredentials
+    ?? await (dependencies.createDeviceCredentials ?? createDeviceCredentialRuntime)();
+
+  return {
+    app: createApp({ auth, dataStorage, production, deviceCredentials }),
+    auth,
+    dataStorage,
+    production,
+    deviceCredentials,
+  };
+}
+
 async function startServer(): Promise<void> {
   try {
     validateConfig();
     setLogLevel(config.logLevel);
     logger.info('Starting OverlayKit OSS server', { config });
-    await storage.init();
-    await authService.init();
+    const runtime = await createServerRuntime();
 
-    const restServer = createServer(app);
+    const restServer = createServer(runtime.app);
     const wsServer = createServer();
     const wss = new WebSocketServer({ server: wsServer });
-    setupWebSocketHandler(wss, authService, config.corsOrigin);
+    setupWebSocketHandler(wss, runtime.auth, config.corsOrigin);
 
     restServer.listen(config.restPort, config.host, () => {
       logger.info('REST API running on http://' + config.host + ':' + config.restPort);
