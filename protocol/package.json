@@ -10,7 +10,8 @@
     "./scene": "./src/scene.ts",
     "./messages": "./src/messages.ts",
     "./production": "./src/production.ts",
-    "./control-feedback": "./src/control-feedback.ts"
+    "./control-feedback": "./src/control-feedback.ts",
+    "./control-feedback-authority": "./src/control-feedback-authority.ts"
   },
   "files": [
     "src"

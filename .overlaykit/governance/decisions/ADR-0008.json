@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0008",
+  "title": "Feedback admission binds signed provenance to device authority",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "control-feedback",
+    "control-integrations",
+    "device-authorization",
+    "protocol-security"
+  ],
+  "context": "ADR-0007 established trustworthy feedback projection but explicitly assumed that authoritative-server events had already crossed a trusted source boundary. ADR-0004 requires separate revocable least-privilege device credentials, while the current server has no device principal. SDD-004 asked how a device could prove that feedback came from its authorized OverlayKit Show before admission to the projector. Slice 1 implemented an adapter-neutral signed envelope and pure admission boundary with an injected signature verifier. Tests using asymmetric signatures demonstrated valid admission, payload substitution rejection, pinned issuer and key verification, credential audience binding, feedback-read scope, exact Show/target/control authorization, monotonic replay rejection, normalization of unsigned properties, deterministic malformed-input rejection, and bounded hostile input. The human authority accepted H-004 only within this pure admission boundary and with key and credential authority established externally.",
+  "decision": "Feedback entering the trusted projector is carried in a canonical server-signed envelope that binds schema version, issuer key identifier, credential audience, monotonic sequence, and the complete normalized feedback event. Admission verifies the signature using an externally pinned issuer key, then requires the externally established credential context to grant feedback-read scope for the exact Show, Preview or Program target, and control. A sequence at or below the last admitted sequence is replay and fails closed. Only normalized signed fields enter the projector; unsigned extra properties are discarded and untrusted fields are bounded before signature verification. The envelope may not establish its own issuer trust, audience authority, or scopes. Signing algorithm policy, key lifecycle, device credential lifecycle, and sequence durability require separate evidence.",
+  "consequences": [
+    "Feedback authenticity and feedback-state semantics remain separate composable protocol boundaries.",
+    "Changing a signed audience, sequence, Show, target, control, or event invalidates the signature.",
+    "A valid server signature is still insufficient when the credential context does not authorize the exact feedback subject.",
+    "Device adapters must retain the last admitted sequence and reject replay before invoking the projector.",
+    "Fields outside the normalized envelope cannot influence the trusted projector.",
+    "Issuer pinning and credential authority must come from a boundary outside the received envelope.",
+    "Algorithm selection, server key generation, pin distribution and rotation, device token issuance and revocation, sequence persistence, transport, and hardware integration remain unanswered."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "feedback-envelope-is-canonical",
+      "statement": "Trusted feedback signs a canonical envelope containing its schema version, issuer key, credential audience, sequence, and complete normalized event."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-issuer-is-externally-pinned",
+      "statement": "Feedback admission verifies the signature against an issuer key pinned outside the received envelope."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-authority-is-external",
+      "statement": "Credential audience and feedback scopes come from externally established authority and may never be granted by fields inside the feedback envelope."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-scope-is-exact",
+      "statement": "A signed event is admitted only with feedback-read scope for its exact Show, Preview or Program target, and control identifier."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-replay-fails-closed",
+      "statement": "A feedback sequence at or below the last admitted sequence is replay and cannot reach the projector."
+    },
+    {
+      "kind": "rule",
+      "id": "only-normalized-feedback-is-admitted",
+      "statement": "Only bounded normalized fields covered by the signature may enter the trusted feedback projector; extra fields are discarded."
+    }
+  ]
+}
