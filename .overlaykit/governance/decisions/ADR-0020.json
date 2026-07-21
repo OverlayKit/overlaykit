@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0020",
+  "title": "Signed device control frames bind catalog deltas to renewable server truth",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-control-frames",
+    "control-feedback",
+    "control-action-catalog",
+    "feedback-leases",
+    "protocol-publication"
+  ],
+  "context": "Discovery established that a reconnected Linux controller needs only a fresh complete snapshot rather than missed history, while a connected controller should receive value and catalog deltas. Unchanged active or inactive controls must remain current through periodic server confirmations; absence of current evidence while the connection remains open means unknown, transport closure means disconnected, explicit operation error means failed, and absence from the current authorized catalog means unavailable. A newly available control may not become actionable before its descriptor and initial state arrive together. ADR-0007 previously allowed only authoritative-server evidence to establish or renew active or inactive truth and prohibited transport acknowledgements from doing so. ADR-0008 signed individual feedback events, ADR-0015 and ADR-0016 projected point-in-time authorized action catalogs, and ADR-0019 issued signed visibility observations, but none bound current catalog membership, complete bootstrap, minimal deltas, and lease renewal into one atomic signed unit. SDD-016 tested one pure DeviceControlFrame protocol. Slice 1 added canonical bootstrap and delta builders, target-catalog SHA-256 bytes, signed envelope admission, atomic reduction, lease-aware current or unknown projection, unavailable projection, root and explicit ESM exports, declarations, and installed-tarball execution. Evidence demonstrated code-unit canonical ordering, independent SHA-256 agreement, Ed25519 round-trip admission, payload substitution rejection, issuer, audience, scope, Show, target, control and sequence enforcement, complete bootstrap coverage, one-target isolation, minimal changed-value output, unchanged-state lease renewal, exact three-second expiry, additions paired with initial observations, removals to unavailable, atomic descriptor replacement, catalog-hash mismatch rejection, malformed and oversized input rejection, regression and same-revision mutation rejection, immutable failure, empty catalogs, full repository compatibility, builds, and zero audited vulnerabilities. The human authority accepted H-016 only within this pure frame-protocol boundary.",
+  "decision": "Device control state synchronization uses a versioned canonical DeviceControlFrame for exactly one Show and one Preview or Program target. A signed frame envelope binds the complete normalized frame to one externally pinned issuer key identifier, credential-generation audience, positive monotonic sequence, and signature. Admission verifies the signature before granting the frame and then requires feedback-read authority for the exact Show, target and every affected control; catalog additions also require component-visibility write authority. A bootstrap frame is the only valid first frame and must contain the complete bounded target catalog, no removals, and exactly one authoritative initial observation for every action. A delta builder receives the complete current authorized target catalog and complete current observations but emits only descriptor additions or replacements, removals, and values that changed. Every addition or descriptor replacement must carry its authoritative initial observation in the same frame. Removal makes a control unavailable in the resulting atomic state. Descriptor replacement is represented as removal plus addition in one frame. Each frame binds one safe-integer production revision, finite authoritative confirmation time, and lowercase SHA-256 hash over the canonical code-unit-ordered resulting target catalog. A later signed confirmation with no changed values renews every unchanged control remaining in that exact catalog; it is authoritative server evidence and is not a transport acknowledgement. Revision and confirmation time may not regress, and catalog or value mutation requires a newer revision while the same revision may produce only a lease renewal. Reduction validates the prior state hash, applies the complete frame or nothing, and verifies the resulting catalog hash before returning state. A current available control retains its last observed value while the signed catalog-bound confirmation is younger than three seconds; at exactly three seconds without later confirmation it becomes unknown. A control absent from the resulting catalog is unavailable. This decision does not establish WebSocket authentication or messages, commands, timers, three-second delivery, connected or disconnected state, operation acknowledgement or failure delivery, backpressure, reconnect implementation, server composition, key lifecycle, Companion, renderer or OBS observation, or hardware behavior.",
+  "consequences": [
+    "Reconnect consumers can discard prior state and establish one complete catalog and state baseline from a bootstrap frame.",
+    "Steady-state consumers receive only catalog and value differences while one signed catalog-bound confirmation renews unchanged controls.",
+    "A transport acknowledgement cannot refresh active or inactive truth because lease renewal is part of the signed authoritative frame.",
+    "A control cannot become available without its actionable descriptor and initial authoritative value in the same admitted frame.",
+    "A removed control becomes unavailable atomically and is distinct from unknown, disconnected, and failed states.",
+    "Catalog identity is deterministic across input order and is protected by a signed SHA-256 digest of canonical target-catalog bytes.",
+    "Malformed, unauthorized, replayed, temporally regressive, incomplete, oversized, or hash-incoherent frames fail without partial state.",
+    "Frame builders must inspect complete current observations even though their delta output omits unchanged values.",
+    "Network delivery, commands, operation failures, connection state, scheduling, server integration, adapters and hardware remain later architectural questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-control-frame-is-canonical-and-signed",
+      "statement": "Every admitted device control frame must bind its normalized complete payload to a pinned issuer, credential-generation audience, positive monotonic sequence, and verified signature."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-bootstrap-is-complete",
+      "statement": "The first frame must be bootstrap and must contain the complete bounded target catalog, no removals, and exactly one authoritative initial observation for every included action."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-delta-builder-observes-complete-truth",
+      "statement": "A delta builder must receive the complete current authorized target catalog and observations even though it emits only additions, replacements, removals, and changed values."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-addition-requires-initial-state",
+      "statement": "A new or replaced action descriptor may become available only when its initial authoritative observation is carried in the same atomic frame."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-removal-is-unavailable",
+      "statement": "A control removed from the resulting authorized catalog must become unavailable atomically rather than unknown, disconnected, or failed."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-lease-is-authoritative-evidence",
+      "statement": "Only a signed catalog-bound server confirmation may renew unchanged active or inactive controls; a transport acknowledgement may not renew their truth."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-catalog-hash-is-deterministic",
+      "statement": "Each frame must bind lowercase SHA-256 over the versioned code-unit-ordered canonical bytes of its exact resulting Show and target catalog."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-frame-reduction-is-atomic",
+      "statement": "Frame reduction must validate prior state, revision, confirmation time, transition completeness and resulting catalog hash before returning any new state."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-frame-claims-are-bounded",
+      "statement": "Passing frame-protocol evidence may not be represented as WebSocket authentication or delivery, commands, timers, three-second scheduling, connected or disconnected projection, operation error delivery, backpressure, reconnect implementation, server integration, key lifecycle, Companion integration, renderer or OBS observation, or hardware behavior."
+    }
+  ]
+}

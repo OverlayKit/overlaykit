@@ -19,6 +19,7 @@ const PUBLIC_SUBPATHS = [
   '/control-feedback',
   '/control-feedback-authority',
   '/control-visibility-feedback',
+  '/device-control-frame',
   '/device-credential',
 ] as const;
 
@@ -118,6 +119,7 @@ describe('published protocol package', () => {
       './control-feedback',
       './control-feedback-authority',
       './control-visibility-feedback',
+      './device-control-frame',
       './device-credential',
     ]);
     for (const target of Object.values(manifest.exports).flatMap((entry) => [
@@ -168,6 +170,18 @@ describe('published protocol package', () => {
       '  1001,',
       ');',
       "if (feedback.observations[0]?.value !== 'active' || feedback.observations[0]?.revision !== 3) process.exit(1);",
+      "const { buildDeviceControlBootstrapFrame, reduceDeviceControlFrame, projectDeviceControl } = await import('@overlaykit/protocol/device-control-frame');",
+      'const frame = await buildDeviceControlBootstrapFrame({',
+      "  showId: 'show-1',",
+      "  target: 'program',",
+      '  revision: 3,',
+      '  confirmedAt: 1001,',
+      '  catalog,',
+      '  observations: feedback.observations,',
+      '});',
+      'const frameState = await reduceDeviceControlFrame(null, frame);',
+      "const frameView = projectDeviceControl(frameState, { showId: 'show-1', target: 'program', controlId: 'lower-third.visibility' }, 1002);",
+      "if (!frameView.available || frameView.buttonState !== 'active') process.exit(1);",
     ].join('\n');
     await expect(execFileAsync(
       process.execPath,
@@ -209,12 +223,15 @@ describe('published protocol package', () => {
         "import { DeviceCredentialLifecycle } from '@overlaykit/protocol';",
         "import type { DeviceCredentialStore } from '@overlaykit/protocol/device-credential';",
         "import type { ServerVisibilityFeedbackProjection } from '@overlaykit/protocol/control-visibility-feedback';",
+        "import type { DeviceControlFrameState } from '@overlaykit/protocol/device-control-frame';",
         'const lifecycle: typeof DeviceCredentialLifecycle = DeviceCredentialLifecycle;',
         'const store: DeviceCredentialStore | null = null;',
         'const feedback: ServerVisibilityFeedbackProjection | null = null;',
+        'const frameState: DeviceControlFrameState | null = null;',
         'void lifecycle;',
         'void store;',
         'void feedback;',
+        'void frameState;',
       ].join('\n'),
       'utf8',
     );

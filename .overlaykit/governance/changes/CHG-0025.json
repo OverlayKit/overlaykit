@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0025",
+  "title": "Test signed delta frames with catalog-bound feedback leases",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires reconnect to discard prior device state and receive one fresh complete snapshot, then receive only value and catalog deltas while periodic authoritative revision confirmations renew unchanged controls before the three-second lease expires.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21 and ADR-0007",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery distinguishes current active or inactive, unknown while an open connection lacks current evidence, disconnected after transport closure, failed after an explicit operation error, and unavailable when a control is absent from the current authorized catalog.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted protocol can sign individual control events and project a point-in-time authorized action catalog, but it has no signed atomic unit that binds a production revision, current catalog membership, additions with initial state, removals, changed values, and renewal of unchanged observations.",
+      "evidence": "ADR-0008, ADR-0015, ADR-0016, ADR-0019, protocol/src/control-feedback-authority.ts, and protocol/src/control-action-catalog.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current WebSocket authenticates only Studio sessions or Output tokens and does not admit device commands or feedback; selecting or changing that transport cannot define the missing frame semantics.",
+      "evidence": "server/src/handlers/websocket.ts and server/src/auth/types.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-016: One versioned signed DeviceControlFrame can bind an issuer and credential audience to an exact Show, target, production revision, authoritative confirmation time, and hash of the resulting authorized catalog; a bootstrap frame can establish the complete catalog and initial state, while later delta frames can atomically add controls only with initial state, remove controls to unavailable, carry only changed values, and renew unchanged controls through the catalog-bound revision lease.",
+      "evidence": "SDD-016 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-016 only for a pure signed frame protocol whose complete bootstrap and later catalog-bound deltas were demonstrated through canonical SHA-256 bytes, Ed25519 admission, exact authority and replay controls, complete initial state, minimal value deltas, atomic additions and removals, renewable revision leases, unavailable projection, hostile transition tests, installed-tarball execution, repository checks, builds, and audit.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-016 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This proposed Slice does not establish WebSocket upgrade authentication, bidirectional device command messages, timers, scheduling or delivery within three seconds, connection-open or disconnected projection, operation acknowledgement or failure delivery, backpressure, reconnect implementation, command execution, key lifecycle, server integration, Companion, renderer or OBS observation, or hardware behavior.",
+      "evidence": "SDD-016 proposed Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A canonical signed frame envelope binds schema, issuer, credential audience, monotonic sequence, mode, Show, target, production revision, confirmation time, resulting catalog hash, catalog additions and removals, and changed observations.",
+      "verification": "Canonical byte, Ed25519 round-trip, substitution, authority, audience, sequence, and replay tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A bootstrap frame is valid only when it supplies the complete bounded authorized target catalog and exactly one initial authoritative observation for every included control.",
+      "verification": "Bootstrap completeness, duplicate, missing, extra, target, authority, bounds, and immutability tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A delta frame emits only added, removed, or value-changed controls, requires every addition to carry initial state, removes controls immediately from availability, and renews every unchanged remaining control through one later catalog-bound confirmation.",
+      "verification": "Delta construction, addition pairing, removal, unchanged omission, lease renewal, catalog-hash, temporal, revision, and atomic failure tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Admission and reduction fail closed without partial state for malformed frames, invalid signatures, unauthorized subjects, replay, catalog mismatch, out-of-order revision or time, conflicting identities, and unsupported transitions.",
+      "verification": "Hostile admission and reducer tests over cloned before-state evidence."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The frame protocol is exported from the package root and an explicit ESM subpath, resolves declarations, and executes from an installed publication tarball without claiming transport behavior.",
+      "verification": "Build, package-distribution, fresh-consumer runtime, and declaration tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0025 records Discovery facts, H-016, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting more than the evidence supports.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the public frame protocol, focused and packed-package tests, documentation and exports, and proposed governance records.",
+      "evidence": "git diff for CHG-0025"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-016 across canonical signing, authority, replay, complete bootstrap, minimal deltas, addition and removal atomicity, lease renewal, catalog coherence, bounds, ordering, immutability, package execution, and declarations.",
+      "evidence": "Focused protocol and package-distribution tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused protocol tests, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0020 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-016.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0020"
+    }
+  ]
+}
