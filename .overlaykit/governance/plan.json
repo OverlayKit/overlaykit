@@ -140,6 +140,14 @@
       "id": "ADR-0009",
       "supersededBy": null,
       "title": "Device credential generations bind exact authority"
+    },
+    {
+      "contentHash": "c8455679afcd9cc085a955fc34185f37051ad52e9b8f3edcec315beac723a524",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0010",
+      "supersededBy": null,
+      "title": "Device credential persistence is single-instance atomic"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -274,10 +282,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "9ae48965a648dd9da760aca7074b79632709a2569f61cab2218cc68745324c90",
-  "profileHash": "c5bd772a86fc6c31739f19d7cb8222858a738ba755a407f0093f2e8051483bf8",
+  "planHash": "d634583c98253f7a3adb5734a7f66e604d10e330b0d57da836e7a3daeeded85e",
+  "profileHash": "7d87b9b7958485666ad547c0bad9d5a9b1219bd8af4401149466ea7c9359171d",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.5.0",
+  "profileVersion": "2.6.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -362,6 +370,42 @@
       "kind": "rule",
       "sourceDecision": "ADR-0009",
       "statement": "Issuance and rotation return an opaque bearer once while credential storage receives only its sealed representation."
+    },
+    {
+      "id": "device-credential-file-commit-is-copy-on-write",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "A mutation writes and synchronizes a private unique temporary document, atomically replaces the prior complete file, and advances memory only after that replacement succeeds."
+    },
+    {
+      "id": "device-credential-file-has-one-owner",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "Exactly one credential-store instance may own and mutate a device credential file within the supported self-hosted runtime boundary."
+    },
+    {
+      "id": "device-credential-file-never-stores-bearer",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "The credential file accepts only sealed secret material and rejects a raw OverlayKit device bearer before persistence."
+    },
+    {
+      "id": "device-credential-mutations-use-generation-cas",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "Credential mutations are serialized within the owning store instance and replacements commit only when the persisted generation equals the caller's expected generation."
+    },
+    {
+      "id": "device-credential-persistence-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "Restart persistence and atomic visibility proven for one owning store instance may not be presented as multi-instance, multi-process, distributed, backup, or power-loss durability."
+    },
+    {
+      "id": "device-credential-state-validates-before-use",
+      "kind": "rule",
+      "sourceDecision": "ADR-0010",
+      "statement": "The complete versioned credential document and its lifecycle invariants must validate before any persisted record is exposed or mutated."
     },
     {
       "id": "device-lifecycle-authority-is-external",
