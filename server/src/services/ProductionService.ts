@@ -6,6 +6,9 @@ import type {
 } from '../types/element';
 import type { ServerMessage } from '../types/messages';
 import type {
+  ComponentVisibilityIntent,
+  ComponentVisibilityReceipt,
+  ComponentVisibilityResult,
   ProductionBus,
   ProductionControl,
   ProductionSnapshot,
@@ -20,6 +23,14 @@ import { ChannelManager, channelManager, type VariableBag } from './ChannelManag
 interface InternalProductionState extends ProductionState {
   takeOperations: Map<string, TakeReceipt>;
   controlOperations: Set<string>;
+  visibilityOperations: Map<string, {
+    fingerprint: string;
+    receipt: ComponentVisibilityReceipt;
+  }>;
+}
+
+export interface ProductionIntentAuthorization {
+  directProgram: boolean;
 }
 
 export class ProductionError extends Error {
@@ -181,6 +192,41 @@ function buildControlCatalog(
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function visibilityFingerprint(intent: ComponentVisibilityIntent): string {
+  return JSON.stringify({
+    kind: intent.kind,
+    showId: intent.showId,
+    target: intent.target,
+    componentId: intent.componentId,
+    visible: intent.visible,
+    expectedRevision: intent.expectedRevision,
+  });
+}
+
+function elementsWithVisibility(
+  source: ElementNode[],
+  componentId: string,
+  visible: boolean,
+): ElementNode[] {
+  const elements = clone(source);
+  let matches = 0;
+  const visit = (element: ElementNode): void => {
+    if (element.id === componentId) {
+      matches += 1;
+      element.styles = { ...element.styles, display: visible ? '' : 'none' };
+    }
+    for (const child of element.children ?? []) visit(child);
+  };
+  for (const element of elements) visit(element);
+  if (matches === 0) {
+    throw new ProductionError('COMPONENT_NOT_FOUND', 'Component not found in target snapshot', 404, { componentId });
+  }
+  if (matches > 1) {
+    throw new ProductionError('AMBIGUOUS_COMPONENT', 'Component identifiers must be unique in the target snapshot', 409, { componentId });
+  }
+  return elements;
 }
 
 function emptySnapshot(showId: string, bus: ProductionBus): ProductionSnapshot {
@@ -346,6 +392,81 @@ export class ProductionService {
     return this.publicState(state);
   }
 
+  executeVisibilityIntent(
+    intent: ComponentVisibilityIntent,
+    authorization: ProductionIntentAuthorization,
+  ): ComponentVisibilityResult {
+    this.validateVisibilityIntent(intent);
+    const state = this.getOrCreate(intent.showId);
+    if (intent.target === 'program' && !authorization.directProgram) {
+      throw new ProductionError(
+        'DIRECT_PROGRAM_FORBIDDEN',
+        'Direct Program visibility requires explicit authorization',
+        403,
+      );
+    }
+    const fingerprint = visibilityFingerprint(intent);
+    const prior = state.visibilityOperations.get(intent.operationId);
+    if (prior) {
+      if (prior.fingerprint !== fingerprint) {
+        throw new ProductionError(
+          'OPERATION_ID_CONFLICT',
+          'operationId was already used for a different visibility intent',
+          409,
+          { operationId: intent.operationId },
+        );
+      }
+      return { receipt: clone(prior.receipt), state: this.publicState(state) };
+    }
+    const snapshot = state[intent.target];
+    if (snapshot.revision === 0 || !snapshot.scene) {
+      throw new ProductionError(
+        intent.target === 'preview' ? 'PREVIEW_EMPTY' : 'PROGRAM_EMPTY',
+        `Load a Scene into ${intent.target === 'preview' ? 'Preview' : 'Program'} before changing visibility`,
+        409,
+      );
+    }
+    if (snapshot.revision !== intent.expectedRevision) {
+      throw new ProductionError(
+        'TARGET_REVISION_CONFLICT',
+        `${intent.target === 'preview' ? 'Preview' : 'Program'} changed before the visibility intent was applied`,
+        409,
+        {
+          target: intent.target,
+          expectedRevision: intent.expectedRevision,
+          actualRevision: snapshot.revision,
+        },
+      );
+    }
+
+    const executedAt = Date.now();
+    const nextSnapshot: ProductionSnapshot = {
+      ...snapshot,
+      revision: snapshot.revision + 1,
+      elements: elementsWithVisibility(snapshot.elements, intent.componentId, intent.visible),
+      updatedAt: executedAt,
+    };
+    state[intent.target] = nextSnapshot;
+    const receipt: ComponentVisibilityReceipt = {
+      kind: 'component.visibility',
+      showId: intent.showId,
+      target: intent.target,
+      componentId: intent.componentId,
+      visible: intent.visible,
+      resultingState: intent.visible ? 'active' : 'inactive',
+      operationId: intent.operationId,
+      targetRevision: nextSnapshot.revision,
+      executedAt,
+    };
+    state.visibilityOperations.set(intent.operationId, { fingerprint, receipt });
+    if (state.visibilityOperations.size > 100) {
+      const firstOperation = state.visibilityOperations.keys().next().value as string | undefined;
+      if (firstOperation) state.visibilityOperations.delete(firstOperation);
+    }
+    this.publishSnapshot(nextSnapshot);
+    return { receipt: clone(receipt), state: this.publicState(state) };
+  }
+
   private getOrCreate(showId: string): InternalProductionState {
     let state = this.shows.get(showId);
     if (!state) {
@@ -356,6 +477,7 @@ export class ProductionService {
         lastTake: null,
         takeOperations: new Map(),
         controlOperations: new Set(),
+        visibilityOperations: new Map(),
       };
       this.shows.set(showId, state);
     }
@@ -388,6 +510,28 @@ export class ProductionService {
     }
   }
 
+  private validateVisibilityIntent(intent: ComponentVisibilityIntent): void {
+    if (!intent || typeof intent !== 'object' || intent.kind !== 'component.visibility') {
+      throw new ProductionError('INVALID_VISIBILITY_INTENT', 'A component.visibility intent is required', 400);
+    }
+    if (!intent.showId || typeof intent.showId !== 'string') {
+      throw new ProductionError('INVALID_SHOW_ID', 'Visibility intent must name a Show', 400);
+    }
+    if (intent.target !== 'preview' && intent.target !== 'program') {
+      throw new ProductionError('INVALID_PRODUCTION_TARGET', 'Visibility intent must target Preview or Program', 400);
+    }
+    if (!intent.componentId || typeof intent.componentId !== 'string' || intent.componentId.length > 100) {
+      throw new ProductionError('INVALID_COMPONENT_ID', 'componentId must be 1 to 100 characters', 400);
+    }
+    if (typeof intent.visible !== 'boolean') {
+      throw new ProductionError('INVALID_VISIBILITY', 'visible must be boolean', 400);
+    }
+    if (!Number.isInteger(intent.expectedRevision) || intent.expectedRevision < 0) {
+      throw new ProductionError('INVALID_TARGET_REVISION', 'expectedRevision must be a non-negative integer', 400);
+    }
+    this.validateOperationId(intent.operationId);
+  }
+
   private publishSnapshot(snapshot: ProductionSnapshot): void {
     const key = productionRouteKey(snapshot.showId, snapshot.bus);
     this.channels.replaceVariables(key, clone(snapshot.variables));
@@ -417,6 +561,9 @@ export class ProductionService {
 export const productionService = new ProductionService();
 
 export type {
+  ComponentVisibilityIntent,
+  ComponentVisibilityReceipt,
+  ComponentVisibilityResult,
   ProductionBus,
   ProductionSnapshot,
   ProductionState,

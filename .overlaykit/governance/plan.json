@@ -100,6 +100,14 @@
       "id": "ADR-0004",
       "supersededBy": null,
       "title": "OverlayKit is a secure show-centered production studio"
+    },
+    {
+      "contentHash": "2a4b7928ffe16c05f144ba86a4e448afb2118976d7f1d9d68f8dcb6ff98c623f",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0005",
+      "supersededBy": null,
+      "title": "Production intents name their target and direct Program authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -234,10 +242,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "f123b9a06bc4eba0cd4f5ca9954aa08ed0c991ece156cd71b41aa39f97b227d2",
-  "profileHash": "74ee75e0d80d97618d6cd29130ea3571d176e07c0791224d1da3aa0851706dc5",
+  "planHash": "a772c1db3ea379cb5b083ed0daa5b10423301696c87bbf9a979dfef2c1718ff2",
+  "profileHash": "92b314b191a5bc4eb92923af49087d89bbc9432d43e07f96c5f6d0c44a9cfbf1",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.0.0",
+  "profileVersion": "2.1.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -312,10 +320,40 @@
       "statement": "The default production workflow prepares Preview and promotes it to Program through an explicit Take command."
     },
     {
+      "id": "production-target-is-explicit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "Every production intent names Preview or Program and a missing or unknown target fails closed."
+    },
+    {
+      "id": "program-authority-is-external",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "Direct Program authority is established by an authorization boundary and is never asserted by the intent payload itself."
+    },
+    {
+      "id": "receipt-scope-is-honest",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "A server receipt reports resulting authoritative server state and cannot be presented as renderer or device observation without additional evidence."
+    },
+    {
       "id": "runtime-does-not-mutate-source",
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "Preview and Program state never overwrite a saved Scene or Component Definition without an explicit save-back command."
+    },
+    {
+      "id": "runtime-intents-are-idempotent",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "Replaying one operation identifier with the same intent does not apply twice, and reuse for another intent fails as a conflict."
+    },
+    {
+      "id": "runtime-source-remains-immutable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "A production intent changes runtime state only and never overwrites saved Scene source."
     },
     {
       "id": "show-is-the-workspace",
@@ -328,6 +366,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "Authoring, production, library, security, and integrations share one authenticated Studio shell; the headless OBS output remains separate."
+    },
+    {
+      "id": "target-revision-is-checked",
+      "kind": "rule",
+      "sourceDecision": "ADR-0005",
+      "statement": "A production intent validates the expected revision of its named target before mutation."
     }
   ],
   "schemasHash": "7140a74320331a66d4edcb04118f77a1fa39e0a5378a8923c22fe6ef4329a0ce",

@@ -7,6 +7,7 @@ import {
   productionRouteKey,
 } from '../../src/services/ProductionService';
 import type { Scene } from '../../src/types/scene';
+import type { ComponentVisibilityIntent } from '../../src/types/production';
 
 function scene(id = 'scene-1'): Scene {
   return {
@@ -212,5 +213,122 @@ describe('ProductionService', () => {
       flags: { score: true },
       theme: { accent: 'cyan' },
     })).toThrowError(ProductionError);
+  });
+
+  it('requires an explicit target and isolates Preview visibility from Program', () => {
+    const source = scene();
+    const sourceBefore = JSON.stringify(source);
+    production.loadPreview('show-1', source, { title: 'Lower third' });
+    production.take('show-1', 1, 'take-initial');
+
+    const hidden = production.executeVisibilityIntent({
+      kind: 'component.visibility',
+      showId: 'show-1',
+      target: 'preview',
+      componentId: 'scene-1-title',
+      visible: false,
+      operationId: 'visibility-preview-1',
+      expectedRevision: 1,
+    }, { directProgram: false });
+
+    expect(hidden.receipt).toMatchObject({
+      target: 'preview',
+      resultingState: 'inactive',
+      targetRevision: 2,
+    });
+    expect(hidden.state.preview.elements[0].styles.display).toBe('none');
+    expect(hidden.state.program.elements[0].styles.display).toBeUndefined();
+    expect(hidden.state.program.revision).toBe(1);
+    expect(JSON.stringify(source)).toBe(sourceBefore);
+
+    const missingTarget = {
+      kind: 'component.visibility',
+      showId: 'show-1',
+      componentId: 'scene-1-title',
+      visible: true,
+      operationId: 'visibility-no-target',
+      expectedRevision: 2,
+    } as unknown as ComponentVisibilityIntent;
+    expect(() => production.executeVisibilityIntent(missingTarget, { directProgram: true }))
+      .toThrowError(expect.objectContaining({ code: 'INVALID_PRODUCTION_TARGET', status: 400 }));
+  });
+
+  it('requires explicit authorization before changing Program visibility', () => {
+    production.loadPreview('show-1', scene(), { title: 'Lower third' });
+    production.take('show-1', 1, 'take-initial');
+    const intent: ComponentVisibilityIntent = {
+      kind: 'component.visibility',
+      showId: 'show-1',
+      target: 'program',
+      componentId: 'scene-1-title',
+      visible: false,
+      operationId: 'visibility-program-1',
+      expectedRevision: 1,
+    };
+
+    expect(() => production.executeVisibilityIntent(intent, { directProgram: false }))
+      .toThrowError(expect.objectContaining({ code: 'DIRECT_PROGRAM_FORBIDDEN', status: 403 }));
+    expect(production.getState('show-1').program).toMatchObject({ revision: 1 });
+    expect(production.getState('show-1').program.elements[0].styles.display).toBeUndefined();
+
+    const hidden = production.executeVisibilityIntent(intent, { directProgram: true });
+    expect(hidden.receipt).toMatchObject({
+      target: 'program',
+      resultingState: 'inactive',
+      targetRevision: 2,
+    });
+    expect(hidden.state.program.elements[0].styles.display).toBe('none');
+    expect(hidden.state.preview.revision).toBe(1);
+  });
+
+  it('rejects stale revisions and conflicting operation reuse without partial mutation', () => {
+    production.loadPreview('show-1', scene(), { title: 'Lower third' });
+    const intent: ComponentVisibilityIntent = {
+      kind: 'component.visibility',
+      showId: 'show-1',
+      target: 'preview',
+      componentId: 'scene-1-title',
+      visible: false,
+      operationId: 'visibility-replay',
+      expectedRevision: 1,
+    };
+
+    expect(() => production.executeVisibilityIntent({ ...intent, expectedRevision: 0 }, { directProgram: false }))
+      .toThrowError(expect.objectContaining({ code: 'TARGET_REVISION_CONFLICT', status: 409 }));
+    const first = production.executeVisibilityIntent(intent, { directProgram: false });
+    const replay = production.executeVisibilityIntent(intent, { directProgram: false });
+    expect(first.receipt).toEqual(replay.receipt);
+    expect(replay.state.preview.revision).toBe(2);
+
+    expect(() => production.executeVisibilityIntent({ ...intent, visible: true }, { directProgram: false }))
+      .toThrowError(expect.objectContaining({ code: 'OPERATION_ID_CONFLICT', status: 409 }));
+    expect(production.getState('show-1').preview).toMatchObject({ revision: 2 });
+    expect(production.getState('show-1').preview.elements[0].styles.display).toBe('none');
+  });
+
+  it('returns observed state inside the three-second in-process confirmation budget', () => {
+    production.loadPreview('show-1', scene(), { title: 'Lower third' });
+    const startedAt = Date.now();
+    const hidden = production.executeVisibilityIntent({
+      kind: 'component.visibility',
+      showId: 'show-1',
+      target: 'preview',
+      componentId: 'scene-1-title',
+      visible: false,
+      operationId: 'visibility-timeout-budget',
+      expectedRevision: 1,
+    }, { directProgram: false });
+
+    expect(Date.now() - startedAt).toBeLessThan(3_000);
+    expect(hidden.receipt.resultingState).toBe('inactive');
+    expect(() => production.executeVisibilityIntent({
+      kind: 'component.visibility',
+      showId: 'show-1',
+      target: 'preview',
+      componentId: 'missing-component',
+      visible: true,
+      operationId: 'visibility-failed',
+      expectedRevision: 2,
+    }, { directProgram: false })).toThrowError(expect.objectContaining({ code: 'COMPONENT_NOT_FOUND', status: 404 }));
   });
 });
