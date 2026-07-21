@@ -1,0 +1,40 @@
+# @overlaykit/protocol
+
+Shared OverlayKit contracts and deterministic state projections for scenes,
+Preview/Program production, control feedback, and device credentials.
+
+## Install
+
+```bash
+npm install @overlaykit/protocol
+```
+
+The package publishes compiled ESM and TypeScript declarations. ESM consumers
+can import the root or an explicit public subpath:
+
+```ts
+import { DeviceCredentialLifecycle } from '@overlaykit/protocol/device-credential';
+```
+
+CommonJS applications must use native dynamic import:
+
+```js
+const protocol = await import('@overlaykit/protocol/device-credential');
+```
+
+Synchronous `require()` is not part of the package contract.
+
+## Public Subpaths
+
+- `@overlaykit/protocol`
+- `@overlaykit/protocol/element`
+- `@overlaykit/protocol/scene`
+- `@overlaykit/protocol/messages`
+- `@overlaykit/protocol/production`
+- `@overlaykit/protocol/control-feedback`
+- `@overlaykit/protocol/control-feedback-authority`
+- `@overlaykit/protocol/device-credential`
+
+## License
+
+MIT

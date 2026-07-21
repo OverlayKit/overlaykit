@@ -1,4 +1,4 @@
-import type { ProductionBus } from './production';
+import type { ProductionBus } from './production.js';
 
 export const DEFAULT_CONTROL_FEEDBACK_TIMEOUT_MS = 3_000;
 

@@ -4,23 +4,65 @@
   "description": "Shared OverlayKit protocol contracts and deterministic state projections.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OverlayKit/overlaykit.git",
+    "directory": "protocol"
+  },
+  "homepage": "https://github.com/OverlayKit/overlaykit#readme",
+  "bugs": {
+    "url": "https://github.com/OverlayKit/overlaykit/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./element": "./src/element.ts",
-    "./scene": "./src/scene.ts",
-    "./messages": "./src/messages.ts",
-    "./production": "./src/production.ts",
-    "./control-feedback": "./src/control-feedback.ts",
-    "./control-feedback-authority": "./src/control-feedback-authority.ts",
-    "./device-credential": "./src/device-credential.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.ts",
+      "import": "./dist/scene.js"
+    },
+    "./messages": {
+      "types": "./dist/messages.d.ts",
+      "import": "./dist/messages.js"
+    },
+    "./production": {
+      "types": "./dist/production.d.ts",
+      "import": "./dist/production.js"
+    },
+    "./control-feedback": {
+      "types": "./dist/control-feedback.d.ts",
+      "import": "./dist/control-feedback.js"
+    },
+    "./control-feedback-authority": {
+      "types": "./dist/control-feedback-authority.d.ts",
+      "import": "./dist/control-feedback-authority.js"
+    },
+    "./device-credential": {
+      "types": "./dist/device-credential.d.ts",
+      "import": "./dist/device-credential.js"
+    }
   },
   "files": [
-    "src"
+    "dist"
   ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "prebuild": "npm run clean",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "lint": "eslint src tests --ext .ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit"

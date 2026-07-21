@@ -1,5 +1,5 @@
-import type { ControlFeedbackAuthorityContext } from './control-feedback-authority';
-import type { ProductionBus } from './production';
+import type { ControlFeedbackAuthorityContext } from './control-feedback-authority.js';
+import type { ProductionBus } from './production.js';
 
 export const DEVICE_CREDENTIAL_TOKEN_PREFIX = 'ok_device_' as const;
 export const DEVICE_CREDENTIAL_SCOPES = [

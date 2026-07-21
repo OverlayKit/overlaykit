@@ -1,5 +1,5 @@
-import type { ElementNode } from './element';
-import type { Scene, Orientation } from './scene';
+import type { ElementNode } from './element.js';
+import type { Scene, Orientation } from './scene.js';
 
 export interface ErrorDetails {
   path?: string;

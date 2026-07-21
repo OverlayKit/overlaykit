@@ -156,6 +156,14 @@
       "id": "ADR-0011",
       "supersededBy": null,
       "title": "Device bearers use versioned domain-separated verifiers"
+    },
+    {
+      "contentHash": "a0c08ce8a7a2bc92e854de7c5a8f0f7eb9acd0d0e8f221f36a9acf83d9e52750",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0012",
+      "supersededBy": null,
+      "title": "Protocol publishes one compiled ESM implementation"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -290,10 +298,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "add871cfedf78f576e90847f827f84a48c2c47b7f965d1909ec88cd0f19e49c7",
-  "profileHash": "9cc542324618015cc889bd3f757628527c8d652f1e7238f4eb4a81f6f9805d8d",
+  "planHash": "f99a871ce66463e2fbaa25e931db43afda7b97e6ccda5b9dcc9749109eaf6e1d",
+  "profileHash": "0eb721024aa0619af365e832431f60622f29e53aac3a1836fa305a25c377205e",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.7.0",
+  "profileVersion": "2.8.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -582,6 +590,42 @@
       "kind": "rule",
       "sourceDecision": "ADR-0005",
       "statement": "Direct Program authority is established by an authorization boundary and is never asserted by the intent payload itself."
+    },
+    {
+      "id": "protocol-commonjs-uses-dynamic-import",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "A CommonJS consumer that loads protocol runtime values must use native dynamic import; synchronous require and a separate CommonJS implementation are outside the accepted contract."
+    },
+    {
+      "id": "protocol-exports-are-explicit-and-packed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "Every supported protocol entry point must declare explicit types and import targets, and every target must be present in the publication payload."
+    },
+    {
+      "id": "protocol-package-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "Passing tarball-consumer tests may not be presented as registry publication, provenance, semantic-version compatibility, browser or bundler compatibility, mixed loader identity, synchronous require support, server composition, endpoint integration, or complete downstream compatibility."
+    },
+    {
+      "id": "protocol-package-tests-use-installed-tarball",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "Publication-boundary evidence must exercise an installed npm tarball and may not substitute direct workspace-source imports for packed-consumer behavior."
+    },
+    {
+      "id": "protocol-publication-excludes-source-and-tests",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "The protocol publication allowlist must expose compiled dist artifacts rather than repository source or tests."
+    },
+    {
+      "id": "protocol-publishes-compiled-esm",
+      "kind": "rule",
+      "sourceDecision": "ADR-0012",
+      "statement": "The public protocol runtime must be compiled from its TypeScript source as one ESM implementation accompanied by declarations."
     },
     {
       "id": "receipt-scope-is-honest",
