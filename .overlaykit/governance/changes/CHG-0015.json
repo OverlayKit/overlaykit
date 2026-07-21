@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0015",
+  "title": "Test restart-safe device credential persistence",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0009", "ADR-0010"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "ADR-0009 requires a store adapter with generation compare-and-swap and leaves durable storage explicitly unanswered.",
+      "evidence": "ADR-0009 decision and consequences",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The OSS server starts one Node process, while its existing file stores do not combine deep startup validation, serialized mutation, generation compare-and-swap, and atomic replacement.",
+      "evidence": "server/src/index.ts, server/src/storage/FileStorage.ts, and server/src/auth/FileAuthStore.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-006: For one OverlayKit server process on one host using one credential-store instance, a versioned credential document that validates before use, serializes mutations, enforces generation compare-and-swap, and replaces a synchronized private temporary file atomically can preserve sealed credential rotation and revocation across process restart while rejecting stale concurrent writes within that store instance.",
+      "evidence": "SDD-006 hypothesis H-006",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-006 only for one process, one host, and one owning store instance after lifecycle composition, restart, rotation, revocation, stale-generation, concurrent-mutation, malformed-state, failed-commit, plaintext-bearer, permission, and temporary-file tests passed.",
+      "evidence": "server/tests/unit/fileDeviceCredentialStore.test.ts and ADR-0010",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The Slice does not establish simultaneous-store-instance or multi-process coordination, distributed storage semantics, power-loss survival, backup recovery, production secret sealing, endpoint integration, in-flight revocation linearizability, or a compiled cross-package type declaration boundary for the source-published protocol package.",
+      "evidence": "SDD-006 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A fresh store instance loads a valid versioned document and preserves issued, rotated, and revoked generations across process-like restart boundaries.",
+      "verification": "Restart persistence tests using independent store instances."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Competing creates and replacements invoked on one store instance are serialized, and exactly one replacement with the same expected generation succeeds.",
+      "verification": "Concurrent create and generation-CAS refutation tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Malformed or unsupported state fails closed before use, and a failed replacement leaves both memory and the prior complete file at the previous generation.",
+      "verification": "Malformed startup state, denied-write, and prior-generation preservation tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Persistence rejects a raw OverlayKit device bearer, stores the lifecycle's sealed representation in a mode-0600 file under a mode-0700 directory, and leaves no completed-write temporary sibling.",
+      "verification": "Lifecycle composition, plaintext rejection, permission, and temporary-file tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The Slice claims restart persistence and atomic visibility only for one store instance; multiple simultaneous instances, multi-process, distributed, backup, power-loss, endpoint, and hardware guarantees remain unknown.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0015 records SDD-006 as an accepted security experiment and separates facts, H-006, the reviewed inference, and remaining unknowns.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice adds only a server-side file adapter, its persisted schema, package contract, and focused tests; no route, socket, UI, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0015"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-006 through restart, stale generation, concurrent mutation, malformed state, denied replacement, plaintext bearer, file permission, and incomplete temporary-file cases.",
+      "evidence": "server/tests/unit/fileDeviceCredentialStore.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0010 was created only after the human authority accepted H-006 within the demonstrated single-store-instance boundary.",
+      "evidence": "ADR-0010 context and Human Doctrine review"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, focused server quality, full repository checks, and builds pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, server checks, npm run check, and npm run build"
+    }
+  ]
+}

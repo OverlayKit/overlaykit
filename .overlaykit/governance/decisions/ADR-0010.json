@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0010",
+  "title": "Device credential persistence is single-instance atomic",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "credential-storage",
+    "device-authorization",
+    "protocol-security",
+    "self-hosted-runtime"
+  ],
+  "context": "ADR-0009 established generation-bound device authority but left its store adapter unanswered. The existing OSS file stores did not combine strict validation, mutation serialization, generation compare-and-swap, sealed-secret enforcement, and atomic replacement. SDD-006 asked how rotation and revocation could remain effective across restart and concurrent writes without persisting bearer plaintext. Slice 1 implemented a versioned JSON document owned by one store instance, validated every document and record before use, serialized copy-on-write mutations, synchronized a private temporary file before atomic rename, and committed memory only after persistence. Tests demonstrated lifecycle composition without bearer plaintext, restart persistence across independent sequential store instances, rotation and revocation preservation, stale-generation rejection, exactly one winner for competing operations on one store instance, malformed-state rejection without overwrite, prior-state preservation after a simulated commit failure, private permissions, and temporary-file cleanup. The human authority accepted H-006 only within the demonstrated single-process, single-host, single-store-instance boundary.",
+  "decision": "The self-hosted server persists device credential records in a schema-versioned private document owned by exactly one credential-store instance for the file. The store validates the complete document before exposing state and fails closed on malformed or unsupported content. Create and replace operations are serialized within that instance, work on a copy, enforce the current generation through compare-and-swap, write only sealed credential material to a unique mode-0600 temporary file, synchronize that file, and atomically rename it over the prior complete document under a mode-0700 directory. In-memory state advances only after the file commit succeeds. A fresh store instance may recover the committed generation after restart. These guarantees do not extend to simultaneous store instances, multiple processes, distributed filesystems, backups, or survival of power loss.",
+  "consequences": [
+    "The server must create one credential-store instance for a device credential file and share it across all lifecycle operations.",
+    "Malformed or unsupported persisted state prevents credential use and is never silently replaced by a mutation.",
+    "Concurrent creates and generation replacements on the owning instance are serialized, and stale expected generations fail without changing state.",
+    "Credential files contain only schema-validated sealed records; an OverlayKit device bearer is rejected as a persisted secret.",
+    "A failed file commit leaves both the prior complete file and the store's in-memory generation unchanged.",
+    "The adapter composes structurally with the protocol lifecycle, while a compiled cross-package declaration boundary for the source-published protocol package remains unanswered.",
+    "Simultaneous store instances, multiple processes, distributed storage, power-loss durability, backup recovery, production secret sealing, endpoint integration, and in-flight revocation linearizability require separate evidence."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-credential-file-has-one-owner",
+      "statement": "Exactly one credential-store instance may own and mutate a device credential file within the supported self-hosted runtime boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-state-validates-before-use",
+      "statement": "The complete versioned credential document and its lifecycle invariants must validate before any persisted record is exposed or mutated."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-mutations-use-generation-cas",
+      "statement": "Credential mutations are serialized within the owning store instance and replacements commit only when the persisted generation equals the caller's expected generation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-file-commit-is-copy-on-write",
+      "statement": "A mutation writes and synchronizes a private unique temporary document, atomically replaces the prior complete file, and advances memory only after that replacement succeeds."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-file-never-stores-bearer",
+      "statement": "The credential file accepts only sealed secret material and rejects a raw OverlayKit device bearer before persistence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-persistence-claims-are-bounded",
+      "statement": "Restart persistence and atomic visibility proven for one owning store instance may not be presented as multi-instance, multi-process, distributed, backup, or power-loss durability."
+    }
+  ]
+}
