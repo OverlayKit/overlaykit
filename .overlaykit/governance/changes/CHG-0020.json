@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0020",
+  "title": "Test least-privilege device action catalog projection",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0005", "ADR-0009", "ADR-0014", "ADR-0015"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 requires a typed Control API action catalog before a Companion adapter binds buttons, and requires Studio and integrations eventually to consume equivalent catalogs from declared component capabilities.",
+      "evidence": "SPEC-0001 REQ-DOM-006, REQ-INT-001, AC-017, and WF-004",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted device Control API currently executes only component visibility for an exact route-derived Show, target, and canonical `<componentId>.visibility` control; it does not execute Scenes, Take, value mutation, triggers, or cues through device HTTP.",
+      "evidence": "server/src/routes/deviceControl.ts and ADR-0014",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The protocol credential authority already contains the current Show, scopes, targets, and control identifiers, but the protocol package defines no action-catalog contract or deterministic least-privilege projection.",
+      "evidence": "protocol/src/device-credential.ts and protocol/src/index.ts on main after ADR-0014",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-011: A pure protocol projector can combine a bounded explicit inventory of currently executable component-visibility capabilities with externally authenticated device authority and deterministically emit only the exact available Show, scope, target, and control intersection, without exposing credential material or granting execution authority through catalog entries.",
+      "evidence": "SDD-011 hypothesis H-011",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-011 only for the pure component-visibility projection after exact Show, scope, target, control and availability intersection, hostile inventory, bounds, duplication, canonical ordering, immutability, descriptor leakage, package publication, repository-quality, build, and audit evidence passed.",
+      "evidence": "focused protocol and packed-package tests, ADR-0015, and Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This proposed Slice does not establish the server inventory adapter, HTTP catalog endpoint, catalog caching or revision semantics, saved-Scene discovery, Take, value, trigger or cue descriptors, issuance-time control validation, Studio catalog consumption, feedback, Companion, hardware behavior, or execution authorization from a catalog entry.",
+      "evidence": "SDD-011 proposed Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The protocol exports a versioned typed catalog contract and pure projector as both root and explicit ESM package subpath APIs.",
+      "verification": "Type-check, package export inspection, packed-tarball import, and fresh-consumer execution tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Equivalent inventories and authority produce byte-equivalent catalogs independent of input ordering, while malformed, duplicate, or over-limit inventory fails closed without mutating inputs.",
+      "verification": "Determinism, immutability, validation, duplicate, and bounds tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Projection fails closed for a mismatched Show and emits actions only when component.visibility:write, the exact Preview or Program target, the canonical `<componentId>.visibility` control, and an available inventory capability all intersect.",
+      "verification": "Show, scope, target, control, availability, and canonical-identifier matrix tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Every emitted descriptor has stable structured Show, target, control, component, label, and boolean visibility-input semantics and contains no bearer, credential identifier, generation, scopes, verifier, session, revision, or claim of current state.",
+      "verification": "Exact serialized descriptor and forbidden-field tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Slice 1 advertises only component.visibility and cannot represent or imply unimplemented device execution for Scenes, Take, values, triggers, cues, feedback, or hardware.",
+      "verification": "Closed action-kind validation and Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0020 records SDD-011 facts, H-011, the accepted inference, measurable criteria, and unresolved guarantees for the demonstrated pure component-visibility projection.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the public protocol catalog contract, its package export, focused tests, distribution verification, and proposed governance record; it adds no server route, UI, feedback transport, Companion adapter, or hardware code.",
+      "evidence": "git diff for CHG-0020"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-011 through hostile inventory, ordering, duplication, bounds, authority mismatch, unavailable controls, scope and target denial, descriptor leakage, package publication, and input-mutation tests.",
+      "evidence": "Focused protocol and packed-package tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, protocol checks, package distribution, full repository checks, build, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, protocol checks, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0015 was created only after the human authority accepted H-011 within the demonstrated pure-projection boundary.",
+      "evidence": "ADR-0015 context and Human Doctrine review on 2026-07-21"
+    }
+  ]
+}

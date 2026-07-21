@@ -39,6 +39,10 @@
       "types": "./dist/production.d.ts",
       "import": "./dist/production.js"
     },
+    "./control-action-catalog": {
+      "types": "./dist/control-action-catalog.d.ts",
+      "import": "./dist/control-action-catalog.js"
+    },
     "./control-feedback": {
       "types": "./dist/control-feedback.d.ts",
       "import": "./dist/control-feedback.js"

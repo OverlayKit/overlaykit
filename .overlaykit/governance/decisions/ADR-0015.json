@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0015",
+  "title": "Action catalogs project capability and authority intersection",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "control-action-catalog",
+    "control-integrations",
+    "device-authorization",
+    "protocol-determinism"
+  ],
+  "context": "SPEC-0001 requires a typed Control API action catalog before a Companion adapter can bind buttons, while ADR-0014 established only one executable device command: exact component visibility. Advertising Scenes, Take, values, triggers, cues, feedback, or hardware at that point would exceed implementation evidence. SDD-011 therefore asked how discovery could expose only actions the server inventory says are available and the externally authenticated device authority grants, without allowing catalog data to grant execution authority. Slice 1 implemented a pure protocol projector over a bounded explicit component-visibility inventory and DeviceCredentialAuthority. Tests demonstrated exact Show, component.visibility:write scope, Preview or Program target, canonical `<componentId>.visibility` control, and capability-availability intersection; mismatched Shows, malformed or duplicate inventory, unsupported kinds, invalid authority, and bounds failed closed. Equivalent unordered inputs produced byte-equivalent descriptors through fixed target ranking and locale-independent code-unit ordering without mutating inputs. Packed-package tests imported and executed the public subpath from a fresh ESM consumer. Serialized catalogs contained no credential identity, generation, scope list, expiry, verifier, session, revision, or current-state claim. Full governance, protocol, repository, build, and audit evidence passed. The human authority accepted H-011 only within this pure-projection and component-visibility boundary.",
+  "decision": "The protocol action catalog is a versioned pure projection of two authorities established outside the catalog: an explicit inventory of currently executable capabilities and an already authenticated device authority. Slice 1 accepts only bounded, unique component.visibility capabilities for one Show. Each component produces the canonical control identifier `<componentId>.visibility`. Projection fails closed when inventory and device authority name different Shows, validates the complete inventory before filtering, and emits a descriptor only when the authority grants component.visibility:write, the exact Preview or Program target, the exact canonical control, and that capability exists in inventory. Output order is canonical: Preview precedes Program and controls use locale-independent code-unit ordering. A descriptor carries only a stable action identifier, action kind, structured Show/target/control subject, component identifier, label, and required boolean visible input. It carries no bearer, credential identity, generation, scopes, expiry, verifier, session, production revision, or current-state assertion. Possessing or selecting a catalog descriptor never authorizes execution; every command still crosses the fresh device authorization boundary established by ADR-0014.",
+  "consequences": [
+    "Adapters can discover one typed component-visibility action without learning device credential material or interactive identity.",
+    "An action appears only when both trusted runtime inventory and current device authority include it; neither input alone is sufficient.",
+    "Catalog consumers can compare serialized output across supported environments because enum and text ordering do not depend on locale.",
+    "Malformed or duplicate capabilities fail the complete projection instead of being partially ignored, while valid but unauthorized or unavailable capabilities are omitted.",
+    "Catalog labels and component identifiers come from the trusted inventory adapter, whose server implementation remains to be demonstrated.",
+    "Catalog discovery cannot replace the fresh per-command authorization, active-Show check, revision, or idempotency boundaries of device execution.",
+    "HTTP publication, catalog revision and caching semantics, saved-Scene inventory, Take, values, triggers, cues, issuance-time control validation, Studio catalog consumption, feedback, Companion, and hardware remain separate questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "action-catalog-is-not-authority",
+      "statement": "A catalog descriptor may describe an action but must never grant command execution; every command still requires fresh authorization at its execution boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "action-catalog-requires-capability-authority-intersection",
+      "statement": "An action may be projected only when its Show, required scope, exact Preview or Program target, canonical control identifier, and explicit inventory capability all intersect."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-control-id-is-canonical",
+      "statement": "A component visibility capability uses the canonical control identifier `<componentId>.visibility` in catalog and authorization subjects."
+    },
+    {
+      "kind": "rule",
+      "id": "action-catalog-output-is-canonical",
+      "statement": "Equivalent inventory and authority must produce byte-equivalent catalog output using fixed semantic ranks and locale-independent text ordering without mutating inputs."
+    },
+    {
+      "kind": "rule",
+      "id": "action-catalog-omits-authority-and-state",
+      "statement": "Catalog descriptors must omit bearer and credential material, interactive identity, granted scope lists, production revisions, and assertions of current state."
+    },
+    {
+      "kind": "rule",
+      "id": "action-catalog-inventory-fails-closed",
+      "statement": "The complete action inventory must be bounded, supported, canonical, and unique before projection; malformed inventory cannot yield a partial catalog."
+    },
+    {
+      "kind": "rule",
+      "id": "action-catalog-claims-are-bounded",
+      "statement": "Passing pure projection tests may not be presented as HTTP publication, server inventory authority, saved-Scene discovery, Take, value, trigger or cue support, feedback, Studio parity, Companion integration, hardware behavior, or execution authorization."
+    }
+  ]
+}

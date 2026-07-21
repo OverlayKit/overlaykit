@@ -1,7 +1,8 @@
 # @overlaykit/protocol
 
 Shared OverlayKit contracts and deterministic state projections for scenes,
-Preview/Program production, control feedback, and device credentials.
+Preview/Program production, authorized action discovery, control feedback, and
+device credentials.
 
 ## Install
 
@@ -31,6 +32,7 @@ Synchronous `require()` is not part of the package contract.
 - `@overlaykit/protocol/scene`
 - `@overlaykit/protocol/messages`
 - `@overlaykit/protocol/production`
+- `@overlaykit/protocol/control-action-catalog`
 - `@overlaykit/protocol/control-feedback`
 - `@overlaykit/protocol/control-feedback-authority`
 - `@overlaykit/protocol/device-credential`
