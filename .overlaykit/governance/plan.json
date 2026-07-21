@@ -172,6 +172,14 @@
       "id": "ADR-0013",
       "supersededBy": null,
       "title": "Server composes device authority before network listen"
+    },
+    {
+      "contentHash": "859b96e6364f0d5b5c7a361c6ab2b6ee60d5a8d1bd3b6e5e0c523d42f6bb107e",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0014",
+      "supersededBy": null,
+      "title": "Device control derives exact authority from route coordinates"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -306,10 +314,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "e3e404432ed6f98b6b719304d9c49f6ee82f798e438edbaa70e7f0796926aace",
-  "profileHash": "4f68148fe8e33bfc1ce412098f75021f47b718f19256342112e2b09a733101e7",
+  "planHash": "c44566e391ca5be3b2b2824cac4644a65d8a3d128e392e0aa9595ba860fe2618",
+  "profileHash": "b2116c3d947c9818743db8949ec4c8673631b7ea899462d4d77aa94b5bb6a579",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.9.0",
+  "profileVersion": "2.10.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -378,6 +386,12 @@
       "statement": "One production action is a one-step cue and sequential coordinated work uses the same cue contract with additional ordered steps."
     },
     {
+      "id": "device-action-authorization-is-fresh",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "Every device action must resolve and authorize the bearer against the exact route-derived authority before Show lookup or production mutation so rotation, expiration, revocation, and scope changes fail closed on the next request."
+    },
+    {
       "id": "device-authority-is-exact",
       "kind": "rule",
       "sourceDecision": "ADR-0009",
@@ -406,6 +420,30 @@
       "kind": "rule",
       "sourceDecision": "ADR-0009",
       "statement": "Issuance and rotation return an opaque bearer once while credential storage receives only its sealed representation."
+    },
+    {
+      "id": "device-bearer-transport-is-singular",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "Device control accepts exactly one Bearer credential from Authorization and must reject credential transport through query parameters, request bodies, cookies, or duplicate Authorization fields."
+    },
+    {
+      "id": "device-control-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "Passing local device HTTP tests may not be presented as proof of network delivery, renderer or OBS application, device feedback, catalogs, cues, Take, value mutation, Companion or hardware support, device-specific rate limits, audit retention, multi-process coordination, or in-flight revocation or Show-archival linearizability."
+    },
+    {
+      "id": "device-control-preserves-production-concurrency",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "Device visibility execution must preserve ProductionService expected-revision, operation-id replay, operation-id conflict, Preview isolation, and bounded server-state receipt semantics."
+    },
+    {
+      "id": "device-control-principal-is-separated",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "A device Control API request must resolve only device authority and must never authenticate, construct, or inherit a Studio session principal."
     },
     {
       "id": "device-credential-file-commit-is-copy-on-write",
@@ -454,6 +492,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0011",
       "statement": "Entropy or sealing failure prevents credential persistence, and verifier parsing, digest, or comparison failure denies authentication."
+    },
+    {
+      "id": "device-direct-program-is-external-capability",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "ProductionService may receive direct Program authorization from the device route only after the same request bearer has been freshly authorized for the exact Program target and control."
     },
     {
       "id": "device-lifecycle-authority-is-external",
@@ -514,6 +558,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0011",
       "statement": "Authentication must reject unsupported or noncanonical verifier representations before comparing an equal-length 32-byte candidate and stored digest with the approved constant-time primitive."
+    },
+    {
+      "id": "device-visibility-authority-is-route-derived",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "The device visibility route must derive Show, Preview or Program target, and canonical `<componentId>.visibility` control authority from route coordinates and must fix the required scope to component.visibility:write."
+    },
+    {
+      "id": "device-visibility-body-cannot-grant-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0014",
+      "statement": "A device visibility body may contain only visible, operationId, and expectedRevision and must not name or override Show, scope, target, component, control, role, or direct-Program authority."
     },
     {
       "id": "done-is-observed",

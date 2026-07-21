@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0014",
+  "title": "Device control derives exact authority from route coordinates",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-control-http",
+    "device-principal-separation",
+    "production-visibility-intent",
+    "self-hosted-security"
+  ],
+  "context": "ADR-0005 established explicit Preview or Program production intents, expected-revision concurrency, operation-id idempotency, externally supplied direct-Program authority, and receipts that report server state rather than renderer observation. ADR-0009 established a device-only bearer authority bound to one Show, scopes, targets, controls, expiration, revocation, and generation, with fresh resolution for every action. ADR-0013 composed that lifecycle into the self-hosted server but intentionally left device request authentication and command execution unanswered. SDD-010 asked how one device HTTP request could cross into production visibility control without inheriting a Studio session or accepting authority from client-controlled payload data. Slice 1 mounted a dedicated device route outside interactive-session authentication, accepted exactly one Bearer credential from Authorization, rejected query, body, cookie, and duplicate credential transport, derived Show, target, and the canonical `<componentId>.visibility` control from route coordinates, and freshly called DeviceCredentialLifecycle.authorize for component.visibility:write before checking active Show state or invoking ProductionService. Tests demonstrated Studio-principal separation, exact Show, scope, target, and control denial, rotation, revocation, expiration, tampering, Preview isolation, explicit Program capability, closed body shape, revision conflicts, idempotent replay, operation conflicts, missing components, non-cacheable bounded errors and receipts, and a successful local in-process HTTP response within three seconds. Full governance, server, repository, build, and audit evidence passed. The human authority accepted H-010 only within that HTTP visibility-intent boundary.",
+  "decision": "The self-hosted device Control API is a principal boundary separate from Studio authentication. A device visibility request is accepted only at `POST /api/device/shows/:showId/production/:target/components/:componentId/visibility` with exactly one syntactically valid Bearer credential in the Authorization header and no Cookie header or query parameters. The JSON body is closed to `visible`, `operationId`, and `expectedRevision`; it cannot name or override a Show, scope, target, component, control, role, or direct-Program capability. For every request, the server derives the exact Show and Preview or Program target from the route, derives the control identifier as `<componentId>.visibility`, fixes the scope to `component.visibility:write`, and freshly delegates authorization to the protocol lifecycle. Invalid or inactive bearers fail with a bounded 401 challenge, while a valid bearer lacking exact authority fails with a bounded 403 challenge. Only after exact authorization may the server confirm that the Show exists and is active and pass the route-derived intent to ProductionService. Program authorization is supplied to ProductionService only because the freshly authorized route target is Program; it is never accepted from the body. Successful and failed device responses are non-cacheable. The returned receipt describes resulting server state and preserves expected-revision and operation-id semantics; it does not prove network delivery, renderer application, OBS state, or device feedback.",
+  "consequences": [
+    "A device bearer resolves only device authority and never creates, authenticates, or reuses a Studio principal or session.",
+    "Device clients must send one Authorization bearer and must not use cookies, query parameters, or JSON fields as credential transport.",
+    "Owners grant a visibility action by issuing the canonical `<componentId>.visibility` control identifier together with the exact Show, scope, and allowed Preview or Program targets.",
+    "The request body expresses desired visibility and concurrency identity but cannot grant production authority.",
+    "Rotation, revocation, expiration, and verifier checks affect the next action because authorization resolves the credential afresh for every request.",
+    "A credential authorized for Preview cannot mutate Program, and direct Program mutation remains an external capability proven before ProductionService executes the intent.",
+    "Authorization precedes Show lookup, which avoids disclosing Show state to an invalid or insufficient bearer; active-Show status still is not linearizable with a concurrent archival operation.",
+    "The demonstrated three-second budget covers only a local in-process HTTP test ending in a server-state receipt, not network, renderer, OBS, or hardware confirmation.",
+    "Action discovery, credential listing and response-loss recovery, cues, Take, value mutation, feedback transport, Companion, hardware support, per-device rate policy, audit retention, renderer observation, multi-process behavior, and in-flight authorization or archival linearizability remain separate questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-control-principal-is-separated",
+      "statement": "A device Control API request must resolve only device authority and must never authenticate, construct, or inherit a Studio session principal."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bearer-transport-is-singular",
+      "statement": "Device control accepts exactly one Bearer credential from Authorization and must reject credential transport through query parameters, request bodies, cookies, or duplicate Authorization fields."
+    },
+    {
+      "kind": "rule",
+      "id": "device-visibility-authority-is-route-derived",
+      "statement": "The device visibility route must derive Show, Preview or Program target, and canonical `<componentId>.visibility` control authority from route coordinates and must fix the required scope to component.visibility:write."
+    },
+    {
+      "kind": "rule",
+      "id": "device-action-authorization-is-fresh",
+      "statement": "Every device action must resolve and authorize the bearer against the exact route-derived authority before Show lookup or production mutation so rotation, expiration, revocation, and scope changes fail closed on the next request."
+    },
+    {
+      "kind": "rule",
+      "id": "device-visibility-body-cannot-grant-authority",
+      "statement": "A device visibility body may contain only visible, operationId, and expectedRevision and must not name or override Show, scope, target, component, control, role, or direct-Program authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-direct-program-is-external-capability",
+      "statement": "ProductionService may receive direct Program authorization from the device route only after the same request bearer has been freshly authorized for the exact Program target and control."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-preserves-production-concurrency",
+      "statement": "Device visibility execution must preserve ProductionService expected-revision, operation-id replay, operation-id conflict, Preview isolation, and bounded server-state receipt semantics."
+    },
+    {
+      "kind": "rule",
+      "id": "device-control-claims-are-bounded",
+      "statement": "Passing local device HTTP tests may not be presented as proof of network delivery, renderer or OBS application, device feedback, catalogs, cues, Take, value mutation, Companion or hardware support, device-specific rate limits, audit retention, multi-process coordination, or in-flight revocation or Show-archival linearizability."
+    }
+  ]
+}

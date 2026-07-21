@@ -29,6 +29,7 @@ import {
 } from './auth';
 import { createAuthRouter } from './routes/auth';
 import { createDeviceCredentialsRouter } from './routes/deviceCredentials';
+import { createDeviceControlRouter } from './routes/deviceControl';
 import { createShowsRouter } from './routes/shows';
 import { createProductionRouter } from './routes/production';
 import { productionService, type ProductionService } from './services/ProductionService';
@@ -79,6 +80,9 @@ export function createApp(dependencies: AppDependencies = {}): Express {
 
   app.use('/', healthRoutes);
   app.use('/sounds', express.static(path.join(__dirname, '../public/sounds'), { maxAge: '7d', immutable: true }));
+  if (deviceCredentials) {
+    app.use('/api', createDeviceControlRouter(dataStorage, production, deviceCredentials));
+  }
   app.use('/api', enforceBrowserOrigin(config.corsOrigin));
   app.use('/api/auth/setup', rateLimit({
     windowMs: config.authRateLimitWindowMs,

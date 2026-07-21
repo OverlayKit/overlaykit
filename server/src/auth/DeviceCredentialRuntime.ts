@@ -1,4 +1,5 @@
 import type {
+  DeviceAuthorizationRequest,
   DeviceCredential,
   DeviceCredentialAuthority,
   DeviceCredentialIssueInput,
@@ -27,6 +28,10 @@ export interface DeviceCredentialLifecyclePort {
   rotate(owner: DeviceCredentialOwner, credentialId: string): Promise<IssuedDeviceCredential>;
   revoke(owner: DeviceCredentialOwner, credentialId: string): Promise<DeviceCredential>;
   authenticate(token: unknown): Promise<DeviceCredentialAuthority | null>;
+  authorize(
+    token: unknown,
+    request: DeviceAuthorizationRequest,
+  ): Promise<DeviceCredentialAuthority>;
 }
 
 export interface DeviceCredentialRuntime {
