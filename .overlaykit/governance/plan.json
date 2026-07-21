@@ -116,6 +116,14 @@
       "id": "ADR-0006",
       "supersededBy": null,
       "title": "Production cues compose intents with explicit partial outcomes"
+    },
+    {
+      "contentHash": "f4184f5a95871dccf1f5063ed499e873af4610be4e890b10e75f07363f544f34",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0007",
+      "supersededBy": null,
+      "title": "Control feedback separates server truth from delivery acknowledgement"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -250,10 +258,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "3caa1ffb90200982ad1a749421dcf3211be39dfb68d1c3d42accb646b4ac58f2",
-  "profileHash": "403ab72532cec7ab4ec53d5bfed8bb14da474c217e386ae799468c49b8f8788c",
+  "planHash": "ce5cfae2b7db856965caf42bcfad8c747a9fd649e3e76db354e449afb76a9e0a",
+  "profileHash": "19299bcace91fe2b3ec26988f0b01552258ad4726971cc7d2b55e160080db54f",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.2.0",
+  "profileVersion": "2.3.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -334,6 +342,30 @@
       "statement": "A governance run may report outcomes only for gates and bindings already present in its matching plan and manifest."
     },
     {
+      "id": "feedback-failure-needs-later-observation",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "An explicit operation failure remains failed until a strictly later authoritative-server observation recovers the control."
+    },
+    {
+      "id": "feedback-lease-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "A server observation is current for less than three seconds and becomes stale with unknown button state at exactly three seconds."
+    },
+    {
+      "id": "feedback-scope-is-server-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "Control feedback reports authoritative server truth only and cannot be presented as renderer or hardware observation without separate evidence."
+    },
+    {
+      "id": "feedback-subject-is-explicit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "Every control feedback projection names one Show, one Preview or Program target, and one control identifier; feedback for another subject fails closed."
+    },
+    {
       "id": "hardware-is-an-adapter",
       "kind": "rule",
       "sourceDecision": "ADR-0004",
@@ -400,6 +432,12 @@
       "statement": "A production intent changes runtime state only and never overwrites saved Scene source."
     },
     {
+      "id": "server-observation-establishes-feedback-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "Only a revisioned authoritative-server observation may establish current active or inactive control state."
+    },
+    {
       "id": "show-is-the-workspace",
       "kind": "rule",
       "sourceDecision": "ADR-0004",
@@ -416,6 +454,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0005",
       "statement": "A production intent validates the expected revision of its named target before mutation."
+    },
+    {
+      "id": "transport-acknowledgement-is-not-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0007",
+      "statement": "Transport acknowledgement is delivery metadata and may never establish, refresh, or recover production state."
     }
   ],
   "schemasHash": "7140a74320331a66d4edcb04118f77a1fa39e0a5378a8923c22fe6ef4329a0ce",

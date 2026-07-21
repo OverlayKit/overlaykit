@@ -1,7 +1,7 @@
 {
   "name": "@overlaykit/protocol",
   "version": "0.1.0",
-  "description": "Shared OverlayKit protocol types for elements, scenes, variables, and WebSocket messages.",
+  "description": "Shared OverlayKit protocol contracts and deterministic state projections.",
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -9,7 +9,8 @@
     "./element": "./src/element.ts",
     "./scene": "./src/scene.ts",
     "./messages": "./src/messages.ts",
-    "./production": "./src/production.ts"
+    "./production": "./src/production.ts",
+    "./control-feedback": "./src/control-feedback.ts"
   },
   "files": [
     "src"
@@ -18,9 +19,12 @@
     "access": "public"
   },
   "scripts": {
+    "lint": "eslint src tests --ext .ts",
+    "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
   }
 }

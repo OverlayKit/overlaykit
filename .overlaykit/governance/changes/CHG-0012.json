@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0012",
+  "title": "Test trustworthy control feedback under a three-second lease",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0006",
+    "ADR-0007"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires physical controls to distinguish active, inactive, failed, and unknown state, and confirmation absent after three seconds cannot remain current truth.",
+      "evidence": "CHG-0010 and Doctrine-Driven Development Discovery for the Linux operator capability",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0005 limits production receipts to authoritative server state and forbids presenting them as renderer or device observation.",
+      "evidence": "ADR-0005#receipt-scope-is-honest",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0006 establishes explicit cue outcomes but leaves transport and hardware feedback unanswered.",
+      "evidence": "ADR-0006 consequences",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-003: A shared projection bound to one Show, target, and control can keep feedback trustworthy when only revisioned authoritative server observations establish active or inactive truth, transport acknowledgements remain delivery metadata, failures remain explicit, and observations expire to unknown button state after a three-second lease.",
+      "evidence": "SDD-003 hypothesis H-003",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-003 only for a pure deterministic projection after acknowledgement substitution, exact timeout, failure, recovery, event-order, subject-isolation, conflict, runtime-validation, and clock-skew tests passed; authenticated provenance and end-to-end feedback were not inferred.",
+      "evidence": "protocol/tests/control-feedback.test.ts and ADR-0007",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not authenticate event provenance or determine network delivery, clock synchronization, timer scheduling, renderer observation, hardware refresh timing, Companion or Stream Deck integration, device identity, or durable recovery.",
+      "evidence": "SDD-003 Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A feedback projection is bound to one explicit Show, Preview or Program target, and control identifier; events for another subject fail closed.",
+      "verification": "Protocol contract and subject-isolation tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Only a revisioned authoritative server observation can establish active or inactive current state; a transport acknowledgement records delivery without changing truth or freshness.",
+      "verification": "ACK-only and late-ACK adversarial tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A fresh observation projects current active or inactive state, while an observation exactly three seconds old projects stale with unknown button state and retains the last known value only as context.",
+      "verification": "Deterministic lease-boundary tests with injected time."
+    },
+    {
+      "id": "SC-004",
+      "statement": "An explicit operation failure projects failed state, transport acknowledgement cannot clear it, and a newer authoritative observation restores current state.",
+      "verification": "Failure, acknowledgement, and recovery state-machine tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Older observations and failures cannot rewind newer truth, contradictory observations conflict, and clock skew degrades to unknown.",
+      "verification": "Out-of-order, conflict, and clock-skew tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Every projected state declares authoritative-server truth scope and makes no renderer, hardware, or end-to-end timing claim.",
+      "verification": "Protocol output assertions and Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0012 records the architectural question as an accepted experiment and separates established facts, H-003, the reviewed inference, and remaining unknowns.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice adds only a pure shared feedback projection and focused tests; no server route, transport, credential, UI, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0012"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-003 through acknowledgement substitution, exact timeout, explicit failure, recovery, out-of-order, subject-isolation, conflict, and clock-skew cases.",
+      "evidence": "protocol/tests/control-feedback.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0007 was created only after the human authority accepted H-003 within the demonstrated pure in-process boundary.",
+      "evidence": "ADR-0007 context and Human Doctrine review"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, quality, focused tests, and build suites pass for the final Slice manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build"
+    }
+  ]
+}
