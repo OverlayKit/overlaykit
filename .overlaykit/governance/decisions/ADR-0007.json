@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0007",
+  "title": "Control feedback separates server truth from delivery acknowledgement",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "control-feedback",
+    "control-integrations",
+    "device-adapters",
+    "production-runtime"
+  ],
+  "context": "Discovery established that a Linux production operator can make live errors when a physical control presents an unreal state, that controls must distinguish active, inactive, failed, and unknown, and that confirmation absent after three seconds cannot remain current truth. ADR-0005 limited receipts to authoritative server state, while ADR-0006 left transport and hardware feedback unanswered. SDD-003 asked how an adapter could distinguish current, stale, failed, and unknown without treating transport acknowledgement as production observation. Slice 1 implemented a pure shared projection. Tests demonstrated ACK-only unknown state, fresh active and inactive state, exact three-second expiry to an unknown button, explicit failure, recovery by a later observation, conservative equal-time ordering, rejection of cross-subject and contradictory events, runtime value validation, and clock-skew degradation. The human authority accepted H-003 only within this pure deterministic boundary.",
+  "decision": "Control feedback is projected for one explicit Show, Preview or Program target, and control identifier. Only a revisioned authoritative-server observation establishes current active or inactive state. Transport acknowledgement is retained only as delivery metadata and never establishes, refreshes, or recovers production truth. A server observation remains current for less than three seconds; at exactly three seconds it becomes stale and its button state becomes unknown, although the last known value may remain contextual metadata. An explicit operation failure presents failed state until a strictly later authoritative-server observation recovers it. Missing observation, clock skew, cross-subject events, contradictory observations, and older events fail closed according to the shared projection contract. These states describe server truth only and do not claim renderer or hardware observation.",
+  "consequences": [
+    "Studio and future device adapters can share one deterministic mapping from feedback events to button state.",
+    "A delivered command can still display unknown or failed because delivery and production truth are separate facts.",
+    "Stale active or inactive values may be retained for diagnostics but cannot drive the physical button image.",
+    "Adapters require repeated authoritative observations to keep state current beyond the three-second lease.",
+    "A failed control remains visibly failed until a later authoritative observation establishes recoverable server truth.",
+    "The projection assumes its authoritative-server event source has already been trusted; event provenance authentication remains a separate architectural question.",
+    "Network delivery, clock synchronization, timer scheduling, renderer observation, hardware refresh, device identity, Companion integration, and durable recovery remain unproven."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "feedback-subject-is-explicit",
+      "statement": "Every control feedback projection names one Show, one Preview or Program target, and one control identifier; feedback for another subject fails closed."
+    },
+    {
+      "kind": "rule",
+      "id": "server-observation-establishes-feedback-truth",
+      "statement": "Only a revisioned authoritative-server observation may establish current active or inactive control state."
+    },
+    {
+      "kind": "rule",
+      "id": "transport-acknowledgement-is-not-truth",
+      "statement": "Transport acknowledgement is delivery metadata and may never establish, refresh, or recover production state."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-lease-fails-closed",
+      "statement": "A server observation is current for less than three seconds and becomes stale with unknown button state at exactly three seconds."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-failure-needs-later-observation",
+      "statement": "An explicit operation failure remains failed until a strictly later authoritative-server observation recovers the control."
+    },
+    {
+      "kind": "rule",
+      "id": "feedback-scope-is-server-only",
+      "statement": "Control feedback reports authoritative server truth only and cannot be presented as renderer or hardware observation without separate evidence."
+    }
+  ]
+}
