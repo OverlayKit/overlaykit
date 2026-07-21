@@ -75,6 +75,7 @@ describe('published protocol package', () => {
     expect(paths.some((file) => file.startsWith('src/'))).toBe(false);
     expect(paths.some((file) => file.startsWith('tests/'))).toBe(false);
     expect(paths).toContain('LICENSE');
+    expect(paths).toContain('NOTICE');
     expect(paths).toContain('README.md');
 
     const manifest = JSON.parse(await readFile(
@@ -82,14 +83,21 @@ describe('published protocol package', () => {
       'utf8',
     )) as {
       bugs: { url: string };
+      author: { name: string; url: string };
       engines: { node: string };
       files: string[];
       homepage: string;
+      license: string;
       exports: Record<string, { types: string; import: string }>;
       publishConfig: { access: string };
       repository: { type: string; url: string; directory: string };
     };
-    expect(manifest.files).toEqual(['dist']);
+    expect(manifest.files).toEqual(['dist', 'LICENSE', 'NOTICE']);
+    expect(manifest.license).toBe('Apache-2.0');
+    expect(manifest.author).toEqual({
+      name: 'Rodrigo Vicente',
+      url: 'https://x.com/rodrigoteamx',
+    });
     expect(manifest.engines.node).toBe('>=20');
     expect(manifest.publishConfig.access).toBe('public');
     expect(manifest.repository).toEqual({

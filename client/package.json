@@ -36,6 +36,10 @@
     "vitest": "^4.0.4",
     "vue-tsc": "^3.1.2"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Rodrigo Vicente",
+    "url": "https://x.com/rodrigoteamx"
+  },
   "private": true
 }

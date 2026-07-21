@@ -40,3 +40,10 @@ browser sources; they degrade gracefully in a normal tab until a user gesture).
 `events[]` (`{ type, handler?, sound? }`), `autoRemove` (`{ delay(ms),
 exitAnimation? }`), plus the dashboard/transitional fields `position`, `size`,
 `animationIn`, `animationDuration`, `autoRemoveDelay`.
+
+## License and Attribution
+
+Licensed under the Apache License 2.0.
+
+Copyright 2026 [Rodrigo Vicente (@rodrigoteamx)](https://x.com/rodrigoteamx).
+See the packaged `NOTICE` file for attribution information.

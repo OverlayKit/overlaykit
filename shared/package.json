@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "OverlayKit renderer: the canonical ElementNode renderer plus interpolation, animation, and sound playback.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Rodrigo Vicente",
+    "url": "https://x.com/rodrigoteamx"
+  },
   "exports": {
     "./components/*": "./components/*",
     "./services/*": "./services/*",
@@ -16,7 +20,9 @@
     "services",
     "types",
     "utils",
-    "styles"
+    "styles",
+    "LICENSE",
+    "NOTICE"
   ],
   "publishConfig": {
     "access": "public"

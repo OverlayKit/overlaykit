@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0018",
+  "title": "Apache-2.0 licensing and Rodrigo Vicente attribution are enforced distribution metadata",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "licensing",
+    "attribution",
+    "package-distribution",
+    "public-documentation",
+    "contribution-policy"
+  ],
+  "context": "The human owner directed OverlayKit to use Apache License 2.0 and visibly attribute Rodrigo Vicente through @rodrigoteamx. Before SDD-014, the repository, public landing, manifests, and protocol package declared MIT, while the renderer and UI package roots did not carry their own legal artifacts. The Apache Software Foundation publishes the canonical Apache License 2.0 text and documents LICENSE plus NOTICE as its distribution pattern. SDD-014 asked whether deterministic repository checks could keep every supported source and npm distribution consistent with that directive. Slice 1 installed a byte-exact canonical LICENSE, one canonical NOTICE, SPDX and author metadata across all workspace manifests and lockfile entries, legal artifacts in public package allowlists, consistent public documentation and landing attribution, packed-package assertions, and a hostile-tested licensing verifier at the front of npm run check. Evidence demonstrated the canonical LICENSE SHA-256 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30, exact NOTICE consistency, all eleven workspace manifests and lockfile entries, protocol, renderer, and UI package payloads, deterministic rejection of seven drift scenarios, desktop and mobile landing visibility without overlap, full governance and repository checks, builds, and an audit with zero high-severity vulnerabilities. The human authority accepted H-014 only for this deterministic consistency and distribution boundary.",
+  "decision": "OverlayKit source and public npm package distributions governed by this repository use Apache License 2.0. The root, protocol, renderer, and UI package roots must carry a byte-exact copy of the official Apache License 2.0 text whose SHA-256 is cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30. They must also carry the canonical OverlayKit NOTICE naming Rodrigo Vicente and linking the public identity @rodrigoteamx at https://x.com/rodrigoteamx. Every workspace manifest and corresponding lockfile workspace entry must declare SPDX Apache-2.0, and every workspace manifest must declare Rodrigo Vicente with that URL as author. Every public package allowlist must include LICENSE and NOTICE, and package tests or dry runs must demonstrate their inclusion. README, package documentation, contribution terms, and the landing must present the same current licensing and attribution without a current MIT claim. npm run check must execute a deterministic licensing verifier and hostile tests before the general quality suite. Passing these controls establishes only consistency of the supported repository surfaces and generated npm payloads; it does not establish ownership of third-party work, trademark rights, contributor license agreements, dependency-license compatibility, software-bill-of-materials completeness, registry publication, jurisdiction-specific enforceability, or the relicensing status of historical artifacts outside this clean-history repository.",
+  "consequences": [
+    "The repository and supported public npm packages carry one inspectable Apache-2.0 license and one canonical Rodrigo Vicente attribution.",
+    "A workspace manifest, lockfile entry, package allowlist, legal artifact, or public claim cannot drift silently without failing the enforced quality command.",
+    "Public package consumers receive LICENSE and NOTICE in protocol, renderer, and UI tarballs rather than relying only on repository-level files.",
+    "Intentionally submitted contributions are documented as accepted under Apache License 2.0 section 5 unless separately stated.",
+    "The landing and repository documentation expose both the license and the attributed public identity.",
+    "Changes to the canonical license, NOTICE, author identity, package legal payload, or enforced verifier require a new governed change and evidence.",
+    "This engineering evidence must not be represented as a legal opinion or as proof of third-party ownership, trademark status, dependency compatibility, registry publication, or jurisdiction-specific enforceability."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "license-is-apache-2.0",
+      "statement": "OverlayKit source and public npm package distributions governed by this repository must declare SPDX Apache-2.0."
+    },
+    {
+      "kind": "rule",
+      "id": "license-text-is-canonical",
+      "statement": "Each supported package root must carry the byte-exact official Apache License 2.0 text with SHA-256 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30."
+    },
+    {
+      "kind": "rule",
+      "id": "notice-preserves-rodrigo-attribution",
+      "statement": "Each supported package root must carry the canonical NOTICE naming Rodrigo Vicente and linking @rodrigoteamx at https://x.com/rodrigoteamx."
+    },
+    {
+      "kind": "rule",
+      "id": "public-packages-carry-legal-artifacts",
+      "statement": "Every public npm package allowlist and packed payload must include LICENSE and NOTICE."
+    },
+    {
+      "kind": "rule",
+      "id": "workspace-license-metadata-is-consistent",
+      "statement": "Every workspace manifest and lockfile workspace entry must declare Apache-2.0, and every workspace manifest must attribute Rodrigo Vicente with the canonical X URL."
+    },
+    {
+      "kind": "rule",
+      "id": "public-license-claims-are-consistent",
+      "statement": "README, package documentation, contribution terms, and landing content must communicate the current Apache-2.0 license and Rodrigo Vicente attribution without a current MIT claim."
+    },
+    {
+      "kind": "rule",
+      "id": "licensing-check-is-enforced",
+      "statement": "npm run check must execute the deterministic licensing verifier and its hostile tests before the general repository quality suite."
+    },
+    {
+      "kind": "rule",
+      "id": "licensing-claims-are-bounded",
+      "statement": "Passing licensing controls may not be presented as proof of third-party ownership, trademark rights, contributor agreements, dependency compatibility, software-bill-of-materials completeness, registry publication, historical relicensing, legal advice, or jurisdiction-specific enforceability."
+    }
+  ]
+}

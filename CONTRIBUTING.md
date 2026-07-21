@@ -17,3 +17,6 @@ a new ID and explicit supersession when changing prior law, requirements, or com
 Changes to the governance host, schemas, profile, mechanism registry, workflows, or ownership rules
 are governance changes. They require an explicit governance change contract and a new ADR when they
 alter the law.
+
+Unless explicitly stated otherwise, contributions intentionally submitted for inclusion in
+OverlayKit are provided under the Apache License 2.0, as described in section 5 of [LICENSE](LICENSE).

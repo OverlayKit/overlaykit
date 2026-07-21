@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "OverlayKit UI kit: Vue 3 controls shared by the editor and live panel.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Rodrigo Vicente",
+    "url": "https://x.com/rodrigoteamx"
+  },
   "main": "./index.ts",
   "exports": {
     ".": "./index.ts",
@@ -12,7 +16,9 @@
   "files": [
     "index.ts",
     "components",
-    "shims-vue.d.ts"
+    "shims-vue.d.ts",
+    "LICENSE",
+    "NOTICE"
   ],
   "publishConfig": {
     "access": "public"
