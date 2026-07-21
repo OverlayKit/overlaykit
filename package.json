@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "Open-source overlay runtime, editor, and live control panel for OBS and XSplit.",
   "private": true,
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Rodrigo Vicente",
+    "url": "https://x.com/rodrigoteamx"
+  },
   "workspaces": [
     "protocol",
     "shared",
@@ -42,7 +46,8 @@
     "test:unit": "npm run test:unit --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "format": "npm run format --workspaces --if-present",
-    "check": "npm run lint && npm run type-check && npm run test",
+    "check": "npm run check:licensing && npm run lint && npm run type-check && npm run test",
+    "check:licensing": "node --test scripts/verify-licensing.test.mjs && node scripts/verify-licensing.mjs",
     "governance:compile": "npm run compile --workspace @overlaykit/governance-host",
     "governance:verify": "npm run verify --workspace @overlaykit/governance-host",
     "governance:check": "npm run check --workspace @overlaykit/governance-host && npm run governance:verify",

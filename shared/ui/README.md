@@ -32,3 +32,10 @@ import { Button, Badge, StatusDot, Checklist, ChecklistRow } from '@overlaykit/u
 
 Forms are `v-model`-compatible (`Input`, `Select`, `Toggle`). `Button` exposes
 `iconLeft` / `iconRight` slots; `SectionLabel` a `right` slot.
+
+## License and Attribution
+
+Licensed under the Apache License 2.0.
+
+Copyright 2026 [Rodrigo Vicente (@rodrigoteamx)](https://x.com/rodrigoteamx).
+See the packaged `NOTICE` file for attribution information.

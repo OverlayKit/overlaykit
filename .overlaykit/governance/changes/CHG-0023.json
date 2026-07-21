@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0023",
+  "title": "Test enforceable Apache-2.0 licensing and author attribution",
+  "status": "implemented",
+  "changeClass": "governance",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0012", "ADR-0018"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Before CHG-0023, the repository, public landing, package manifests, and published protocol tarball declared MIT, while public renderer and UI package roots did not carry their own license and attribution artifacts.",
+      "evidence": "LICENSE, README.md, landing/index.html, workspace package.json files, and public package roots before CHG-0023",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The Apache Software Foundation publishes Apache License 2.0 as reusable by non-ASF projects and documents a top-level LICENSE plus NOTICE attribution as the distribution pattern.",
+      "evidence": "https://www.apache.org/licenses/LICENSE-2.0.txt and https://www.apache.org/legal/apply-license",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "The human owner directs OverlayKit to use Apache License 2.0 and attribute the work to Rodrigo Vicente with the public identity @rodrigoteamx, and represents sufficient authority to relicense the current clean-history work.",
+      "evidence": "Human Doctrine directive on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-014: One byte-exact official Apache-2.0 license, one canonical NOTICE attribution, consistent SPDX and author metadata, packaged legal artifacts, visible repository and landing attribution, and a deterministic check in the enforced quality command can prevent supported source and npm distributions from silently drifting back to MIT or omitting Rodrigo Vicente attribution.",
+      "evidence": "SDD-014 hypothesis authorized for implementation by Human Doctrine directive on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-014 only for deterministic consistency and enforcement across supported repository surfaces and npm package payloads after exact LICENSE and NOTICE checks, all manifest and lockfile checks, packed-package evidence, hostile verifier tests, landing inspection, full repository checks, builds, and audit passed.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-014 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The accepted Slice does not establish ownership of third-party contributions, trademark registration, contributor license agreements, dependency-license compatibility, software-bill-of-materials completeness, package-registry publication, legal enforceability in a jurisdiction, or whether historical artifacts outside this clean-history repository may be relicensed.",
+      "evidence": "SDD-014 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The repository and every public npm package root contain a byte-exact copy of the official Apache License 2.0 and the canonical NOTICE naming Rodrigo Vicente and linking @rodrigoteamx.",
+      "verification": "SHA-256 and exact NOTICE checks in npm run check:licensing."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Every workspace manifest and lockfile entry declares SPDX Apache-2.0, every manifest attributes Rodrigo Vicente with the X URL, and public package allowlists include LICENSE and NOTICE.",
+      "verification": "Manifest, lockfile, allowlist, and packed-package assertions."
+    },
+    {
+      "id": "SC-003",
+      "statement": "README, package documentation, contribution terms, and landing content communicate Apache-2.0 and visible Rodrigo Vicente attribution without a current MIT claim.",
+      "verification": "Deterministic public-surface scan and landing build."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Licensing verification executes inside npm run check and fails before quality evidence can pass when supported legal artifacts or metadata drift.",
+      "verification": "Root script composition plus hostile verifier subprocess tests or direct failure probes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0023 records observed facts, the owner directive, H-014, measurable criteria, the accepted bounded inference, and unresolved legal guarantees without asserting more than the evidence supports.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only licensing, attribution, package-distribution metadata and tests, visible documentation, the licensing quality check, and the governance records required to capture the accepted evidence.",
+      "evidence": "git diff for CHG-0023"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-014 across exact license bytes, NOTICE consistency, all workspace manifests, lockfile state, public package payloads, public text surfaces, and quality-gate composition.",
+      "evidence": "Licensing verifier, package-distribution tests, package dry runs, and repository checks"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, package distribution, full repository checks, build, landing verification, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, npm run check:licensing, protocol package tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0018 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-014.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0018"
+    }
+  ]
+}

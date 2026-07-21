@@ -1,6 +1,6 @@
 # OverlayKit
 
-OverlayKit is an MIT-licensed, self-hosted overlay studio for OBS and XSplit. It includes a protected Studio, visual editor, Preview/Program production switcher, browser-source output, and reusable protocol/renderer packages.
+OverlayKit is an Apache-2.0-licensed, self-hosted overlay studio for OBS and XSplit. It includes a protected Studio, visual editor, Preview/Program production switcher, browser-source output, and reusable protocol/renderer packages.
 
 ## What Is Included
 
@@ -70,6 +70,9 @@ Start with [GOVERNANCE.md](GOVERNANCE.md), then run:
 npm run governance:verify
 ```
 
-## License
+## License and Attribution
 
-MIT
+OverlayKit is licensed under the [Apache License 2.0](LICENSE).
+
+Copyright 2026 [Rodrigo Vicente (@rodrigoteamx)](https://x.com/rodrigoteamx).
+See [NOTICE](NOTICE) for attribution information.

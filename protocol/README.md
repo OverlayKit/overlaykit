@@ -38,6 +38,9 @@ Synchronous `require()` is not part of the package contract.
 - `@overlaykit/protocol/control-visibility-feedback`
 - `@overlaykit/protocol/device-credential`
 
-## License
+## License and Attribution
 
-MIT
+Licensed under the Apache License 2.0.
+
+Copyright 2026 [Rodrigo Vicente (@rodrigoteamx)](https://x.com/rodrigoteamx).
+See the packaged `NOTICE` file for attribution information.
