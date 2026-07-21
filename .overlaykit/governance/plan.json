@@ -236,6 +236,14 @@
       "id": "ADR-0021",
       "supersededBy": null,
       "title": "Device connection authority is exclusive and retired through linearizable barriers"
+    },
+    {
+      "contentHash": "7dbe40ce3fe1dad9da81e3ab762da3f3fbc5f33a8f34c9239cd97d5a11545563",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0022",
+      "supersededBy": null,
+      "title": "Device WebSocket transport authenticates before upgrade and precedes readiness"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -370,10 +378,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "82aad37477e59f5da356b618f162a4e3c4bca5534016acd54df9ef246a56b5b7",
-  "profileHash": "c2b9d42d08e1c6f952c49179734359f587f288126c48a503438edba05c0b6f05",
+  "planHash": "75135ad179fd3f4b790b9a1e43f6cf983e542deafe4947772a8a1b5fbd73a827",
+  "profileHash": "01c99eeef94d11880226e0a56de9b358b1556af31928ea5ca6902cc2e3378285",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.17.0",
+  "profileVersion": "2.18.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -860,6 +868,48 @@
       "kind": "rule",
       "sourceDecision": "ADR-0014",
       "statement": "A device visibility body may contain only visible, operationId, and expectedRevision and must not name or override Show, scope, target, component, control, role, or direct-Program authority."
+    },
+    {
+      "id": "device-websocket-admission-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "Passing gateway evidence may not be represented as production mounting, exact credential-failure auditing, admission rate or timeout policy, TLS or proxy certification, lifecycle or natural-disconnect retirement, snapshot or acknowledgement delivery, retries, deadlines, ready command execution, deltas, close-code policy, distributed coordination, Companion integration, renderer or OBS observation, or hardware behavior."
+    },
+    {
+      "id": "device-websocket-authenticates-before-upgrade",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "A device request may reach handleUpgrade only after exactly one Authorization bearer authenticates into current credential authority; invalid credential outcomes must share one public 401 shape and must not reach coordinator admission."
+    },
+    {
+      "id": "device-websocket-authority-is-credential-derived",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "Coordinator admission may receive only immutable credential identifier, generation audience, generation, Show, and expiration authority captured from the authenticated credential, never a client-selected Show or Studio or Output identity."
+    },
+    {
+      "id": "device-websocket-is-native-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "A device WebSocket handshake must reject every Origin header and every cookie or query authority source before upgrade."
+    },
+    {
+      "id": "device-websocket-negotiates-highest-version",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "A device WebSocket handshake must select the highest mutually supported versioned device subprotocol and reject the request before upgrade when no supported version intersects."
+    },
+    {
+      "id": "device-websocket-pre-ready-work-is-rejected",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "Every message received before later readiness evidence must be rejected as not_ready without parsing, buffering, queueing, or execution."
+    },
+    {
+      "id": "device-websocket-transport-is-not-readiness",
+      "kind": "rule",
+      "sourceDecision": "ADR-0022",
+      "statement": "Completing 101 establishes transport only and cannot be represented as exclusive connection authority, synchronized device state, command authority, or successful device application."
     },
     {
       "id": "done-is-observed",

@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0027",
+  "title": "Test pre-upgrade device WebSocket admission",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0007",
+    "ADR-0009",
+    "ADR-0010",
+    "ADR-0013",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a dedicated native device WebSocket whose HTTP upgrade is rejected with one indistinguishable 401 response when its sole Authorization bearer is absent, malformed, expired, revoked, or otherwise invalid; no WebSocket or coordinator lease may exist after that rejection, and any exact diagnostic cause belongs only to server-side evidence.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery rejects every device handshake carrying an Origin header, admits native clients without Origin, and requires a versioned WebSocket subprotocol with the highest mutually supported version selected or a pre-upgrade 426 response when no version intersects.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery permits 101 Switching Protocols before exclusive device authority is granted, but the resulting transport remains not_ready and every instruction is rejected without buffering or execution until later readiness evidence exists.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The production WebSocket server currently upgrades connections before setupWebSocketHandler authenticates Studio sessions or Output tokens, accepts browser Origin when allowlisted, and has no dedicated device route, bearer admission, subprotocol negotiation, or pre-authority state.",
+      "evidence": "server/src/index.ts and server/src/handlers/websocket.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-018: One independently composable noServer DeviceWebSocketGateway can recognize an exact device path, reject browser, ambiguous, unauthenticated, and version-incompatible requests before handleUpgrade, negotiate the highest supported device subprotocol, authenticate one bearer into immutable Show-bound authority, complete 101 before coordinator admission settles, and reject every message as not_ready without queueing or execution while no later readiness gate exists.",
+      "evidence": "SDD-018 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-018 only for an independently composable and production-unmounted noServer gateway whose pre-upgrade bearer authentication, native-only Origin rejection, generic invalid-credential response, highest-compatible subprotocol negotiation, immutable credential-derived coordinator authority, transport-before-authority ordering, persistent not_ready rejection, and fail-closed adapter errors were demonstrated through hostile raw-handshake and WebSocket tests, full repository checks, builds, audit, and governance verification.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-018 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This proposed Slice does not mount the gateway in the production bootstrap and does not establish exact invalid-credential classification or audit retention, pre-upgrade authentication timeout or rate limiting, TLS or proxy behavior, lifecycle-route composition, natural-disconnect retirement, snapshot production, SHA-256 acknowledgement, applied or error outcomes, retry and deadline scheduling, signed-frame delivery, ready-state command parsing or execution, deltas, backpressure, close-code policy, distributed coordination, Companion integration, renderer or OBS observation, or hardware behavior.",
+      "evidence": "SDD-018 proposed Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Missing, malformed, duplicated, expired, revoked, and unknown device bearers receive the same cache-disabled 401 challenge before a WebSocket exists, and none reaches coordinator admission.",
+      "verification": "Raw HTTP upgrade and controlled credential-runtime tests compare status, headers, body, upgrade absence, and coordinator calls."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Any Origin header, cookie, query authority, wrong path, or absent or incompatible device subprotocol fails before device upgrade, while a native request with one bearer negotiates the highest mutually supported version.",
+      "verification": "Hostile handshake matrix and multi-version negotiation tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A valid request may observe 101 while coordinator admission remains unsettled, but every received message gets not_ready and cannot invoke or buffer a device operation.",
+      "verification": "Controlled unresolved coordinator, open transport, repeated message, and no-operation tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The gateway captures only credential-derived credential, generation, audience, Show, and expiry authority for the coordinator and exposes no client-selected Show or Studio or Output authentication source.",
+      "verification": "Authority-capture, query, cookie, header duplication, and mutation tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0027 records Discovery facts, H-018, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only one independently composable device WebSocket gateway, focused tests, and proposed governance records; the production bootstrap remains unmodified.",
+      "evidence": "git diff for CHG-0027"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-018 across pre-upgrade authentication, response indistinguishability, native-only admission, protocol negotiation, immutable authority capture, asynchronous coordinator admission, and pre-readiness message handling.",
+      "evidence": "Focused gateway tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0022 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-018.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0022"
+    }
+  ]
+}
