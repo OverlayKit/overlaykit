@@ -2,7 +2,7 @@
   "name": "@overlaykit/panel",
   "private": true,
   "version": "0.0.0",
-  "description": "Dynamic control panel: auto-generates a typed form from the variables active in a channel's scene",
+  "description": "Preview operator panel generated from declared component control contracts",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,8 @@
     "lint": "eslint src --ext .ts,.vue"
   },
   "dependencies": {
+    "@overlaykit/protocol": "0.1.0",
+    "@overlaykit/ui": "0.1.0",
     "vue": "^3.3.6"
   },
   "devDependencies": {

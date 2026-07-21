@@ -17,6 +17,34 @@ function scene(id = 'scene-1'): Scene {
   };
 }
 
+function controlledScene(): Scene {
+  return {
+    id: 'scoreboard',
+    name: 'Scoreboard',
+    elements: [
+      {
+        id: 'score-card',
+        tag: 'section',
+        styles: {},
+        controls: [
+          { id: 'score.home', label: 'Home score', type: 'number', path: 'score.home', min: 0, max: 20, step: 1 },
+          { id: 'score.visible', label: 'Visible', type: 'toggle', path: 'flags.score' },
+          {
+            id: 'score.accent',
+            label: 'Accent',
+            type: 'select',
+            path: 'theme.accent',
+            options: [
+              { label: 'Cyan', value: 'cyan' },
+              { label: 'Gold', value: 'gold' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function socket(): WebSocket {
   return { readyState: 1, send: vi.fn() } as unknown as WebSocket;
 }
@@ -107,5 +135,82 @@ describe('ProductionService', () => {
       variables: { title: 'Original' },
       elements: [{ id: 'scene-1-title' }],
     });
+  });
+
+  it('derives declared controls and applies a batch only to Preview', () => {
+    const source = controlledScene();
+    const sourceBefore = JSON.stringify(source);
+    production.loadPreview('show-1', source, {
+      score: { home: 2 },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    });
+
+    const updated = production.applyPreviewControls('show-1', 1, 'controls-1', {
+      'score.home': 3,
+      'score.visible': false,
+      'score.accent': 'gold',
+    });
+    const repeated = production.applyPreviewControls('show-1', 999, 'controls-1', {
+      'score.home': 9,
+    });
+
+    expect(updated.preview).toMatchObject({
+      revision: 2,
+      variables: { score: { home: 3 }, flags: { score: false }, theme: { accent: 'gold' } },
+    });
+    expect(updated.preview.controls.map((control) => [control.id, control.value])).toEqual([
+      ['score.home', 3],
+      ['score.visible', false],
+      ['score.accent', 'gold'],
+    ]);
+    expect(updated.program).toMatchObject({ revision: 0, scene: null });
+    expect(repeated.preview.revision).toBe(2);
+    expect(JSON.stringify(source)).toBe(sourceBefore);
+  });
+
+  it('rejects stale, undeclared, and invalid control mutations atomically', () => {
+    production.loadPreview('show-1', controlledScene(), {
+      score: { home: 2 },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    });
+
+    expect(() => production.applyPreviewControls('show-1', 0, 'stale', { 'score.home': 3 }))
+      .toThrowError(ProductionError);
+    expect(() => production.applyPreviewControls('show-1', 1, 'unknown', { 'score.away': 3 }))
+      .toThrowError(ProductionError);
+    expect(() => production.applyPreviewControls('show-1', 1, 'invalid', {
+      'score.home': 4,
+      'score.visible': 'yes',
+    })).toThrowError(ProductionError);
+    expect(production.getState('show-1').preview).toMatchObject({
+      revision: 1,
+      variables: { score: { home: 2 }, flags: { score: true } },
+    });
+  });
+
+  it('rejects invalid or ambiguous component control declarations', () => {
+    const unsafe = controlledScene();
+    unsafe.elements[0].controls![0].path = '__proto__.polluted';
+    expect(() => production.loadPreview('show-1', unsafe, {
+      __proto__: { polluted: 1 },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    })).toThrowError(ProductionError);
+
+    const duplicate = controlledScene();
+    duplicate.elements[0].controls![1].id = 'score.home';
+    expect(() => production.loadPreview('show-2', duplicate, {
+      score: { home: 2 },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    })).toThrowError(ProductionError);
+
+    expect(() => production.loadPreview('show-3', controlledScene(), {
+      score: { home: 'two' },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    })).toThrowError(ProductionError);
   });
 });

@@ -82,5 +82,34 @@ export function createProductionRouter(storage: Storage, production: ProductionS
     }
   });
 
+  router.post('/shows/:showId/production/preview/controls', async (req: Request, res: Response) => {
+    if (!await showExists(req, res)) return;
+    const expectedPreviewRevision = req.body?.expectedPreviewRevision;
+    const operationId = req.body?.operationId;
+    const values = req.body?.values;
+    if (!Number.isInteger(expectedPreviewRevision) || expectedPreviewRevision < 0) {
+      res.status(400).json({
+        error: { code: 'INVALID_PREVIEW_REVISION', message: 'expectedPreviewRevision must be a non-negative integer' },
+      });
+      return;
+    }
+    if (typeof operationId !== 'string') {
+      res.status(400).json({ error: { code: 'INVALID_OPERATION_ID', message: 'operationId is required' } });
+      return;
+    }
+    try {
+      res.json({
+        data: production.applyPreviewControls(
+          req.params.showId,
+          expectedPreviewRevision,
+          operationId,
+          values,
+        ),
+      });
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  });
+
   return router;
 }

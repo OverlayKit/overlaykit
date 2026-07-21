@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./element": "./src/element.ts",
     "./scene": "./src/scene.ts",
-    "./messages": "./src/messages.ts"
+    "./messages": "./src/messages.ts",
+    "./production": "./src/production.ts"
   },
   "files": [
     "src"

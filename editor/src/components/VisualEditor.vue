@@ -9,7 +9,15 @@
 -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
-import type { ElementNode, Animation, ComponentTrigger, ComponentAction, ComponentActionKind } from '@overlaykit/renderer/types/element';
+import type {
+  Animation,
+  ComponentAction,
+  ComponentActionKind,
+  ComponentTrigger,
+  ControlDefinition,
+  ControlType,
+  ElementNode,
+} from '@overlaykit/renderer/types/element';
 import type { DesignTokens } from '../design/tokens';
 import SoundPicker from './SoundPicker.vue';
 import { bindMotionShow, unbindMotionShow, isBoundToShow } from '../composables/useMotionShow';
@@ -333,6 +341,9 @@ function setByPath(obj: any, path: string, value: any) {
   }
   o[keys[keys.length - 1]] = value;
 }
+function getByPath(obj: any, path: string): any {
+  return path.split('.').reduce((current, key) => current?.[key], obj);
+}
 const variableFields = computed(() => {
   const out: Array<{ path: string; leaf: string; value: string; long: boolean }> = [];
   const walk = (obj: any, prefix: string) => {
@@ -363,6 +374,109 @@ function addVariable() {
   setByPath(props.variables, key, newVarVal.value);
   newVarKey.value = '';
   newVarVal.value = '';
+}
+
+// --- Declared operator controls: component-owned, typed access to variables ---
+const CONTROL_TYPES: Array<{ value: ControlType; label: string }> = [
+  { value: 'text', label: 'Texto' },
+  { value: 'number', label: 'Número' },
+  { value: 'toggle', label: 'Interruptor' },
+  { value: 'select', label: 'Selección' },
+  { value: 'color', label: 'Color' },
+];
+const selectedControls = computed(() => selected.value?.controls ?? []);
+
+function inferControlType(path: string): ControlType {
+  const value = getByPath(props.variables, path);
+  if (typeof value === 'boolean') return 'toggle';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) return 'color';
+  return 'text';
+}
+
+function controlId(node: ElementNode, path: string, currentId?: string): string {
+  const base = `control.${node.id}.${path}`.replace(/[^A-Za-z0-9_.:-]/g, '_');
+  const ids = new Set(
+    rows.value.flatMap((row) =>
+      (row.node.controls ?? [])
+        .map((control) => control.id)
+        .filter((id) => id !== currentId),
+    ),
+  );
+  let candidate = base.slice(0, 100);
+  let suffix = 2;
+  while (ids.has(candidate)) candidate = `${base.slice(0, 96)}.${suffix++}`;
+  return candidate;
+}
+
+function controlLabel(path: string): string {
+  const leaf = path.split('.').pop() || path;
+  return leaf
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function addControl(path = variableFields.value[0]?.path): void {
+  const node = selected.value;
+  if (!node || !path) return;
+  if (!node.controls) node.controls = [];
+  const type = inferControlType(path);
+  const control: ControlDefinition = {
+    id: controlId(node, path),
+    label: controlLabel(path),
+    type,
+    path,
+  };
+  if (type === 'select') {
+    const value = String(getByPath(props.variables, path) ?? '');
+    control.options = [{ label: value || 'Option', value }];
+  }
+  node.controls.push(control);
+}
+
+function removeControl(index: number): void {
+  selected.value?.controls?.splice(index, 1);
+  if (selected.value?.controls?.length === 0) delete selected.value.controls;
+}
+
+function setControlType(control: ControlDefinition, type: ControlType): void {
+  control.type = type;
+  delete control.min;
+  delete control.max;
+  delete control.step;
+  delete control.options;
+  const current = getByPath(props.variables, control.path);
+  if (type === 'number') {
+    const numeric = Number(current);
+    setByPath(props.variables, control.path, Number.isFinite(numeric) ? numeric : 0);
+    control.step = 1;
+  } else if (type === 'toggle') {
+    setByPath(props.variables, control.path, current === true || current === 1 || current === 'true');
+  } else if (type === 'color') {
+    const color = typeof current === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(current)
+      ? current
+      : '#ffffff';
+    setByPath(props.variables, control.path, color);
+  } else {
+    const text = String(current ?? '');
+    setByPath(props.variables, control.path, text);
+    if (type === 'select') control.options = [{ label: text || 'Option', value: text }];
+  }
+}
+
+function setControlPath(control: ControlDefinition, path: string): void {
+  control.path = path;
+  control.id = controlId(selected.value!, path, control.id);
+  setControlType(control, inferControlType(path));
+}
+
+function setControlOptions(control: ControlDefinition, raw: string): void {
+  const values = [...new Set(raw.split(',').map((value) => value.trim()).filter(Boolean))];
+  control.options = values.map((value) => ({ label: value, value }));
+  if (values.length && !values.includes(String(getByPath(props.variables, control.path)))) {
+    setByPath(props.variables, control.path, values[0]);
+  }
 }
 
 // --- Design System panel: pick a theme preset + override individual tokens ---
@@ -418,8 +532,18 @@ const canToggleVisibility = computed(() => (selected.value ? isBoundToShow(selec
 function setVisibilityToggle(enabled: boolean) {
   const s = selected.value;
   if (!s) return;
-  if (enabled) bindMotionShow(s, props.variables);
-  else unbindMotionShow(s);
+  if (enabled) {
+    bindMotionShow(s, props.variables);
+    const path = s.attributes?.['data-motion-show'];
+    if (path && !(s.controls ?? []).some((control) => control.path === path)) addControl(path);
+  } else {
+    const path = s.attributes?.['data-motion-show'];
+    unbindMotionShow(s);
+    if (path && s.controls) {
+      s.controls = s.controls.filter((control) => control.path !== path);
+      if (!s.controls.length) delete s.controls;
+    }
+  }
 }
 
 // --- Motion presets: one-click curve/duration sets via setToken ---
@@ -536,6 +660,44 @@ const staggerNum = computed(() => parseInt(tokenVal('stagger')) || 80);
           <p v-if="newVarKey.trim() && !newVarKeyValid" class="ve-muted ve-warn">
             Cada segmento debe empezar por letra/_ y usar solo letras, números o _ (ej. <code>quiz.optionA</code>).
           </p>
+        </div>
+      </details>
+
+      <details v-if="selected" class="ve-panel" open>
+        <summary>Controles de Preview</summary>
+        <div class="ve-panel-body">
+          <p class="ve-muted">Solo estos controles aparecerán en Producción. Cada uno opera una variable declarada del componente.</p>
+          <p v-if="!selectedControls.length" class="ve-muted">Este componente no expone controles.</p>
+          <div v-for="(control, index) in selectedControls" :key="control.id" class="ve-control-definition">
+            <div class="ve-control-head">
+              <code>{{ control.id }}</code>
+              <button class="danger" type="button" title="Quitar control" @click="removeControl(index)">✕</button>
+            </div>
+            <label class="ve-field">Etiqueta
+              <input v-model="control.label" />
+            </label>
+            <div class="ve-grid">
+              <label class="ve-field">Tipo
+                <select :value="control.type" @change="setControlType(control, ($event.target as HTMLSelectElement).value as ControlType)">
+                  <option v-for="type in CONTROL_TYPES" :key="type.value" :value="type.value">{{ type.label }}</option>
+                </select>
+              </label>
+              <label class="ve-field">Variable
+                <select :value="control.path" @change="setControlPath(control, ($event.target as HTMLSelectElement).value)">
+                  <option v-for="field in variableFields" :key="field.path" :value="field.path">{{ field.path }}</option>
+                </select>
+              </label>
+            </div>
+            <div v-if="control.type === 'number'" class="ve-grid">
+              <label class="ve-field">Mínimo<input type="number" :value="control.min" @input="control.min = ($event.target as HTMLInputElement).value === '' ? undefined : Number(($event.target as HTMLInputElement).value)" /></label>
+              <label class="ve-field">Máximo<input type="number" :value="control.max" @input="control.max = ($event.target as HTMLInputElement).value === '' ? undefined : Number(($event.target as HTMLInputElement).value)" /></label>
+              <label class="ve-field">Paso<input type="number" min="0.000001" :value="control.step" @input="control.step = Number(($event.target as HTMLInputElement).value) || 1" /></label>
+            </div>
+            <label v-if="control.type === 'select'" class="ve-field">Opciones separadas por coma
+              <input :value="control.options?.map((option) => option.value).join(', ')" @change="setControlOptions(control, ($event.target as HTMLInputElement).value)" />
+            </label>
+          </div>
+          <button class="ve-add-sub" type="button" :disabled="!variableFields.length" @click="addControl()">＋ Control declarado</button>
         </div>
       </details>
       </div>
@@ -758,7 +920,7 @@ const staggerNum = computed(() => parseInt(tokenVal('stagger')) || 80);
           Se puede ocultar/mostrar (animado)
         </label>
         <p v-if="canToggleVisibility" class="ve-muted">
-          Aparecerá en el Panel de Control como un interruptor para mostrar/ocultar en vivo.
+          Aparecerá como un control declarado de Preview en Producción.
         </p>
 
         <div class="ve-subtitle">Eventos / Acciones</div>
@@ -946,6 +1108,9 @@ const staggerNum = computed(() => parseInt(tokenVal('stagger')) || 80);
 }
 .ve-panel[open] > summary { border-bottom: 1px solid var(--app-line); }
 .ve-panel-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ve-control-definition { display: grid; gap: 9px; border-top: 1px solid var(--app-line); padding-top: 10px; }
+.ve-control-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.ve-control-head code { color: var(--app-faint); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ve-add-var { display: flex; gap: 6px; align-items: center; }
 .ve-add-var input { flex: 1; }
 .ve-add-var button {

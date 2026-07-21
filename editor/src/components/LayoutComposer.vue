@@ -220,7 +220,7 @@ function move(item: LayoutItem, dir: -1 | 1) {
 // ---- animated visibility (eye toggle) ----
 // The layer wrapper carries data-motion-show="<var>"; the shared renderer fades+slides
 // it out when the var is falsy. The flag lives in the item's varsObj (default true), so
-// it ships in the scene variables and is toggleable live from the panel or an action.
+  // it ships in the scene variables and is exposed through a declared Preview control.
 function getByPath(obj: any, p: string): any {
   return p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 }
@@ -330,6 +330,14 @@ function buildScene() {
     tag: 'div',
     styles: { position: 'absolute', left: `${item.pos.x}px`, top: `${item.pos.y}px`, zIndex: String(i + 1) },
     ...(item.showVar ? { attributes: { 'data-motion-show': item.showVar } } : {}),
+    ...(item.showVar ? {
+      controls: [{
+        id: `layer.${item.id}.visible`,
+        label: `${item.name} visible`,
+        type: 'toggle' as const,
+        path: item.showVar,
+      }],
+    } : {}),
     children: renderModel(item),
   }));
   const elements: ElementNode[] = themeStyleEl.value ? [themeStyleEl.value, ...layers] : layers;

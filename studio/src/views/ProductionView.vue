@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { ArrowRight, Check, Layers3, Radio, RefreshCw } from '@lucide/vue';
+import type { ControlValue } from '@overlaykit/protocol';
+import { OperatorControls } from '@overlaykit/ui';
 import { api, type ProductionState, type Show } from '../api';
 import { canTake, productionMonitorUrl } from '../production';
 
@@ -16,7 +18,9 @@ const state = ref<ProductionState | null>(null);
 const scenes = ref<SceneMeta[]>([]);
 const loadingSceneId = ref('');
 const taking = ref(false);
+const applyingControls = ref(false);
 const error = ref('');
+const controlError = ref('');
 let refreshTimer: ReturnType<typeof window.setInterval> | undefined;
 
 const previewUrl = computed(() => productionMonitorUrl(props.show.id, 'preview'));
@@ -70,6 +74,30 @@ async function take(): Promise<void> {
   }
 }
 
+async function applyControls(values: Record<string, ControlValue>): Promise<void> {
+  if (!state.value || applyingControls.value) return;
+  applyingControls.value = true;
+  controlError.value = '';
+  try {
+    state.value = await api<ProductionState>(
+      `/api/shows/${encodeURIComponent(props.show.id)}/production/preview/controls`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          expectedPreviewRevision: state.value.preview.revision,
+          operationId: crypto.randomUUID(),
+          values,
+        }),
+      },
+    );
+  } catch (cause) {
+    controlError.value = cause instanceof Error ? cause.message : 'Preview controls could not be applied';
+    await refresh();
+  } finally {
+    applyingControls.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([refresh(), loadScenes()]);
   refreshTimer = window.setInterval(() => { void refresh(); }, 2500);
@@ -120,6 +148,16 @@ onUnmounted(() => {
             <header><div><span>Program</span><small>{{ state?.program.scene?.name || 'Clear output' }}</small></div><b>REV {{ state?.program.revision ?? 0 }}</b></header>
             <div class="monitor-canvas"><iframe :src="programUrl" title="Program monitor" /></div>
           </article>
+        </div>
+
+        <div class="control-dock">
+          <OperatorControls
+            :controls="state?.preview.controls || []"
+            :busy="applyingControls"
+            :disabled="!state?.preview.scene"
+            :error="controlError"
+            @apply="applyControls"
+          />
         </div>
 
         <div class="take-bar">
