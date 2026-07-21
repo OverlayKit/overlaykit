@@ -64,3 +64,62 @@ export interface ComponentVisibilityResult {
   receipt: ComponentVisibilityReceipt;
   state: ProductionState;
 }
+
+export interface ComponentVisibilityCueStep {
+  readonly id: string;
+  readonly kind: 'component.visibility';
+  readonly componentId: string;
+  readonly visible: boolean;
+}
+
+export interface ProductionCue {
+  readonly id: string;
+  readonly showId: string;
+  readonly target: ProductionBus;
+  readonly steps: ReadonlyArray<ComponentVisibilityCueStep>;
+}
+
+export interface ProductionCueExecution {
+  readonly cue: ProductionCue;
+  readonly operationId: string;
+  readonly expectedRevision: number;
+}
+
+export interface CompletedCueStepReceipt {
+  id: string;
+  index: number;
+  status: 'completed';
+  receipt: ComponentVisibilityReceipt;
+}
+
+export interface FailedCueStepReceipt {
+  id: string;
+  index: number;
+  status: 'failed';
+  error: {
+    code: string;
+    message: string;
+    status: number;
+  };
+}
+
+export type ProductionCueStepReceipt = CompletedCueStepReceipt | FailedCueStepReceipt;
+
+export interface ProductionCueReceipt {
+  cueId: string;
+  showId: string;
+  target: ProductionBus;
+  operationId: string;
+  status: 'completed' | 'failed';
+  completedSteps: number;
+  failedStepId?: string;
+  targetRevision: number;
+  steps: ReadonlyArray<ProductionCueStepReceipt>;
+  startedAt: number;
+  completedAt: number;
+}
+
+export interface ProductionCueResult {
+  receipt: ProductionCueReceipt;
+  state: ProductionState;
+}

@@ -108,6 +108,14 @@
       "id": "ADR-0005",
       "supersededBy": null,
       "title": "Production intents name their target and direct Program authority"
+    },
+    {
+      "contentHash": "39b2c22a3f532ca7db896ecead57710c6f2bf063db7d62d4389451a87b9d769a",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0006",
+      "supersededBy": null,
+      "title": "Production cues compose intents with explicit partial outcomes"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -242,10 +250,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "a772c1db3ea379cb5b083ed0daa5b10423301696c87bbf9a979dfef2c1718ff2",
-  "profileHash": "92b314b191a5bc4eb92923af49087d89bbc9432d43e07f96c5f6d0c44a9cfbf1",
+  "planHash": "3caa1ffb90200982ad1a749421dcf3211be39dfb68d1c3d42accb646b4ac58f2",
+  "profileHash": "403ab72532cec7ab4ec53d5bfed8bb14da474c217e386ae799468c49b8f8788c",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.1.0",
+  "profileVersion": "2.2.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -284,6 +292,36 @@
       "statement": "Studio sessions, OBS output tokens, and device tokens are separate, revocable credentials with least-privilege scopes."
     },
     {
+      "id": "cue-content-is-operation-bound",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "One cue operation identifier is idempotent only for identical cue content and expected initial revision."
+    },
+    {
+      "id": "cue-execution-is-ordered-fail-fast",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "Cue steps execute in declared order and execution stops at the first failed step."
+    },
+    {
+      "id": "cue-has-one-target",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "A cue names one Show and one Preview or Program target that applies to every contained intent."
+    },
+    {
+      "id": "cue-preserves-intent-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "Every cue preserves ADR-0005 target revision checks, direct Program authorization, runtime-only mutation, and honest receipt scope."
+    },
+    {
+      "id": "cue-unifies-one-and-many",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "One production action is a one-step cue and sequential coordinated work uses the same cue contract with additional ordered steps."
+    },
+    {
       "id": "done-is-observed",
       "kind": "rule",
       "sourceDecision": "ADR-0003",
@@ -312,6 +350,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "A component exposes operator capabilities through typed control definitions rather than inferred variables or arbitrary implementation access."
+    },
+    {
+      "id": "partial-execution-is-explicit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0006",
+      "statement": "A failed cue reports every completed step, the failed step and error, and the resulting revision without claiming rollback or atomicity."
     },
     {
       "id": "preview-precedes-program",

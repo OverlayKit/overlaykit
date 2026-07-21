@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0006",
+  "title": "Production cues compose intents with explicit partial outcomes",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "control-integrations",
+    "production-cues",
+    "production-runtime",
+    "workflow-execution"
+  ],
+  "context": "Discovery established that a physical control may execute either one production action or a coordinated workflow. ADR-0005 demonstrated one explicitly targeted visibility intent but did not establish composition. SDD-002 asked whether one immutable Show-scoped cue could represent one or many ordered intents while returning one unambiguous outcome. Slice 1 composed only proven visibility intents. Focused tests demonstrated one-step and multi-step cues, ordered execution, deterministic child operation identifiers, direct Program authorization, aggregate replay, operation conflicts, bus and source isolation, and a fail-fast case where one completed effect remained applied, the second step failed, and the third was not attempted. The human authority accepted H-002 within this in-process sequential boundary.",
+  "decision": "A production cue is an operation-bound value that names one Show, one Preview or Program target, and one to twenty ordered typed intent steps. One action is represented as a one-step cue; coordinated work uses the same contract with multiple steps. Cue execution validates the expected initial target revision and external Program capability, derives deterministic child operation identifiers, executes sequentially, and stops at the first failure. The aggregate receipt records every completed step, the failed step and error when present, and the resulting target revision. Completed effects are not rolled back or described as atomic. Replaying the same operation and cue returns the original receipt; changing cue content under the operation identifier is a conflict.",
+  "consequences": [
+    "Single actions and sequential workflows share one production execution model.",
+    "A cue cannot mix Preview and Program because its target is declared once for the complete sequence.",
+    "Partial live-production effects may remain after a later step fails and must always be visible in the aggregate receipt.",
+    "Adapters must not report a failed cue as though no step ran, and must not infer rollback.",
+    "Cue content is bound to the operation identifier; edited content requires a new operation.",
+    "Waits, schedules, parallel branches, compensation, durable recovery, transport, hardware feedback, and device identity remain unanswered questions.",
+    "Receipts continue to describe authoritative server state rather than renderer or hardware observation."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "cue-unifies-one-and-many",
+      "statement": "One production action is a one-step cue and sequential coordinated work uses the same cue contract with additional ordered steps."
+    },
+    {
+      "kind": "rule",
+      "id": "cue-has-one-target",
+      "statement": "A cue names one Show and one Preview or Program target that applies to every contained intent."
+    },
+    {
+      "kind": "rule",
+      "id": "cue-content-is-operation-bound",
+      "statement": "One cue operation identifier is idempotent only for identical cue content and expected initial revision."
+    },
+    {
+      "kind": "rule",
+      "id": "cue-execution-is-ordered-fail-fast",
+      "statement": "Cue steps execute in declared order and execution stops at the first failed step."
+    },
+    {
+      "kind": "rule",
+      "id": "partial-execution-is-explicit",
+      "statement": "A failed cue reports every completed step, the failed step and error, and the resulting revision without claiming rollback or atomicity."
+    },
+    {
+      "kind": "rule",
+      "id": "cue-preserves-intent-authority",
+      "statement": "Every cue preserves ADR-0005 target revision checks, direct Program authorization, runtime-only mutation, and honest receipt scope."
+    }
+  ]
+}
