@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0022",
+  "title": "Test server-known component visibility feedback projection",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0005", "ADR-0007", "ADR-0008", "ADR-0014", "ADR-0015", "ADR-0016", "ADR-0017"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 requires controller state feedback, while accepted Discovery requires active, inactive, failed, and unknown states and a three-second truth lease so an operator cannot safely rely on stale physical-button state.",
+      "evidence": "SPEC-0001 REQ-INT-001, AC-018, WF-004, and ADR-0007",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0007 permits only revisioned authoritative-server observations to establish active or inactive state, and ADR-0008 authenticates admission of those observations but does not define how the server derives one from production truth.",
+      "evidence": "ADR-0007, ADR-0008, protocol/src/control-feedback.ts, and protocol/src/control-feedback-authority.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0016 intentionally omits current state and revision from action discovery. Production snapshots contain an exact Show, Preview or Program target, monotonically advanced server revision, update time, and a hierarchical element tree whose visibility command writes the addressed element's inline display property.",
+      "evidence": "ADR-0016, protocol/src/production.ts, and server/src/services/ProductionService.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "An element whose own inline display is enabled can remain structurally hidden when an ancestor has display none; server snapshots cannot establish renderer pixels, CSS from external classes, opacity, clipping, transforms, OBS health, or hardware state.",
+      "evidence": "Element tree and inline-style semantics plus ADR-0007 server-only truth scope",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-013: A pure versioned protocol projector can combine one immutable ProductionSnapshot, the current AuthorizedControlActionCatalog, and an explicit observation time to deterministically emit bounded revisioned authoritative-server visibility observations for the exact Show and target, reporting active only when the addressed element and every ancestor are structurally enabled by known inline display state, without claiming renderer truth or establishing transport authority.",
+      "evidence": "SDD-013 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-013 only for deterministic bounded projection from one immutable production snapshot and one supplied valid catalog after exact Show, target, subject, revision and time binding, structural ancestry, malformed relied-upon input, duplicate, missing component, bounds, determinism, immutability, package distribution, repository-quality, build, and audit evidence passed; catalog freshness, clock authority, renderer truth, provenance, transport, and hardware were not inferred.",
+      "evidence": "focused protocol and packed-package tests, full repository verification, ADR-0017, and Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish catalog freshness or revision coherence, clock authority or synchronization, feedback signing, issuer-key lifecycle, sequence durability, stream authentication or revocation, heartbeat scheduling, delivery within three seconds, transport acknowledgement, operation failure, reconnect or replay recovery, CSS cascade or renderer observation, Studio or Companion consumption, or hardware images.",
+      "evidence": "SDD-013 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The protocol exports a versioned pure visibility-feedback projection contract through root and explicit ESM package subpath APIs.",
+      "verification": "Type-check, export inspection, packed-tarball import, declaration resolution, and fresh-consumer execution tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Each emitted event is a server.state.observed event for the exact catalog Show, snapshot target, canonical visibility control, snapshot revision, and explicit observation time, in locale-independent canonical order.",
+      "verification": "Exact event serialization, ordering, target filtering, revision, and timestamp tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A component is active only when it and every ancestor are structurally enabled by known inline display state; own or ancestor display none is inactive, while opacity, visibility, class, transform, clipping, and other renderer concerns do not alter server-known state.",
+      "verification": "Nested ancestor, sibling, case-normalization, and unsupported-style truth-scope tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Projection validates all relied-upon structure across the complete bounded snapshot element tree and catalog before output and fails closed for mismatched Shows, malformed descriptors, duplicate component identities, missing catalog components, invalid revision or observation time, observation before snapshot update, and more than 1,000 elements or actions.",
+      "verification": "Hostile snapshot, catalog mismatch, duplicate, missing, clock, and bounds matrix tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Equivalent inputs produce byte-equivalent observations without mutating the snapshot or catalog, and the output cannot represent delivery acknowledgement, operation failure, signed provenance, renderer truth, or hardware state.",
+      "verification": "Input-order, immutability, closed output-kind, and Slice boundary tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0022 records facts, H-013, the accepted inference, measurable criteria, and unresolved guarantees for bounded server-known structural visibility projection.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the public protocol visibility-feedback contract, package export and documentation, focused tests, distribution verification, and proposed governance records.",
+      "evidence": "git diff for CHG-0022"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-013 across structural visibility semantics, ancestry, subject binding, revision and time, catalog compatibility, hostile input, ambiguity, bounds, determinism, immutability, and package consumption.",
+      "evidence": "Focused protocol and packed-package tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused protocol checks, package distribution, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, protocol checks, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0017 was created only after the human authority accepted H-013 within the demonstrated bounded server-known structural visibility boundary.",
+      "evidence": "ADR-0017 context and Human Doctrine review on 2026-07-21"
+    }
+  ]
+}
