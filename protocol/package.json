@@ -11,7 +11,8 @@
     "./messages": "./src/messages.ts",
     "./production": "./src/production.ts",
     "./control-feedback": "./src/control-feedback.ts",
-    "./control-feedback-authority": "./src/control-feedback-authority.ts"
+    "./control-feedback-authority": "./src/control-feedback-authority.ts",
+    "./device-credential": "./src/device-credential.ts"
   },
   "files": [
     "src"

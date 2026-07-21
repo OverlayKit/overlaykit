@@ -132,6 +132,14 @@
       "id": "ADR-0008",
       "supersededBy": null,
       "title": "Feedback admission binds signed provenance to device authority"
+    },
+    {
+      "contentHash": "2ddbcde2abb2272a54ab19f8260435db77bca87041ab016efb3bcf9dd60fed32",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0009",
+      "supersededBy": null,
+      "title": "Device credential generations bind exact authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -266,10 +274,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "b442afe49d886f85aaf44784b9b31d07b1345cda8a8ee785ede2d6f793ec2c21",
-  "profileHash": "4699c9bbd452cfefbab81a4d1738122eed17379a537465a17b7f588eec9682ca",
+  "planHash": "9ae48965a648dd9da760aca7074b79632709a2569f61cab2218cc68745324c90",
+  "profileHash": "c5bd772a86fc6c31739f19d7cb8222858a738ba755a407f0093f2e8051483bf8",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.4.0",
+  "profileVersion": "2.5.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -336,6 +344,42 @@
       "kind": "rule",
       "sourceDecision": "ADR-0006",
       "statement": "One production action is a one-step cue and sequential coordinated work uses the same cue contract with additional ordered steps."
+    },
+    {
+      "id": "device-authority-is-exact",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "Device authorization requires the credential's exact Show, declared scope, allowed Preview or Program target, and allowed control identifier."
+    },
+    {
+      "id": "device-authority-is-freshly-resolved",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "Every device action and feedback-authority projection resolves the presented bearer against current expiration, revocation, generation, and sealed-secret state before admission."
+    },
+    {
+      "id": "device-bearer-is-one-time",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "Issuance and rotation return an opaque bearer once while credential storage receives only its sealed representation."
+    },
+    {
+      "id": "device-lifecycle-authority-is-external",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "Credential lifecycle accepts Owner identity, clock, entropy, secret sealing, and storage authority only from trusted adapters outside the bearer credential."
+    },
+    {
+      "id": "device-principal-is-not-studio",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "A valid device bearer resolves to device authority and never to a Studio user, role set, cookie, or interactive session."
+    },
+    {
+      "id": "device-rotation-changes-feedback-audience",
+      "kind": "rule",
+      "sourceDecision": "ADR-0009",
+      "statement": "Rotation preserves credential identity, replaces its secret, increments generation, and binds feedback audience to credentialId.generation so prior generations fail closed."
     },
     {
       "id": "done-is-observed",
