@@ -1,3 +1,4 @@
+export * from './control-action-catalog.js';
 export * from './control-feedback.js';
 export * from './control-feedback-authority.js';
 export * from './device-credential.js';

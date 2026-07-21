@@ -180,6 +180,14 @@
       "id": "ADR-0014",
       "supersededBy": null,
       "title": "Device control derives exact authority from route coordinates"
+    },
+    {
+      "contentHash": "2523ae10c813ee7db5e92848355c9a68ab8ee325e9e5321b2ce7ff3f9f1da746",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0015",
+      "supersededBy": null,
+      "title": "Action catalogs project capability and authority intersection"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -314,10 +322,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "c44566e391ca5be3b2b2824cac4644a65d8a3d128e392e0aa9595ba860fe2618",
-  "profileHash": "b2116c3d947c9818743db8949ec4c8673631b7ea899462d4d77aa94b5bb6a579",
+  "planHash": "0fdc6b2c910e39c21c5f68b952fb284875f6937abb5688782c84d5d6e11d0d2b",
+  "profileHash": "1e9806c86fe64f98619d9de5d85dc82e5812149d492450cfd2f27518f5f8f490",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.10.0",
+  "profileVersion": "2.11.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -330,6 +338,42 @@
       "kind": "rule",
       "sourceDecision": "ADR-0003",
       "statement": "An accepted product specification is never edited or deleted; a successor specification derives supersession."
+    },
+    {
+      "id": "action-catalog-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "Passing pure projection tests may not be presented as HTTP publication, server inventory authority, saved-Scene discovery, Take, value, trigger or cue support, feedback, Studio parity, Companion integration, hardware behavior, or execution authorization."
+    },
+    {
+      "id": "action-catalog-inventory-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "The complete action inventory must be bounded, supported, canonical, and unique before projection; malformed inventory cannot yield a partial catalog."
+    },
+    {
+      "id": "action-catalog-is-not-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "A catalog descriptor may describe an action but must never grant command execution; every command still requires fresh authorization at its execution boundary."
+    },
+    {
+      "id": "action-catalog-omits-authority-and-state",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "Catalog descriptors must omit bearer and credential material, interactive identity, granted scope lists, production revisions, and assertions of current state."
+    },
+    {
+      "id": "action-catalog-output-is-canonical",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "Equivalent inventory and authority must produce byte-equivalent catalog output using fixed semantic ranks and locale-independent text ordering without mutating inputs."
+    },
+    {
+      "id": "action-catalog-requires-capability-authority-intersection",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "An action may be projected only when its Show, required scope, exact Preview or Program target, canonical control identifier, and explicit inventory capability all intersect."
     },
     {
       "id": "agents-are-delegated",
@@ -786,6 +830,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0007",
       "statement": "Transport acknowledgement is delivery metadata and may never establish, refresh, or recover production state."
+    },
+    {
+      "id": "visibility-control-id-is-canonical",
+      "kind": "rule",
+      "sourceDecision": "ADR-0015",
+      "statement": "A component visibility capability uses the canonical control identifier `<componentId>.visibility` in catalog and authorization subjects."
     }
   ],
   "schemasHash": "7140a74320331a66d4edcb04118f77a1fa39e0a5378a8923c22fe6ef4329a0ce",
