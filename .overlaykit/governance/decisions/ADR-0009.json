@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0009",
+  "title": "Device credential generations bind exact authority",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "authentication",
+    "control-integrations",
+    "device-authorization",
+    "protocol-security"
+  ],
+  "context": "ADR-0004 requires separate revocable least-privilege device credentials, SPEC-0001 requires Show and action scope enforcement, and ADR-0008 requires feedback audience and authority to be established outside a signed envelope. The current server has no device principal or device credential resolver. SDD-005 asked how an Owner could issue, rotate, and revoke exact device authority without delegating Studio identity. Slice 1 implemented an adapter-neutral lifecycle under injected Owner, clock, entropy, secret-codec, and store authority. Tests demonstrated one-time bearer disclosure with sealed storage, Studio identity separation, exact Show/scope/target/control authorization, token tampering rejection, rotation invalidation, generation-bound feedback audiences, expiration, revocation, and composition with signed feedback admission. The human authority accepted H-005 only within that adapter-neutral boundary.",
+  "decision": "A device credential is an opaque one-time bearer secret backed by a sealed record whose immutable credential identity binds one Show, explicit scopes, allowed Preview or Program targets, allowed control identifiers, expiration, revocation state, and a monotonically increasing generation. Resolving an active bearer yields a device-only authority and never a Studio user or session. Every action authorization and feedback-authority projection performs fresh credential resolution and fails closed for a mismatched secret, expired record, or revoked record. Rotation preserves credential identity, replaces the sealed secret, increments generation, and changes the feedback audience from credentialId.gN to credentialId.gN+1 so prior bearers and prior-generation feedback cannot be admitted as current authority. Issuance, rotation, and revocation require externally authenticated Owner authority. Production clock, entropy, secret codec, and store adapters remain outside this protocol decision and must be proven separately.",
+  "consequences": [
+    "Device credentials do not inherit Studio identity, roles, cookies, or session authority.",
+    "The bearer token is returned only by issuance or rotation while stores receive only the sealed representation.",
+    "Authorization names one Show, scope, target, and control and rejects authority substitution before domain execution.",
+    "Credential generation is part of the feedback audience, so rotation invalidates signed feedback for the previous generation.",
+    "Expired and revoked records cannot produce action or feedback authority through fresh resolution.",
+    "Owner session binding, production entropy and secret sealing, durable storage, endpoint transport, rate limiting, in-flight revocation linearizability, the complete action catalog, signing-key lifecycle, sequence persistence, Companion, and hardware remain unanswered."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-lifecycle-authority-is-external",
+      "statement": "Credential lifecycle accepts Owner identity, clock, entropy, secret sealing, and storage authority only from trusted adapters outside the bearer credential."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bearer-is-one-time",
+      "statement": "Issuance and rotation return an opaque bearer once while credential storage receives only its sealed representation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-principal-is-not-studio",
+      "statement": "A valid device bearer resolves to device authority and never to a Studio user, role set, cookie, or interactive session."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-is-exact",
+      "statement": "Device authorization requires the credential's exact Show, declared scope, allowed Preview or Program target, and allowed control identifier."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-is-freshly-resolved",
+      "statement": "Every device action and feedback-authority projection resolves the presented bearer against current expiration, revocation, generation, and sealed-secret state before admission."
+    },
+    {
+      "kind": "rule",
+      "id": "device-rotation-changes-feedback-audience",
+      "statement": "Rotation preserves credential identity, replaces its secret, increments generation, and binds feedback audience to credentialId.generation so prior generations fail closed."
+    }
+  ]
+}

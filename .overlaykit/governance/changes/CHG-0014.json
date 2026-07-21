@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0014",
+  "title": "Test least-privilege device credential authority",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004",
+    "ADR-0008",
+    "ADR-0009"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "ADR-0004 and SPEC-0001 require separate revocable device credentials restricted to one Show and explicit action scopes.",
+      "evidence": "ADR-0004#credentials-are-purpose-scoped, SPEC-0001 REQ-SEC-004, and US-009",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0008 requires credential audience and exact feedback authority to be established outside the signed feedback envelope.",
+      "evidence": "ADR-0008#feedback-authority-is-external and ADR-0008#feedback-scope-is-exact",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current server persists only one global Output token digest and has no device principal, device token record, or device scope resolver.",
+      "evidence": "server/src/auth/types.ts and server/src/auth/AuthService.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-005: Given externally authenticated Owner authority and trusted clock, entropy, secret codec, and store adapters, an opaque one-time bearer secret backed by a sealed record binding credential identity, generation, Show, targets, controls, explicit scopes, expiration, and revocation can establish a device principal independent of Studio identity, while fresh credential resolution makes rotation, expiration, and revocation fail closed before action authorization or feedback admission.",
+      "evidence": "SDD-005 hypothesis H-005",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-005 only for the adapter-neutral lifecycle under externally established Owner, clock, entropy, secret-codec, and store authority after role, sealed-secret, identity-separation, scope, target, control, tampering, rotation, generation-audience, expiration, revocation, and feedback-admission tests passed.",
+      "evidence": "protocol/tests/device-credential.test.ts and ADR-0009",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not determine Owner session binding, production clock or entropy sources, the production secret codec, durable store, HTTP or WebSocket transport, rate limiting, concurrent in-flight revocation semantics, complete action catalog, server feedback signing-key lifecycle, sequence persistence, Companion configuration, or hardware integration.",
+      "evidence": "SDD-005 Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The lifecycle requires an externally established Owner principal to issue, rotate, or revoke a credential, and the returned bearer token is exposed once while the store receives only a sealed secret.",
+      "verification": "Role-bound lifecycle, one-time token, and sealed-storage tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Authentication resolves an active token to a device-only authority containing its immutable credential identity, generation, Show, targets, controls, scopes, and expiration without Studio roles or session identity.",
+      "verification": "Device authority projection tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Authorization rejects another Show, undeclared scope, unauthorized target, and unauthorized control before a domain action can execute.",
+      "verification": "Least-privilege adversarial tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Rotation preserves credential identity, increments generation, changes the feedback audience, and invalidates the predecessor; expiration and revocation reject authentication and further rotation.",
+      "verification": "Bearer and feedback-audience lifecycle invalidation tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Fresh authentication of a credential projects the exact external authority required by ADR-0008, expired or revoked credentials cannot produce that context, and an envelope issued for another credential audience is rejected.",
+      "verification": "Signed feedback composition and audience-substitution tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The Slice proves only adapter-neutral credential lifecycle and authority resolution and makes no persistence, endpoint, network, or hardware claim.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0014 records SDD-005 as an accepted security experiment and separates facts, H-005, the reviewed inference, and remaining unknowns.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice adds only an adapter-neutral lifecycle, in-memory test store, authority projection, and focused tests; no route, socket, file store, UI, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0014"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-005 through non-Owner issuance, malformed grants, Show, scope, target, control, predecessor, expiration, revocation, and audience substitution.",
+      "evidence": "protocol/tests/device-credential.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0009 was created only after human review accepted H-005 within the demonstrated adapter-neutral boundary.",
+      "evidence": "ADR-0009 context and Human Doctrine review"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, focused protocol quality, and the full repository checks and build pass for the final Slice manifest.",
+      "evidence": "npm run governance:check, protocol checks, npm run check, and npm run build"
+    }
+  ]
+}
