@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0011",
+  "title": "Test one execution model for production actions and coordinated cues",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0006"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery established that one physical control may need to execute either one production action or a coordinated workflow.",
+      "evidence": "Doctrine-Driven Development Discovery for the Linux operator capability",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0005 demonstrates only one explicitly targeted and idempotent component visibility intent inside the in-process production domain.",
+      "evidence": "ADR-0005 and server/tests/unit/productionService.test.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Rollback of an already visible live-production effect is not demonstrated and cannot be assumed safe.",
+      "evidence": "ADR-0005#receipt-scope-is-honest and the absence of compensation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-002: An immutable Show-scoped cue with one explicit target and ordered typed intents can represent both one action and a coordinated workflow when execution is fail-fast, replay is idempotent, and the aggregate receipt makes every completed or failed step explicit.",
+      "evidence": "SDD-002 hypothesis H-002",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-002 only for in-process sequential composition after one-step, multi-step, partial-failure, replay, conflict, authorization, and isolation tests passed; atomic rollback and external observation were not inferred.",
+      "evidence": "server/tests/unit/productionService.test.ts and ADR-0006",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not determine waits, schedules, parallel branches, compensation, durable recovery, network transport, hardware state images, or device identity.",
+      "evidence": "SDD-002 Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A canonical cue names its Show, target bus, stable identifier, and one to twenty ordered typed steps; one action is represented as a one-step cue.",
+      "verification": "Protocol type checks and cue validation tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Cue execution requires an expected initial target revision and one operation identifier, derives deterministic child operation identifiers, and preserves ADR-0005 Program authorization.",
+      "verification": "ProductionService state-machine tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A successful cue returns one completed aggregate receipt containing ordered per-step receipts and the final target revision.",
+      "verification": "One-step and multi-step execution tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "A cue stops at the first failed step and returns one failed aggregate receipt that identifies completed steps, the failed step, its error, and the resulting target revision without claiming rollback.",
+      "verification": "Adversarial partial-execution test."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Replaying the same cue operation returns the original aggregate receipt without applying steps twice, while reusing the operation identifier for another cue conflicts.",
+      "verification": "Cue-level idempotency and conflict tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Cue execution changes only the named runtime bus and never mutates the saved Scene supplied to Production.",
+      "verification": "Bus and source-isolation tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0011 records SDD-002 as an experiment and separates established ADR-0005 knowledge from H-002 and remaining unknowns.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Only cue contracts, in-process composition, and focused tests are added; no transport, UI, credential, or hardware claim enters the Slice.",
+      "evidence": "git diff for CHG-0011"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review evaluates whether H-002 unified one and many intents while making partial execution unambiguous rather than pretending it was atomic.",
+      "evidence": "ProductionService cue test results"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0006 was created only after the Slice evidence was reviewed and the human authority accepted H-002 within the demonstrated sequential in-process boundary.",
+      "evidence": "ADR-0006 context and server tests"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, quality, focused tests, and build suites pass for the final Slice manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build"
+    }
+  ]
+}

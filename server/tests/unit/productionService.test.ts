@@ -7,7 +7,7 @@ import {
   productionRouteKey,
 } from '../../src/services/ProductionService';
 import type { Scene } from '../../src/types/scene';
-import type { ComponentVisibilityIntent } from '../../src/types/production';
+import type { ComponentVisibilityIntent, ProductionCueExecution } from '../../src/types/production';
 
 function scene(id = 'scene-1'): Scene {
   return {
@@ -42,6 +42,17 @@ function controlledScene(): Scene {
           },
         ],
       },
+    ],
+  };
+}
+
+function cueScene(): Scene {
+  return {
+    id: 'cue-scene',
+    name: 'Cue Scene',
+    elements: [
+      { id: 'lower-third', tag: 'section', content: 'Lower third', styles: {} },
+      { id: 'scoreboard', tag: 'section', content: 'Scoreboard', styles: { display: 'none' } },
     ],
   };
 }
@@ -306,7 +317,7 @@ describe('ProductionService', () => {
     expect(production.getState('show-1').preview.elements[0].styles.display).toBe('none');
   });
 
-  it('returns observed state inside the three-second in-process confirmation budget', () => {
+  it('returns resulting server state inside the three-second in-process confirmation budget', () => {
     production.loadPreview('show-1', scene(), { title: 'Lower third' });
     const startedAt = Date.now();
     const hidden = production.executeVisibilityIntent({
@@ -330,5 +341,164 @@ describe('ProductionService', () => {
       operationId: 'visibility-failed',
       expectedRevision: 2,
     }, { directProgram: false })).toThrowError(expect.objectContaining({ code: 'COMPONENT_NOT_FOUND', status: 404 }));
+  });
+
+  it('represents one action as a completed one-step cue', () => {
+    production.loadPreview('show-1', cueScene());
+    const result = production.executeCue({
+      cue: {
+        id: 'hide-lower-third',
+        showId: 'show-1',
+        target: 'preview',
+        steps: [
+          { id: 'hide', kind: 'component.visibility', componentId: 'lower-third', visible: false },
+        ],
+      },
+      operationId: 'cue-one-step',
+      expectedRevision: 1,
+    }, { directProgram: false });
+
+    expect(result.receipt).toMatchObject({
+      status: 'completed',
+      completedSteps: 1,
+      targetRevision: 2,
+      steps: [{ id: 'hide', index: 0, status: 'completed', receipt: { resultingState: 'inactive' } }],
+    });
+    expect(result.state.preview.elements[0].styles.display).toBe('none');
+    expect(result.state.program.revision).toBe(0);
+  });
+
+  it('executes ordered visibility steps and returns one aggregate receipt', () => {
+    const source = cueScene();
+    const sourceBefore = JSON.stringify(source);
+    production.loadPreview('show-1', source);
+    const result = production.executeCue({
+      cue: {
+        id: 'swap-graphics',
+        showId: 'show-1',
+        target: 'preview',
+        steps: [
+          { id: 'hide-lower', kind: 'component.visibility', componentId: 'lower-third', visible: false },
+          { id: 'show-score', kind: 'component.visibility', componentId: 'scoreboard', visible: true },
+        ],
+      },
+      operationId: 'cue-two-steps',
+      expectedRevision: 1,
+    }, { directProgram: false });
+
+    expect(result.receipt).toMatchObject({
+      cueId: 'swap-graphics',
+      status: 'completed',
+      completedSteps: 2,
+      targetRevision: 3,
+    });
+    expect(result.receipt.steps.map((step) => [step.id, step.status])).toEqual([
+      ['hide-lower', 'completed'],
+      ['show-score', 'completed'],
+    ]);
+    expect(result.receipt.steps.map((step) => (
+      step.status === 'completed' ? step.receipt.operationId : null
+    ))).toEqual([
+      'cue-two-steps:step:0',
+      'cue-two-steps:step:1',
+    ]);
+    expect(result.state.preview.elements.map((element) => element.styles.display)).toEqual(['none', '']);
+    expect(JSON.stringify(source)).toBe(sourceBefore);
+  });
+
+  it('rejects empty and ambiguous cue contracts before execution', () => {
+    production.loadPreview('show-1', cueScene());
+    const execution: ProductionCueExecution = {
+      cue: {
+        id: 'invalid-cue',
+        showId: 'show-1',
+        target: 'preview',
+        steps: [],
+      },
+      operationId: 'cue-invalid',
+      expectedRevision: 1,
+    };
+
+    expect(() => production.executeCue(execution, { directProgram: false }))
+      .toThrowError(expect.objectContaining({ code: 'INVALID_CUE_STEPS', status: 400 }));
+    expect(() => production.executeCue({
+      ...execution,
+      cue: {
+        ...execution.cue,
+        steps: [
+          { id: 'same-step', kind: 'component.visibility', componentId: 'lower-third', visible: false },
+          { id: 'same-step', kind: 'component.visibility', componentId: 'scoreboard', visible: true },
+        ],
+      },
+    }, { directProgram: false })).toThrowError(expect.objectContaining({
+      code: 'DUPLICATE_CUE_STEP_ID',
+      status: 400,
+    }));
+    expect(production.getState('show-1').preview.revision).toBe(1);
+  });
+
+  it('makes partial execution explicit and replays the aggregate result idempotently', () => {
+    production.loadPreview('show-1', cueScene());
+    const execution: ProductionCueExecution = {
+      cue: {
+        id: 'partial-cue',
+        showId: 'show-1',
+        target: 'preview',
+        steps: [
+          { id: 'hide-lower', kind: 'component.visibility', componentId: 'lower-third', visible: false },
+          { id: 'missing', kind: 'component.visibility', componentId: 'missing-component', visible: true },
+          { id: 'show-score', kind: 'component.visibility', componentId: 'scoreboard', visible: true },
+        ],
+      },
+      operationId: 'cue-partial',
+      expectedRevision: 1,
+    };
+
+    const failed = production.executeCue(execution, { directProgram: false });
+    const replay = production.executeCue(execution, { directProgram: false });
+    expect(failed.receipt).toMatchObject({
+      status: 'failed',
+      completedSteps: 1,
+      failedStepId: 'missing',
+      targetRevision: 2,
+      steps: [
+        { id: 'hide-lower', status: 'completed' },
+        { id: 'missing', status: 'failed', error: { code: 'COMPONENT_NOT_FOUND', status: 404 } },
+      ],
+    });
+    expect(replay.receipt).toEqual(failed.receipt);
+    expect(replay.state.preview.revision).toBe(2);
+    expect(replay.state.preview.elements.map((element) => element.styles.display)).toEqual(['none', 'none']);
+
+    expect(() => production.executeCue({
+      ...execution,
+      cue: { ...execution.cue, id: 'different-cue' },
+    }, { directProgram: false })).toThrowError(expect.objectContaining({ code: 'OPERATION_ID_CONFLICT', status: 409 }));
+  });
+
+  it('validates the initial revision and preserves direct Program authorization', () => {
+    production.loadPreview('show-1', cueScene());
+    production.take('show-1', 1, 'take-for-cue');
+    const execution: ProductionCueExecution = {
+      cue: {
+        id: 'program-cue',
+        showId: 'show-1',
+        target: 'program',
+        steps: [
+          { id: 'hide-lower', kind: 'component.visibility', componentId: 'lower-third', visible: false },
+        ],
+      },
+      operationId: 'cue-program',
+      expectedRevision: 1,
+    };
+
+    expect(() => production.executeCue(execution, { directProgram: false }))
+      .toThrowError(expect.objectContaining({ code: 'DIRECT_PROGRAM_FORBIDDEN', status: 403 }));
+    expect(() => production.executeCue({ ...execution, expectedRevision: 0 }, { directProgram: true }))
+      .toThrowError(expect.objectContaining({ code: 'TARGET_REVISION_CONFLICT', status: 409 }));
+    const result = production.executeCue(execution, { directProgram: true });
+    expect(result.receipt).toMatchObject({ status: 'completed', target: 'program', targetRevision: 2 });
+    expect(result.state.preview.revision).toBe(1);
+    expect(result.state.program.elements[0].styles.display).toBe('none');
   });
 });

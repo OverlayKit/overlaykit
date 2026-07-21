@@ -9,6 +9,10 @@ import type {
   ComponentVisibilityIntent,
   ComponentVisibilityReceipt,
   ComponentVisibilityResult,
+  ProductionCueExecution,
+  ProductionCueReceipt,
+  ProductionCueResult,
+  ProductionCueStepReceipt,
   ProductionBus,
   ProductionControl,
   ProductionSnapshot,
@@ -26,6 +30,10 @@ interface InternalProductionState extends ProductionState {
   visibilityOperations: Map<string, {
     fingerprint: string;
     receipt: ComponentVisibilityReceipt;
+  }>;
+  cueOperations: Map<string, {
+    fingerprint: string;
+    receipt: ProductionCueReceipt;
   }>;
 }
 
@@ -202,6 +210,13 @@ function visibilityFingerprint(intent: ComponentVisibilityIntent): string {
     componentId: intent.componentId,
     visible: intent.visible,
     expectedRevision: intent.expectedRevision,
+  });
+}
+
+function cueFingerprint(execution: ProductionCueExecution): string {
+  return JSON.stringify({
+    cue: execution.cue,
+    expectedRevision: execution.expectedRevision,
   });
 }
 
@@ -467,6 +482,105 @@ export class ProductionService {
     return { receipt: clone(receipt), state: this.publicState(state) };
   }
 
+  executeCue(
+    execution: ProductionCueExecution,
+    authorization: ProductionIntentAuthorization,
+  ): ProductionCueResult {
+    this.validateCueExecution(execution);
+    const { cue } = execution;
+    const state = this.getOrCreate(cue.showId);
+    if (cue.target === 'program' && !authorization.directProgram) {
+      throw new ProductionError(
+        'DIRECT_PROGRAM_FORBIDDEN',
+        'Direct Program cue execution requires explicit authorization',
+        403,
+      );
+    }
+
+    const fingerprint = cueFingerprint(execution);
+    const prior = state.cueOperations.get(execution.operationId);
+    if (prior) {
+      if (prior.fingerprint !== fingerprint) {
+        throw new ProductionError(
+          'OPERATION_ID_CONFLICT',
+          'operationId was already used for a different cue execution',
+          409,
+          { operationId: execution.operationId },
+        );
+      }
+      return { receipt: clone(prior.receipt), state: this.publicState(state) };
+    }
+
+    const initialSnapshot = state[cue.target];
+    if (initialSnapshot.revision === 0 || !initialSnapshot.scene) {
+      throw new ProductionError(
+        cue.target === 'preview' ? 'PREVIEW_EMPTY' : 'PROGRAM_EMPTY',
+        `Load a Scene into ${cue.target === 'preview' ? 'Preview' : 'Program'} before executing a cue`,
+        409,
+      );
+    }
+    if (initialSnapshot.revision !== execution.expectedRevision) {
+      throw new ProductionError(
+        'TARGET_REVISION_CONFLICT',
+        `${cue.target === 'preview' ? 'Preview' : 'Program'} changed before cue execution`,
+        409,
+        {
+          target: cue.target,
+          expectedRevision: execution.expectedRevision,
+          actualRevision: initialSnapshot.revision,
+        },
+      );
+    }
+
+    const startedAt = Date.now();
+    const steps: ProductionCueStepReceipt[] = [];
+    let failedStepId: string | undefined;
+    for (const [index, step] of cue.steps.entries()) {
+      try {
+        const result = this.executeVisibilityIntent({
+          kind: 'component.visibility',
+          showId: cue.showId,
+          target: cue.target,
+          componentId: step.componentId,
+          visible: step.visible,
+          operationId: `${execution.operationId}:step:${index}`,
+          expectedRevision: state[cue.target].revision,
+        }, authorization);
+        steps.push({ id: step.id, index, status: 'completed', receipt: result.receipt });
+      } catch (error) {
+        if (!(error instanceof ProductionError)) throw error;
+        failedStepId = step.id;
+        steps.push({
+          id: step.id,
+          index,
+          status: 'failed',
+          error: { code: error.code, message: error.message, status: error.status },
+        });
+        break;
+      }
+    }
+
+    const receipt: ProductionCueReceipt = {
+      cueId: cue.id,
+      showId: cue.showId,
+      target: cue.target,
+      operationId: execution.operationId,
+      status: failedStepId ? 'failed' : 'completed',
+      completedSteps: steps.filter((step) => step.status === 'completed').length,
+      ...(failedStepId ? { failedStepId } : {}),
+      targetRevision: state[cue.target].revision,
+      steps,
+      startedAt,
+      completedAt: Date.now(),
+    };
+    state.cueOperations.set(execution.operationId, { fingerprint, receipt });
+    if (state.cueOperations.size > 100) {
+      const firstOperation = state.cueOperations.keys().next().value as string | undefined;
+      if (firstOperation) state.cueOperations.delete(firstOperation);
+    }
+    return { receipt: clone(receipt), state: this.publicState(state) };
+  }
+
   private getOrCreate(showId: string): InternalProductionState {
     let state = this.shows.get(showId);
     if (!state) {
@@ -478,6 +592,7 @@ export class ProductionService {
         takeOperations: new Map(),
         controlOperations: new Set(),
         visibilityOperations: new Map(),
+        cueOperations: new Map(),
       };
       this.shows.set(showId, state);
     }
@@ -532,6 +647,50 @@ export class ProductionService {
     this.validateOperationId(intent.operationId);
   }
 
+  private validateCueExecution(execution: ProductionCueExecution): void {
+    if (!execution || typeof execution !== 'object' || !execution.cue || typeof execution.cue !== 'object') {
+      throw new ProductionError('INVALID_CUE', 'A production cue is required', 400);
+    }
+    const { cue } = execution;
+    if (!cue.id || typeof cue.id !== 'string' || cue.id.length > 100) {
+      throw new ProductionError('INVALID_CUE_ID', 'cue.id must be 1 to 100 characters', 400);
+    }
+    if (!cue.showId || typeof cue.showId !== 'string') {
+      throw new ProductionError('INVALID_SHOW_ID', 'Cue must name a Show', 400);
+    }
+    if (cue.target !== 'preview' && cue.target !== 'program') {
+      throw new ProductionError('INVALID_PRODUCTION_TARGET', 'Cue must target Preview or Program', 400);
+    }
+    if (!Array.isArray(cue.steps) || cue.steps.length === 0 || cue.steps.length > 20) {
+      throw new ProductionError('INVALID_CUE_STEPS', 'Cue must contain 1 to 20 steps', 400);
+    }
+    const ids = new Set<string>();
+    for (const step of cue.steps) {
+      if (!step || typeof step !== 'object' || !step.id || typeof step.id !== 'string' || step.id.length > 100) {
+        throw new ProductionError('INVALID_CUE_STEP_ID', 'Every cue step requires an id of 1 to 100 characters', 400);
+      }
+      if (ids.has(step.id)) {
+        throw new ProductionError('DUPLICATE_CUE_STEP_ID', 'Cue step identifiers must be unique', 400, { stepId: step.id });
+      }
+      ids.add(step.id);
+      if (step.kind !== 'component.visibility') {
+        throw new ProductionError('INVALID_CUE_STEP_KIND', 'Slice 1 supports only component.visibility steps', 400);
+      }
+      if (!step.componentId || typeof step.componentId !== 'string' || step.componentId.length > 100) {
+        throw new ProductionError('INVALID_COMPONENT_ID', 'Every cue step requires a componentId', 400);
+      }
+      if (typeof step.visible !== 'boolean') {
+        throw new ProductionError('INVALID_VISIBILITY', 'Every cue step requires boolean visible state', 400);
+      }
+    }
+    if (!Number.isInteger(execution.expectedRevision) || execution.expectedRevision < 0) {
+      throw new ProductionError('INVALID_TARGET_REVISION', 'expectedRevision must be a non-negative integer', 400);
+    }
+    if (!execution.operationId || typeof execution.operationId !== 'string' || execution.operationId.length > 70) {
+      throw new ProductionError('INVALID_OPERATION_ID', 'Cue operationId must be 1 to 70 characters', 400);
+    }
+  }
+
   private publishSnapshot(snapshot: ProductionSnapshot): void {
     const key = productionRouteKey(snapshot.showId, snapshot.bus);
     this.channels.replaceVariables(key, clone(snapshot.variables));
@@ -564,6 +723,11 @@ export type {
   ComponentVisibilityIntent,
   ComponentVisibilityReceipt,
   ComponentVisibilityResult,
+  ProductionCue,
+  ProductionCueExecution,
+  ProductionCueReceipt,
+  ProductionCueResult,
+  ProductionCueStepReceipt,
   ProductionBus,
   ProductionSnapshot,
   ProductionState,
