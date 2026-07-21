@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0030",
+  "title": "Test current signed device bootstrap issuance",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires an authorized device target to receive one immediate complete snapshot of current server truth, including a valid revision-zero empty snapshot, before readiness can be granted.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires catalog authority to use one durable positive generation per full audience credential across Preview and Program, advance through ABA changes, invalidate immediately in memory, block emission until current persistence completes, isolate persistence failure to the affected audience, and recover automatically only after that same current generation becomes durable.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires one atomic ProductionState cut, durable catalog generation followed by durable issuer-audience sequence reservation, exact canonical payload construction, and detached signing of the exact payload bytes; catalog churn before sequence reservation consumes no sequence, while every returned sequence remains consumed after later construction or signing failure.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a snapshot to remain current at transport, acknowledgement, and readiness boundaries, with confirmedAt representing capture time and a maximum three-second age; target state changes invalidate only that target, while catalog or signing-key changes invalidate every affected target.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0020 defines signed target bootstrap frames but does not construct them from ProductionService, ADR-0023 coordinates opaque snapshots without proving their currency, and ADR-0024 supplies the shared durable sequence authority without defining catalog-generation persistence.",
+      "evidence": "ADR-0020, ADR-0023, ADR-0024, protocol/src/device-control-frame.ts, and server/src/services/DeviceBootstrapReadinessCoordinator.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-021: One production-unmounted TypeScript issuer can capture one ProductionState cut, derive a complete authorized target snapshot and shared catalog observation, persist the current audience catalog generation before reserving a shared durable sequence, sign exact canonical version-two payload bytes separately, and expose a synchronous freshness witness that prevents stale transport, acknowledgement, or readiness without charging target retries for catalog or state invalidation.",
+      "evidence": "SDD-021 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-021 only for a production-unmounted issuer and strengthened readiness coordinator whose one-cut snapshot projection, complete empty target, shared audience catalog generation, ABA advancement, audience-local persistence isolation and recovery, single-process and real second-process exclusion, exact detached signing, durable pre-signing sequence reservation, key-specific sequence lanes, three-boundary freshness checks, target-local state invalidation, shared catalog or key invalidation, race coalescence, and fail-closed behavior were demonstrated by hostile tests, installed-package execution, compiled runtime composition, full repository checks, builds, zero-vulnerability audit, and governance verification.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-021 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This accepted Slice does not mount the issuer into DeviceWebSocketGateway, prove that every production mutation invokes catalog observation, parse or frame live network messages, establish signing-key distribution, pinning, storage, certification, or rotation trust, recover an orphaned catalog authority marker automatically after abrupt termination, prove physical media synchronization, close permission changes through mounted lifecycle composition, execute commands or deltas, implement backpressure, integrate Companion, observe renderer or OBS output, or demonstrate physical Stream Deck state.",
+      "evidence": "SDD-021 accepted Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The public frame contract uses version two, carries one positive catalog generation inside the canonical signed payload, admits only canonical exact payload bytes plus a detached valid signature, and preserves target, authority, catalog, and replay admission.",
+      "verification": "Protocol normalization, canonical-byte, detached-signature, generation-regression, mutation, and installed-tarball tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "One issuer capture reads ProductionState once and derives the complete target snapshot and full effective authorized catalog from that cut, including a complete revision-zero empty target and capture-time confirmedAt.",
+      "verification": "One-cut read-count, empty-target, projection-order, clock, and canonical payload tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Catalog generation is one durable audience-wide authority across Preview and Program, advances through ABA, blocks before persistence, rejects a second canonical-path authority, isolates failures by audience, and recovers only after current pending persistence succeeds.",
+      "verification": "ABA, restart, ordered filesystem, deferred sync, fault injection, audience isolation, path alias, and real child-process tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The issuer confirms current catalog durability before reserving from the shared issuer-audience sequence lane, signs an immutable copy of exact payload bytes, burns every returned sequence after later failure, and coalesces pre-reservation catalog churn without consuming a sequence.",
+      "verification": "Controlled persistence, sequence, signer mutation, signing failure, catalog-race, key-rotation, and compiled runtime tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Readiness rejects stale snapshots synchronously before send, at acknowledgement, and before authority grant; target changes requeue only that target without retry charge, while shared catalog or signer changes invalidate all affected target evidence.",
+      "verification": "Pre-send, acknowledgement, readiness, target-local invalidation, catalog invalidation, key-lane, three-second age, and clock regression tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0030 records Discovery facts, H-021, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the version-two frame contract, one file catalog-generation authority, one production-unmounted bootstrap issuer, readiness freshness composition, focused tests, dependency security resolution, and accepted governance records.",
+      "evidence": "git diff for CHG-0030"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-021 across canonical bytes, detached signatures, one-cut truth, empty targets, catalog ABA, persistence ordering and failure, authority overlap, sequence burning, signer mutation, races, freshness boundaries, and key rotation.",
+      "evidence": "Focused protocol, catalog-generation, issuer, readiness, package-distribution, and compiled runtime tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, package distribution, full repository checks, build, licensing, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0025 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-021.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0025"
+    }
+  ]
+}

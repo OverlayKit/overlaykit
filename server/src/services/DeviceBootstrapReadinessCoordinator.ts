@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
-import type {
-  DeviceBootstrapAck,
-} from '@overlaykit/protocol/device-bootstrap' with { 'resolution-mode': 'import' };
-import type { ProductionBus } from '@overlaykit/protocol/production' with { 'resolution-mode': 'import' };
+import type { DeviceBootstrapAck } from '@overlaykit/protocol/device-bootstrap' with {
+  'resolution-mode': 'import',
+};
+import type { ProductionBus } from '@overlaykit/protocol/production' with {
+  'resolution-mode': 'import',
+};
 
-type DeviceBootstrapProtocolModule = typeof import(
-  '@overlaykit/protocol/device-bootstrap',
-  { with: { 'resolution-mode': 'import' } }
-);
+type DeviceBootstrapProtocolModule = typeof import('@overlaykit/protocol/device-bootstrap', {
+  with: { 'resolution-mode': 'import' },
+});
 
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
@@ -23,23 +24,28 @@ export const DEVICE_BOOTSTRAP_CLOSE_REASONS = [
   'bootstrap.internal_error',
 ] as const;
 
-export type DeviceBootstrapCloseReason = typeof DEVICE_BOOTSTRAP_CLOSE_REASONS[number];
+export type DeviceBootstrapCloseReason = (typeof DEVICE_BOOTSTRAP_CLOSE_REASONS)[number];
 export type DeviceBootstrapPhase = 'idle' | 'bootstrapping' | 'ready' | 'closed';
 
 export interface DeviceBootstrapSnapshot {
+  readonly issuerKeyId: string;
   readonly sequence: number;
   readonly bytes: Uint8Array;
+  readonly signature: string;
 }
 
 export interface DeviceBootstrapSnapshotFactory {
   create(target: ProductionBus): DeviceBootstrapSnapshot | Promise<DeviceBootstrapSnapshot>;
+  isCurrent(snapshot: DeviceBootstrapSnapshot): boolean;
 }
 
 export interface DeviceBootstrapEmission {
   readonly target: ProductionBus;
+  readonly issuerKeyId: string;
   readonly sequence: number;
   readonly sha256: string;
   readonly bytes: Readonly<Uint8Array>;
+  readonly signature: string;
 }
 
 export interface DeviceBootstrapTransport {
@@ -69,13 +75,12 @@ export interface DeviceBootstrapReadinessState {
 }
 
 export type DeviceBootstrapReadinessErrorCode =
-  | 'INVALID_DEVICE_BOOTSTRAP_COORDINATOR'
-  | 'DEVICE_BOOTSTRAP_ALREADY_STARTED';
+  'INVALID_DEVICE_BOOTSTRAP_COORDINATOR' | 'DEVICE_BOOTSTRAP_ALREADY_STARTED';
 
 export class DeviceBootstrapReadinessError extends Error {
   constructor(
     readonly code: DeviceBootstrapReadinessErrorCode,
-    message: string,
+    message: string
   ) {
     super(message);
     this.name = 'DeviceBootstrapReadinessError';
@@ -86,6 +91,7 @@ interface CurrentAttempt {
   readonly epoch: number;
   readonly sequence: number;
   readonly sha256: string;
+  readonly snapshot: DeviceBootstrapSnapshot;
   sendConfirmed: boolean;
   timeoutHandle: unknown | null;
 }
@@ -125,7 +131,7 @@ function normalizedNow(now: () => number): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new DeviceBootstrapReadinessError(
       'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-      'Device bootstrap clock must return a non-negative safe integer',
+      'Device bootstrap clock must return a non-negative safe integer'
     );
   }
   return value;
@@ -149,18 +155,15 @@ function normalizeTargets(targets: ReadonlyArray<ProductionBus>): ReadonlyArray<
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new DeviceBootstrapReadinessError(
       'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-      'At least one device bootstrap target is required',
+      'At least one device bootstrap target is required'
     );
   }
   const normalized: ProductionBus[] = [];
   for (const target of targets) {
-    if (
-      (target !== 'preview' && target !== 'program')
-      || normalized.includes(target)
-    ) {
+    if ((target !== 'preview' && target !== 'program') || normalized.includes(target)) {
       throw new DeviceBootstrapReadinessError(
         'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-        'Device bootstrap targets must be unique Preview or Program targets',
+        'Device bootstrap targets must be unique Preview or Program targets'
       );
     }
     normalized.push(target);
@@ -171,10 +174,16 @@ function normalizeTargets(targets: ReadonlyArray<ProductionBus>): ReadonlyArray<
 function validSnapshot(value: unknown): value is DeviceBootstrapSnapshot {
   if (!value || typeof value !== 'object') return false;
   const snapshot = value as Partial<DeviceBootstrapSnapshot>;
-  return Number.isSafeInteger(snapshot.sequence)
-    && (snapshot.sequence as number) > 0
-    && snapshot.bytes instanceof Uint8Array
-    && snapshot.bytes.byteLength > 0;
+  return (
+    typeof snapshot.issuerKeyId === 'string' &&
+    snapshot.issuerKeyId.length > 0 &&
+    Number.isSafeInteger(snapshot.sequence) &&
+    (snapshot.sequence as number) > 0 &&
+    snapshot.bytes instanceof Uint8Array &&
+    snapshot.bytes.byteLength > 0 &&
+    typeof snapshot.signature === 'string' &&
+    snapshot.signature.length > 0
+  );
 }
 
 function safeDeadline(startedAt: number, duration: number): number {
@@ -182,7 +191,7 @@ function safeDeadline(startedAt: number, duration: number): number {
   if (!Number.isSafeInteger(deadline)) {
     throw new DeviceBootstrapReadinessError(
       'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-      'Device bootstrap deadline exceeds safe clock precision',
+      'Device bootstrap deadline exceeds safe clock precision'
     );
   }
   return deadline;
@@ -196,6 +205,7 @@ export class DeviceBootstrapReadinessCoordinator {
   private readonly targets: ReadonlyArray<ProductionBus>;
   private readonly states = new Map<ProductionBus, TargetState>();
   private readonly snapshotFactory: DeviceBootstrapSnapshotFactory['create'];
+  private readonly isSnapshotCurrent: DeviceBootstrapSnapshotFactory['isCurrent'];
   private readonly send: DeviceBootstrapTransport['send'];
   private readonly closeTransport: DeviceBootstrapTransport['close'];
   private readonly parseAck: (value: unknown) => DeviceBootstrapAck;
@@ -203,15 +213,19 @@ export class DeviceBootstrapReadinessCoordinator {
   private readonly now: () => number;
   private readonly scheduler: DeviceBootstrapScheduler;
   private readonly onBackgroundError: (error: unknown) => void;
-  private readonly issuedHashes = new Map<string, {
-    readonly target: ProductionBus;
-    readonly sequence: number;
-  }>();
+  private readonly issuedHashes = new Map<
+    string,
+    {
+      readonly target: ProductionBus;
+      readonly sequence: number;
+    }
+  >();
   private readonly pendingTargets = new Set<ProductionBus>();
   private phase: DeviceBootstrapPhase = 'idle';
   private startedAt: number | null = null;
   private deadlineAt: number | null = null;
   private deadlineHandle: unknown | null = null;
+  private readonly lastSequenceByIssuer = new Map<string, number>();
   private lastSequence = 0;
   private closeReason: DeviceBootstrapCloseReason | null = null;
   private closePromise: Promise<void> | null = null;
@@ -220,29 +234,29 @@ export class DeviceBootstrapReadinessCoordinator {
 
   constructor(options: DeviceBootstrapCoordinatorOptions) {
     if (
-      !options
-      || !options.snapshotFactory
-      || typeof options.snapshotFactory.create !== 'function'
-      || !options.transport
-      || typeof options.transport.send !== 'function'
-      || typeof options.transport.close !== 'function'
-      || typeof options.parseAck !== 'function'
-      || (options.hash !== undefined && typeof options.hash !== 'function')
-      || (options.now !== undefined && typeof options.now !== 'function')
-      || (options.scheduler !== undefined && (
-        typeof options.scheduler.schedule !== 'function'
-        || typeof options.scheduler.cancel !== 'function'
-      ))
-      || (options.onBackgroundError !== undefined
-        && typeof options.onBackgroundError !== 'function')
+      !options ||
+      !options.snapshotFactory ||
+      typeof options.snapshotFactory.create !== 'function' ||
+      typeof options.snapshotFactory.isCurrent !== 'function' ||
+      !options.transport ||
+      typeof options.transport.send !== 'function' ||
+      typeof options.transport.close !== 'function' ||
+      typeof options.parseAck !== 'function' ||
+      (options.hash !== undefined && typeof options.hash !== 'function') ||
+      (options.now !== undefined && typeof options.now !== 'function') ||
+      (options.scheduler !== undefined &&
+        (typeof options.scheduler.schedule !== 'function' ||
+          typeof options.scheduler.cancel !== 'function')) ||
+      (options.onBackgroundError !== undefined && typeof options.onBackgroundError !== 'function')
     ) {
       throw new DeviceBootstrapReadinessError(
         'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-        'Device bootstrap coordinator dependencies are invalid',
+        'Device bootstrap coordinator dependencies are invalid'
       );
     }
     this.targets = normalizeTargets(options.targets);
     this.snapshotFactory = options.snapshotFactory.create.bind(options.snapshotFactory);
+    this.isSnapshotCurrent = options.snapshotFactory.isCurrent.bind(options.snapshotFactory);
     this.send = options.transport.send.bind(options.transport);
     this.closeTransport = options.transport.close.bind(options.transport);
     this.parseAck = options.parseAck;
@@ -267,7 +281,7 @@ export class DeviceBootstrapReadinessCoordinator {
       if (this.phase !== 'idle') {
         throw new DeviceBootstrapReadinessError(
           'DEVICE_BOOTSTRAP_ALREADY_STARTED',
-          'Device bootstrap readiness has already started',
+          'Device bootstrap readiness has already started'
         );
       }
       try {
@@ -288,10 +302,12 @@ export class DeviceBootstrapReadinessCoordinator {
 
   notifyStateChanged(target: ProductionBus): Promise<void> {
     if (!this.states.has(target)) {
-      return Promise.reject(new DeviceBootstrapReadinessError(
-        'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
-        'State changes must name an authorized bootstrap target',
-      ));
+      return Promise.reject(
+        new DeviceBootstrapReadinessError(
+          'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
+          'State changes must name an authorized bootstrap target'
+        )
+      );
     }
     return this.enqueue(async () => {
       if (this.phase !== 'bootstrapping') return;
@@ -329,10 +345,11 @@ export class DeviceBootstrapReadinessCoordinator {
 
       if (this.phase === 'ready') {
         if (
-          acknowledgement.status === 'applied'
-          && state.current?.sha256 === acknowledgement.sha256
-          && state.appliedSha256 === acknowledgement.sha256
-        ) return;
+          acknowledgement.status === 'applied' &&
+          state.current?.sha256 === acknowledgement.sha256 &&
+          state.appliedSha256 === acknowledgement.sha256
+        )
+          return;
         if (state.current?.sha256 !== acknowledgement.sha256) return;
         await this.closeConnection('bootstrap.protocol_violation');
         return;
@@ -342,6 +359,16 @@ export class DeviceBootstrapReadinessCoordinator {
         return;
       }
       if (state.current?.sha256 !== acknowledgement.sha256) return;
+
+      try {
+        if (!this.isSnapshotCurrent(state.current.snapshot)) {
+          await this.invalidateStaleAttempt(state);
+          return;
+        }
+      } catch (error) {
+        await this.failInternal(error);
+        return;
+      }
 
       if (acknowledgement.status === 'error') {
         await this.consumeRetry(state);
@@ -370,31 +397,30 @@ export class DeviceBootstrapReadinessCoordinator {
       deadlineAt: this.deadlineAt,
       lastSequence: this.lastSequence,
       closeReason: this.closeReason,
-      targets: Object.freeze(this.targets.map((target) => {
-        const state = this.states.get(target)!;
-        return Object.freeze({
-          target,
-          retriesUsed: state.retriesUsed,
-          currentSha256: state.current?.sha256 ?? null,
-          appliedSha256: state.appliedSha256,
-        });
-      })),
+      targets: Object.freeze(
+        this.targets.map((target) => {
+          const state = this.states.get(target)!;
+          return Object.freeze({
+            target,
+            retriesUsed: state.retriesUsed,
+            currentSha256: state.current?.sha256 ?? null,
+            appliedSha256: state.appliedSha256,
+          });
+        })
+      ),
     });
   }
 
   private schedulePump(): void {
-    if (
-      this.pumpScheduled
-      || this.pendingTargets.size === 0
-      || this.phase !== 'bootstrapping'
-    ) return;
+    if (this.pumpScheduled || this.pendingTargets.size === 0 || this.phase !== 'bootstrapping')
+      return;
     this.pumpScheduled = true;
     void this.runEmissionLane().then(
       () => this.finishPump(),
       (error) => {
         this.reportBackgroundError(error);
         void this.failInternal(error).finally(() => this.finishPump());
-      },
+      }
     );
   }
 
@@ -429,12 +455,16 @@ export class DeviceBootstrapReadinessCoordinator {
       return;
     }
     if (this.phase !== 'bootstrapping') return;
-    if (!validSnapshot(snapshot) || snapshot.sequence <= this.lastSequence) {
+    if (
+      !validSnapshot(snapshot) ||
+      snapshot.sequence <= (this.lastSequenceByIssuer.get(snapshot.issuerKeyId) ?? 0)
+    ) {
       await this.failInternal(new Error('Snapshot sequence or bytes are invalid'));
       return;
     }
 
     const bytes = snapshot.bytes.slice();
+    this.lastSequenceByIssuer.set(snapshot.issuerKeyId, snapshot.sequence);
     this.lastSequence = snapshot.sequence;
     let sha256: string;
     try {
@@ -448,11 +478,24 @@ export class DeviceBootstrapReadinessCoordinator {
       await this.failInternal(new Error('Snapshot hash is invalid or was already issued'));
       return;
     }
+    try {
+      if (!this.isSnapshotCurrent(snapshot)) {
+        await this.enqueue(() => {
+          if (this.phase !== 'bootstrapping') return;
+          if (state.epoch === epoch) this.pendingTargets.add(target);
+        });
+        return;
+      }
+    } catch (error) {
+      await this.failInternal(error);
+      return;
+    }
 
     const attempt: CurrentAttempt = {
       epoch,
       sequence: snapshot.sequence,
       sha256,
+      snapshot,
       sendConfirmed: false,
       timeoutHandle: null,
     };
@@ -464,19 +507,33 @@ export class DeviceBootstrapReadinessCoordinator {
       }
       state.current = attempt;
       state.appliedSha256 = null;
-      this.issuedHashes.set(sha256, { target, sequence: snapshot.sequence });
       return true;
     });
     if (!committed) return;
 
+    try {
+      if (!this.isSnapshotCurrent(snapshot)) {
+        await this.enqueue(() => this.invalidateStaleAttempt(state));
+        return;
+      }
+    } catch (error) {
+      await this.failInternal(error);
+      return;
+    }
+    this.issuedHashes.set(sha256, { target, sequence: snapshot.sequence });
+
     let sendFailed = false;
     try {
-      await this.send(Object.freeze({
-        target,
-        sequence: snapshot.sequence,
-        sha256,
-        bytes,
-      }));
+      await this.send(
+        Object.freeze({
+          target,
+          issuerKeyId: snapshot.issuerKeyId,
+          sequence: snapshot.sequence,
+          sha256,
+          bytes,
+          signature: snapshot.signature,
+        })
+      );
     } catch {
       sendFailed = true;
     }
@@ -493,9 +550,8 @@ export class DeviceBootstrapReadinessCoordinator {
       }
       try {
         const timeoutAt = safeDeadline(normalizedNow(this.now), DEVICE_BOOTSTRAP_ACK_TIMEOUT_MS);
-        attempt.timeoutHandle = this.scheduler.schedule(
-          timeoutAt,
-          () => this.enqueue(() => this.timeoutAttempt(target, sha256)),
+        attempt.timeoutHandle = this.scheduler.schedule(timeoutAt, () =>
+          this.enqueue(() => this.timeoutAttempt(target, sha256))
         );
       } catch (error) {
         await this.failInternal(error);
@@ -528,13 +584,42 @@ export class DeviceBootstrapReadinessCoordinator {
     this.schedulePump();
   }
 
+  private async invalidateStaleAttempt(state: TargetState): Promise<void> {
+    if (this.phase !== 'bootstrapping') return;
+    try {
+      this.cancelAttemptTimeout(state);
+    } catch (error) {
+      await this.failInternal(error);
+      return;
+    }
+    state.current = null;
+    state.appliedSha256 = null;
+    this.pendingTargets.add(state.target);
+    this.schedulePump();
+  }
+
   private async grantReadinessIfComplete(): Promise<void> {
-    if (!this.targets.every((target) => {
+    const complete = this.targets.every((target) => {
       const current = this.states.get(target)!;
-      return current.current !== null
-        && current.current.sendConfirmed
-        && current.appliedSha256 === current.current.sha256;
-    })) return;
+      return (
+        current.current !== null &&
+        current.current.sendConfirmed &&
+        current.appliedSha256 === current.current.sha256
+      );
+    });
+    if (!complete) return;
+    try {
+      const stale = this.targets
+        .map((target) => this.states.get(target)!)
+        .filter((state) => !this.isSnapshotCurrent(state.current!.snapshot));
+      if (stale.length > 0) {
+        for (const state of stale) await this.invalidateStaleAttempt(state);
+        return;
+      }
+    } catch (error) {
+      await this.failInternal(error);
+      return;
+    }
     try {
       this.cancelDeadline();
     } catch (error) {
@@ -612,14 +697,14 @@ export class DeviceBootstrapReadinessCoordinator {
     const result = this.queueTail.then(task);
     this.queueTail = result.then(
       () => undefined,
-      () => undefined,
+      () => undefined
     );
     return result;
   }
 }
 
 export async function createDeviceBootstrapReadinessCoordinator(
-  options: DeviceBootstrapCoordinatorRuntimeOptions,
+  options: DeviceBootstrapCoordinatorRuntimeOptions
 ): Promise<DeviceBootstrapReadinessCoordinator> {
   const { loadProtocol = loadDeviceBootstrapProtocol, ...coordinatorOptions } = options;
   const protocol = await loadProtocol();
