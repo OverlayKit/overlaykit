@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0019",
+  "title": "Device visibility feedback is issued from fresh authority with durable audience sequences",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "control-feedback",
+    "device-credentials",
+    "feedback-signing",
+    "feedback-sequences",
+    "production-runtime"
+  ],
+  "context": "ADR-0008 defines canonical signed feedback admission bound to a pinned issuer, credential-generation audience, exact authority, and increasing sequence. ADR-0017 derives bounded component-visibility observations from one current authorized action catalog and one committed ProductionSnapshot. Before SDD-015, the server could authenticate device credentials, project authorized actions, and publish production snapshots, but it had no corresponding feedback issuer or persistent sequence authority. SDD-015 asked whether one server runtime could compose those existing authorities without giving authority to a transport or client. Slice 1 added a DeviceFeedbackIssuer initialized with an externally supplied signer, native ESM protocol ports, and a private file-backed sequence store before exposure. Each issuance freshly authenticates the bearer, snapshots the accepted request, issuer, and credential authority across asynchronous boundaries, projects current authorized visibility observations from a committed snapshot, durably reserves an exact contiguous sequence batch by issuer and credential-generation audience before signing, and returns a complete canonical batch only after every signature succeeds. Tests demonstrated Ed25519 round-trip admission, payload-substitution rejection, exact Show, target, scope, control, issuer, audience, revision, and observation binding, credential revocation and rotation, mutation resistance, canonical ordering, restart continuation, independent audiences, one-instance concurrency, malformed-state rejection, atomic-replacement failure, safe-integer exhaustion, private file permissions, no sequence reuse after signing failure, empty unauthorized projection, no partial returned batch, native ESM composition in compiled JavaScript, full repository compatibility, builds, and zero audited vulnerabilities. The human authority accepted H-015 only within this single-instance server-composition boundary.",
+  "decision": "A server device-visibility feedback issuer must be initialized successfully with an externally supplied signer, a sequence store, and the public protocol composition ports before any adapter can use it. Every issuance must freshly authenticate the presented device token and require feedback-read authority for the exact Show and Preview or Program target. The issuer must capture the validated request, credential-generation audience, credential authority, and issuer key identifier once before asynchronous reservation or signing, derive eligible subjects only from a current authorized action catalog, and project observations only from one committed ProductionSnapshot for that target. Before signing, it must durably reserve an exact contiguous sequence batch keyed by immutable issuer key identifier and credential-generation audience. A failed projection or reservation emits nothing and consumes no sequence; once reservation succeeds, any signing failure emits no returned partial batch and the reserved gap must never be reused. Every returned envelope must use canonical protocol signing bytes and must preserve observation order, exact issuer, exact audience, and reserved sequence. The accepted file store establishes serialization and restart continuity only within one initialized process instance after successful atomic replacement. The signer remains the authority for cryptographic key custody. This decision does not establish key generation, storage, distribution, pinning or rotation, multi-process coordination, directory-fsync power-loss durability, network authentication or transport, scheduling within three seconds, acknowledgement, reconnect recovery, renderer or OBS observation, Studio or Companion consumption, or hardware state.",
+  "consequences": [
+    "Server adapters can request signed visibility feedback without becoming an authority for identity, action discovery, production state, sequence allocation, or signatures.",
+    "Credential revocation and generation rotation take effect through fresh authentication, and each generation receives an independent sequence audience.",
+    "Sequences are persisted before signing, so signer failure can create gaps but cannot cause replay through sequence reuse.",
+    "The issuer returns either the complete signed projection or no batch; callers never receive a partial success from one issuance.",
+    "Mutable caller or collaborator objects cannot change the accepted Show, target, issuer, or audience after their authority has been captured.",
+    "Malformed persistence, invalid reservation ranges, unsupported projection input, invalid signer output, and sequence exhaustion fail closed.",
+    "A second process or store instance sharing the same sequence file is not supported and must not be inferred to be safe.",
+    "Transport, delivery timing, key lifecycle, power-loss durability, reconnect recovery, renderer truth, Companion integration, and physical device behavior require later questions and evidence."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-feedback-issuer-initializes-before-exposure",
+      "statement": "A device feedback issuer may be exposed to an adapter only after its sequence store and required public protocol ports initialize successfully with an externally supplied signer."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-reauthenticates-exact-authority",
+      "statement": "Every feedback issuance must freshly authenticate the device credential and require feedback-read authority for the exact Show and production target before projection, reservation, or signing."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-authority-is-captured-once",
+      "statement": "The validated request, credential-generation audience, credential authority, and issuer key identifier must be captured once and must not be reread from mutable collaborators after an asynchronous boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-derives-from-current-server-truth",
+      "statement": "Visibility feedback subjects must come only from the current authorized action catalog and observations must come only from one committed ProductionSnapshot for the exact target."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-sequences-precede-signing",
+      "statement": "An exact contiguous sequence batch must be persisted by immutable issuer key identifier and credential-generation audience before signing begins."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-reserved-sequences-are-never-reused",
+      "statement": "After a sequence reservation succeeds, signing failure may create a gap but no reserved sequence may be reused."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-return-is-atomic",
+      "statement": "One issuance must return the complete canonically signed ordered projection or no batch; projection, reservation, or signing failure must never return a partial batch."
+    },
+    {
+      "kind": "rule",
+      "id": "device-feedback-single-instance-claims-are-bounded",
+      "statement": "Passing issuer and file-store evidence may not be represented as key lifecycle, multi-process coordination, directory-fsync power-loss durability, network delivery, three-second scheduling, acknowledgement, reconnect recovery, renderer or OBS observation, Companion integration, or hardware state."
+    }
+  ]
+}

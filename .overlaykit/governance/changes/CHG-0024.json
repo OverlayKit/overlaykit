@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0024",
+  "title": "Test durable audience-bound server feedback issuance",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0010",
+    "ADR-0012",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 requires a Linux controller to receive current state feedback, while ADR-0007 requires active or inactive truth to come only from a revisioned authoritative-server observation and to expire after three seconds.",
+      "evidence": "SPEC-0001 REQ-INT-001, AC-018, WF-004, and ADR-0007",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0008 defines canonical signed feedback admission with an externally pinned issuer, credential audience, exact authority, and monotonically increasing sequence, but the server has no corresponding issuer or durable feedback sequence allocator.",
+      "evidence": "ADR-0008, protocol/src/control-feedback-authority.ts, and server/src",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0017 and the protocol visibility projector derive bounded observations from one immutable snapshot and one current authorized action catalog, while ProductionService publishes every committed Preview or Program snapshot through one post-mutation boundary.",
+      "evidence": "ADR-0017, protocol/src/control-visibility-feedback.ts, and ProductionService.publishSnapshot",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current WebSocket boundary recognizes only Studio sessions and Output tokens; it does not authenticate device credentials or deliver signed control feedback, and choosing that transport cannot supply missing issuer or sequence authority.",
+      "evidence": "server/src/handlers/websocket.ts and server/src/auth/types.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-015: One server-side DeviceFeedbackIssuer, initialized with an externally supplied signer and a durable single-instance sequence store before it is exposed to adapters, can freshly authenticate a device credential, combine its current authorized catalog with a committed production snapshot, reserve monotonic sequences by issuer and credential audience before signing, and return an all-or-nothing canonical visibility-feedback batch without granting transport or clients any authority.",
+      "evidence": "SDD-015 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-015 only for single-instance server issuance after fresh credential authentication, exact Show and target authorization, current catalog and committed-snapshot projection, durable pre-signing sequence reservation by immutable issuer and credential audience, canonical Ed25519 admission, and all-or-nothing returned batches after hostile persistence, mutation, failure, compiled-runtime, repository, build, and audit evidence passed.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-015 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This proposed Slice does not establish issuer-key generation, private-key custody, public-key distribution or pinning, key rotation, multi-instance or multi-process sequence coordination, power-loss durability, snapshot callback integration, WebSocket or SSE authentication, heartbeat scheduling, delivery within three seconds, acknowledgement, reconnect recovery, Studio or Companion consumption, renderer observation, or hardware behavior.",
+      "evidence": "SDD-015 proposed Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The server exposes one issuer runtime that initializes its sequence store and loads the public ESM protocol boundaries before returning an issuer to any adapter.",
+      "verification": "Composition tests, compiled-JavaScript import inspection, and execution against built protocol artifacts."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Each issuance freshly authenticates the bearer, requires feedback-read authority for the exact Show and target, derives subjects only from the current authorized action catalog and committed snapshot, and binds the current credential-generation audience.",
+      "verification": "Authorization, revocation, rotation, target, scope, catalog, snapshot revision, and subject tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Sequences are reserved durably by exact issuer and audience before signing, remain unique under concurrent calls in one store instance, continue after restart, never reuse a failed signing reservation, and fail closed before exhaustion.",
+      "verification": "File-store restart, concurrency, independent audience, signing-failure gap, malformed state, failed replacement, and safe-integer boundary tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Every returned envelope is canonical, signed for the exact issuer and audience, ordered with its projected observation, admitted by the existing protocol boundary, and the issuer returns no partial batch when projection, reservation, or any signature fails.",
+      "verification": "Ed25519 round-trip admission, payload substitution, signer failure, store failure, ordering, and all-or-nothing tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The Slice does not add a network route, device WebSocket access, delivery scheduler, key lifecycle, Companion adapter, or hardware claim and keeps multi-process coordination explicitly unresolved.",
+      "verification": "Diff boundary review and explicit unknowns."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0024 records observed facts, H-015, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting more than the evidence supports.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the server feedback issuer, its single-instance sequence persistence, focused tests and build verification, and proposed governance records.",
+      "evidence": "git diff for CHG-0024"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-015 across fresh authority, audience rotation, catalog and snapshot binding, canonical signatures, sequence restart and concurrency, failed reservations and signatures, malformed persistence, bounds, native ESM composition, and all-or-nothing output.",
+      "evidence": "Focused server, persistence, and compiled-runtime tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused server tests, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0019 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-015.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0019"
+    }
+  ]
+}
