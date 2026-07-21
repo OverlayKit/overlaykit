@@ -20,6 +20,7 @@ const PUBLIC_SUBPATHS = [
   '/control-feedback-authority',
   '/control-visibility-feedback',
   '/device-control-frame',
+  '/device-bootstrap',
   '/device-credential',
 ] as const;
 
@@ -120,6 +121,7 @@ describe('published protocol package', () => {
       './control-feedback-authority',
       './control-visibility-feedback',
       './device-control-frame',
+      './device-bootstrap',
       './device-credential',
     ]);
     for (const target of Object.values(manifest.exports).flatMap((entry) => [
@@ -182,6 +184,15 @@ describe('published protocol package', () => {
       'const frameState = await reduceDeviceControlFrame(null, frame);',
       "const frameView = projectDeviceControl(frameState, { showId: 'show-1', target: 'program', controlId: 'lower-third.visibility' }, 1002);",
       "if (!frameView.available || frameView.buttonState !== 'active') process.exit(1);",
+      "const { parseDeviceBootstrapAck } = await import('@overlaykit/protocol/device-bootstrap');",
+      'const acknowledgement = parseDeviceBootstrapAck({',
+      "  schemaVersion: 'overlaykit-device-bootstrap-ack/v1',",
+      "  type: 'device.bootstrap.ack',",
+      "  target: 'program',",
+      "  sha256: 'a'.repeat(64),",
+      "  status: 'applied',",
+      '});',
+      "if (acknowledgement.status !== 'applied' || !Object.isFrozen(acknowledgement)) process.exit(1);",
     ].join('\n');
     await expect(execFileAsync(
       process.execPath,
@@ -224,14 +235,17 @@ describe('published protocol package', () => {
         "import type { DeviceCredentialStore } from '@overlaykit/protocol/device-credential';",
         "import type { ServerVisibilityFeedbackProjection } from '@overlaykit/protocol/control-visibility-feedback';",
         "import type { DeviceControlFrameState } from '@overlaykit/protocol/device-control-frame';",
+        "import type { DeviceBootstrapAck } from '@overlaykit/protocol/device-bootstrap';",
         'const lifecycle: typeof DeviceCredentialLifecycle = DeviceCredentialLifecycle;',
         'const store: DeviceCredentialStore | null = null;',
         'const feedback: ServerVisibilityFeedbackProjection | null = null;',
         'const frameState: DeviceControlFrameState | null = null;',
+        'const bootstrapAck: DeviceBootstrapAck | null = null;',
         'void lifecycle;',
         'void store;',
         'void feedback;',
         'void frameState;',
+        'void bootstrapAck;',
       ].join('\n'),
       'utf8',
     );

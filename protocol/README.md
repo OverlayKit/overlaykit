@@ -2,8 +2,8 @@
 
 Shared OverlayKit contracts and deterministic state projections for scenes,
 Preview/Program production, authorized action discovery, control feedback,
-catalog-bound device control frames, server-known visibility projection, and
-device credentials.
+catalog-bound device control frames, strict device bootstrap acknowledgements,
+server-known visibility projection, and device credentials.
 
 ## Install
 
@@ -38,6 +38,7 @@ Synchronous `require()` is not part of the package contract.
 - `@overlaykit/protocol/control-feedback-authority`
 - `@overlaykit/protocol/control-visibility-feedback`
 - `@overlaykit/protocol/device-control-frame`
+- `@overlaykit/protocol/device-bootstrap`
 - `@overlaykit/protocol/device-credential`
 
 ## License and Attribution

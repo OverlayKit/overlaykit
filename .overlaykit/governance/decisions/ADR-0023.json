@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0023",
+  "title": "Device readiness requires current target-complete snapshot application",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-bootstrap-acknowledgement",
+    "device-bootstrap-readiness",
+    "device-bootstrap-retries",
+    "device-bootstrap-target-consistency"
+  ],
+  "context": "ADR-0022 establishes that an authenticated device WebSocket may exist before exclusive authority is granted but remains not_ready. Discovery for SDD-019 asked what evidence is sufficient to move one exclusively authoritative native connection from not_ready to ready. The human authority required one complete current snapshot per credential-authorized Preview or Program target, an explicit target-bound acknowledgement carrying the SHA-256 of the exact snapshot bytes, applied or bounded error outcomes, one initial attempt plus three target-local retries shared by send failure, a three-second acknowledgement timeout, and application error, and one absolute twelve-second deadline beginning only when authority is granted. Every retry must obtain current server truth and a fresh globally increasing issuer-audience sequence. A target state change must invalidate only that target without consuming or resetting retries, and readiness requires current application evidence for all authorized targets. SDD-019 tested a public strict acknowledgement parser and one production-unmounted pure coordinator with injected snapshot, hash, clock, scheduler, and transport ports. Refutation found that awaiting snapshot capture inside the transition queue could delay another target's three-second timeout, so emission effects and state transitions were separated while retaining one globally serialized emission lane. Build evidence also exposed that an applied acknowledgement can race ahead of asynchronous transport send confirmation; readiness was therefore made contingent on both current applied acknowledgement and successful send completion. Hostile tests then demonstrated target completeness, exact copied-byte hashing at the transport boundary, strict acknowledgement admission, stale and duplicate handling, global sequence monotonicity, independent retry accounting, target-local invalidation, coalescence, acknowledgement and timeout progress during a hung peer-target capture, authority-relative deadline closure, and fail-closed adapters. The human authority accepted H-019 only within this isolated coordinator boundary.",
+  "decision": "After DeviceConnectionAuthorityCoordinator grants exclusive connection authority, the device connection enters bootstrap and remains not_ready. The host must create one current complete snapshot for every credential-authorized Preview or Program target through one globally serialized emission lane. Snapshot attempts across targets must carry strictly increasing positive issuer-audience sequences, and a retry must create a fresh snapshot rather than reuse signed bytes or sequence. The coordinator copies the opaque snapshot bytes, computes canonical lowercase SHA-256 over the copy supplied to the transport, and admits only a strict versioned device.bootstrap.ack bound to an authorized target and a hash previously issued for that target on the connection. Version 1 acknowledgements report either applied or error; error uses only the bounded decode_failed, validation_failed, unsupported_snapshot, apply_failed, or resource_unavailable code. A target counts as applied only while its acknowledged target-hash pair remains current and its transport send has completed successfully. The connection becomes ready only when every authorized target is current and applied. Each target has one initial attempt plus three retries shared equally by send failure, a three-second timeout measured after successful send completion, and a current error acknowledgement. Retry exhaustion by any target closes the whole connection. One absolute twelve-second deadline begins when bootstrap starts after authority grant and is not reset by retries or state changes. A target state change invalidates only that target, preserves accumulated retry use, coalesces intermediate changes to latest truth, and schedules a fresh snapshot without consuming a retry. A previously issued but non-current target-hash acknowledgement is ignored as stale, and an exact duplicate current applied acknowledgement is idempotent. Malformed acknowledgements, unauthorized targets, never-issued or cross-target pairs, non-increasing sequences, invalid snapshots or hashes, capture, construction, signing, hashing, scheduling, or other internal failures close fail-closed without readiness. This decision accepts only the public acknowledgement contract and isolated coordinator. Production mounting requires separate evidence for real snapshot construction and signing, durable sequence reservation, gateway lifecycle composition, network framing and close codes, command execution, post-ready deltas, backpressure, renderer or OBS observation, Companion integration, and hardware behavior.",
+  "consequences": [
+    "An authoritative WebSocket remains not_ready until every authorized target has current applied evidence and its snapshot send is confirmed.",
+    "Preview and Program retain independent retry and application state while sharing one globally sequence-ordered snapshot emission lane and one connection deadline.",
+    "A state change cannot leave an acknowledged stale baseline represented as current readiness.",
+    "Timeout, transport failure, and bounded device application error consume the same target retry budget, while internal construction and protocol violations close immediately.",
+    "A stalled snapshot adapter cannot prevent the absolute twelve-second deadline or unrelated acknowledgement, invalidation, and timeout transitions from progressing.",
+    "The accepted acknowledgement proves only that the device claims to have applied the exact target-hash bytes; it does not prove hardware display, rendered pixels, OBS output, or operator perception.",
+    "The gateway, ProductionService, real signed frames, durable sequences, commands, deltas, network behavior, Companion, and hardware remain unchanged because this coordinator is not mounted by the Slice."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-ack-is-strict-and-target-bound",
+      "statement": "A bootstrap acknowledgement must use the supported version and type, an authorized explicit Preview or Program target, canonical lowercase SHA-256, exactly one applied or bounded error outcome, and no extra or free-text fields; its target-hash pair must have been issued on that connection."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-readiness-is-target-complete",
+      "statement": "A connection may become ready only after every credential-authorized target has both successful transport-send completion and an applied acknowledgement for its current snapshot hash."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-emission-is-globally-ordered",
+      "statement": "All target snapshot attempts on one connection must use one serialized emission lane and strictly increasing positive global issuer-audience sequences; retries must capture current truth into fresh bytes and sequence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-retries-are-target-local-and-bounded",
+      "statement": "Each target permits one initial attempt plus three retries shared equally by send failure, a three-second post-send acknowledgement timeout, and current bounded error acknowledgement; exhaustion by any target closes the whole connection."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-deadline-is-authority-relative",
+      "statement": "One absolute twelve-second bootstrap deadline starts only after exclusive connection authority is granted and cannot be reset by target changes, retries, acknowledgements, or adapter delay."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-state-change-invalidates-only-its-target",
+      "statement": "A target state change must invalidate that target's pending or applied pair, preserve its accumulated retries, retain other targets' evidence, coalesce intermediate changes, and schedule latest truth without charging a retry."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-protocol-and-internal-failures-close",
+      "statement": "Malformed, unauthorized, never-issued, or cross-target acknowledgements and invalid sequence, snapshot, hash, capture, construction, signing, hashing, or scheduling behavior must close fail-closed without granting readiness; only issued non-current pairs and exact duplicate current applied acknowledgements may be ignored."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-claims-are-bounded",
+      "statement": "Passing coordinator evidence may not be represented as production mounting, real frame construction or signing, durable sequence reservation, certified network delivery, command or delta authority, close-code or backpressure policy, renderer or OBS observation, Companion integration, physical hardware application, or operator perception."
+    }
+  ]
+}
