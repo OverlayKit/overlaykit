@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0017",
+  "title": "Component visibility feedback derives only from server-known structure",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "control-feedback",
+    "control-action-catalog",
+    "component-visibility",
+    "production-runtime",
+    "protocol-projection"
+  ],
+  "context": "Discovery established that a Linux production operator must not be shown an unreal active or inactive state on a physical control. ADR-0007 permits only a revisioned authoritative-server observation to establish those states and limits that truth to the server, while ADR-0016 intentionally keeps current state and revision out of action discovery. SDD-013 asked how the server could derive one visibility observation from production truth without claiming renderer, transport, or hardware knowledge. Slice 1 added a pure versioned protocol projector over one ProductionSnapshot, one supplied AuthorizedControlActionCatalog, and one explicit observation time. Tests demonstrated exact Show and target binding, snapshot revision propagation, canonical subject ordering, target isolation, own and ancestor display-none handling, conservative treatment of unsupported renderer styles, malformed projection-input rejection, duplicate and missing component rejection, catalog descriptor validation, time ordering, 1,000-element and 1,000-action limits, iterative deep-tree traversal, immutability, root and ESM subpath exports, packed-package execution, declaration resolution, and full repository compatibility. Governance, checks, build, and audit evidence passed. The human authority accepted H-013 only within this bounded server-known structural visibility boundary.",
+  "decision": "A component-visibility authoritative-server observation is derived by a pure versioned protocol projector from one immutable ProductionSnapshot, one supplied valid AuthorizedControlActionCatalog, and one explicit observation time. The snapshot and catalog must name the same Show. Only catalog actions for the snapshot's exact Preview or Program target are projected, and every observation names the canonical catalog subject, carries the snapshot revision, and carries the explicit observation time. A component is active only when its own known inline display state and that of every ancestor are not display none after whitespace and case normalization; otherwise it is inactive. Opacity, visibility, classes, clipping, transforms, computed style, renderer pixels, OBS state, delivery, and hardware are outside this server-known truth. Projection validates all structure it relies on, rejects malformed descriptors, duplicate feedback subjects, duplicate component identifiers, missing addressed components, invalid revisions or times, and observation times before a known snapshot update, and bounds complete traversal to 1,000 elements and 1,000 actions. Equivalent inputs produce canonically ordered equivalent output without mutating either input. This projection does not establish catalog freshness, clock authority, provenance, delivery, or the three-second feedback lease.",
+  "consequences": [
+    "A server adapter can produce the revisioned active or inactive observations required by ADR-0007 without embedding device or transport behavior in the protocol projector.",
+    "A structurally enabled child under a display-none ancestor is reported inactive, preventing a physical control from presenting a locally enabled but unreachable descendant as active.",
+    "Renderer-only hiding such as opacity, visibility, clipping, transforms, external classes, or computed CSS does not become server truth and therefore cannot silently broaden the claim.",
+    "Catalog actions for the other production target do not create observations or require components in the current snapshot target.",
+    "Ambiguous, malformed, mismatched, missing, oversized, or temporally inconsistent projection inputs fail the complete projection without partial output.",
+    "The projector is consumable through the package root and an explicit native ESM subpath and preserves immutable input boundaries.",
+    "The caller remains responsible for supplying a fresh catalog, an authoritative time source, trusted snapshot provenance, and authenticated feedback delivery.",
+    "Feedback signing, key lifecycle, sequence durability, stream authentication, revocation, scheduling within three seconds, acknowledgement, operation failure, reconnect recovery, renderer observation, Studio, Companion, and hardware remain unanswered."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-binds-snapshot-subject",
+      "statement": "Each projected visibility observation must bind the snapshot Show, exact Preview or Program target, canonical catalog control subject, snapshot revision, and explicit observation time."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-includes-hidden-ancestors",
+      "statement": "A component may be reported active only when its own known inline display state and that of every ancestor are not display none after whitespace and case normalization."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-does-not-infer-renderer-state",
+      "statement": "Opacity, visibility, classes, clipping, transforms, computed style, renderer pixels, OBS state, delivery, and hardware state may not alter or be claimed by server-known structural visibility projection."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-projection-fails-closed",
+      "statement": "Projection must reject Show mismatch, malformed relied-upon structure, malformed descriptors, duplicate subjects or component identifiers, missing addressed components, invalid revisions or times, observation before a known snapshot update, and inputs exceeding 1,000 elements or actions without emitting partial output."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-projection-is-deterministic",
+      "statement": "Equivalent valid inputs must produce canonically ordered equivalent observations without mutating the snapshot or catalog."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-catalog-freshness-is-external",
+      "statement": "A supplied action catalog selects eligible subjects but the visibility projector does not establish catalog freshness, future execution authority, or coherence with later production revisions."
+    },
+    {
+      "kind": "rule",
+      "id": "visibility-feedback-projection-claims-are-bounded",
+      "statement": "Passing the pure projection may not be presented as trusted provenance, clock authority, signed or authenticated delivery, three-second scheduling, acknowledgement, operation failure, reconnect recovery, renderer observation, Studio or Companion consumption, or hardware behavior."
+    }
+  ]
+}

@@ -18,6 +18,7 @@ const PUBLIC_SUBPATHS = [
   '/control-action-catalog',
   '/control-feedback',
   '/control-feedback-authority',
+  '/control-visibility-feedback',
   '/device-credential',
 ] as const;
 
@@ -108,6 +109,7 @@ describe('published protocol package', () => {
       './control-action-catalog',
       './control-feedback',
       './control-feedback-authority',
+      './control-visibility-feedback',
       './device-credential',
     ]);
     for (const target of Object.values(manifest.exports).flatMap((entry) => [
@@ -151,6 +153,13 @@ describe('published protocol package', () => {
       '  authenticated,',
       ');',
       'if (catalog.actions.length !== 1) process.exit(1);',
+      "const { projectServerVisibilityFeedback } = await import('@overlaykit/protocol/control-visibility-feedback');",
+      'const feedback = projectServerVisibilityFeedback(',
+      "  { showId: 'show-1', bus: 'program', revision: 3, scene: null, elements: [{ id: 'lower-third', tag: 'div', styles: {} }], variables: {}, controls: [], orientation: 'landscape', updatedAt: 1000 },",
+      '  catalog,',
+      '  1001,',
+      ');',
+      "if (feedback.observations[0]?.value !== 'active' || feedback.observations[0]?.revision !== 3) process.exit(1);",
     ].join('\n');
     await expect(execFileAsync(
       process.execPath,
@@ -191,10 +200,13 @@ describe('published protocol package', () => {
       [
         "import { DeviceCredentialLifecycle } from '@overlaykit/protocol';",
         "import type { DeviceCredentialStore } from '@overlaykit/protocol/device-credential';",
+        "import type { ServerVisibilityFeedbackProjection } from '@overlaykit/protocol/control-visibility-feedback';",
         'const lifecycle: typeof DeviceCredentialLifecycle = DeviceCredentialLifecycle;',
         'const store: DeviceCredentialStore | null = null;',
+        'const feedback: ServerVisibilityFeedbackProjection | null = null;',
         'void lifecycle;',
         'void store;',
+        'void feedback;',
       ].join('\n'),
       'utf8',
     );

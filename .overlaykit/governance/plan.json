@@ -196,6 +196,14 @@
       "id": "ADR-0016",
       "supersededBy": null,
       "title": "Device action catalogs are authenticated point-in-time discovery"
+    },
+    {
+      "contentHash": "2a760b6417773e5695811e624d3dab85307cef470b12e677c8ce2cc75cd8107d",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0017",
+      "supersededBy": null,
+      "title": "Component visibility feedback derives only from server-known structure"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -330,10 +338,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "7b93c9bcc148c0e9435b72cee9c1f7c6392dd8dc33fc77656812632d1744a3da",
-  "profileHash": "043f666fb882a5e2d12ee8d1c358b1c3723905cde2a6b04c8f659003f96bcd4a",
+  "planHash": "e8171989195e5bc0e1b14ee5a06ec55f8e587f0145d3f766da4f97a46661fd8a",
+  "profileHash": "d61ff818f5284723e4093b198f39be612490a5ddad03d342f7e8230b123cad0f",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.12.0",
+  "profileVersion": "2.13.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -892,6 +900,48 @@
       "kind": "rule",
       "sourceDecision": "ADR-0015",
       "statement": "A component visibility capability uses the canonical control identifier `<componentId>.visibility` in catalog and authorization subjects."
+    },
+    {
+      "id": "visibility-feedback-binds-snapshot-subject",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "Each projected visibility observation must bind the snapshot Show, exact Preview or Program target, canonical catalog control subject, snapshot revision, and explicit observation time."
+    },
+    {
+      "id": "visibility-feedback-catalog-freshness-is-external",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "A supplied action catalog selects eligible subjects but the visibility projector does not establish catalog freshness, future execution authority, or coherence with later production revisions."
+    },
+    {
+      "id": "visibility-feedback-does-not-infer-renderer-state",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "Opacity, visibility, classes, clipping, transforms, computed style, renderer pixels, OBS state, delivery, and hardware state may not alter or be claimed by server-known structural visibility projection."
+    },
+    {
+      "id": "visibility-feedback-includes-hidden-ancestors",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "A component may be reported active only when its own known inline display state and that of every ancestor are not display none after whitespace and case normalization."
+    },
+    {
+      "id": "visibility-feedback-projection-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "Passing the pure projection may not be presented as trusted provenance, clock authority, signed or authenticated delivery, three-second scheduling, acknowledgement, operation failure, reconnect recovery, renderer observation, Studio or Companion consumption, or hardware behavior."
+    },
+    {
+      "id": "visibility-feedback-projection-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "Projection must reject Show mismatch, malformed relied-upon structure, malformed descriptors, duplicate subjects or component identifiers, missing addressed components, invalid revisions or times, observation before a known snapshot update, and inputs exceeding 1,000 elements or actions without emitting partial output."
+    },
+    {
+      "id": "visibility-feedback-projection-is-deterministic",
+      "kind": "rule",
+      "sourceDecision": "ADR-0017",
+      "statement": "Equivalent valid inputs must produce canonically ordered equivalent observations without mutating the snapshot or catalog."
     }
   ],
   "schemasHash": "7140a74320331a66d4edcb04118f77a1fa39e0a5378a8923c22fe6ef4329a0ce",
