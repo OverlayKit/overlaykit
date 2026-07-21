@@ -212,6 +212,14 @@
       "id": "ADR-0018",
       "supersededBy": null,
       "title": "Apache-2.0 licensing and Rodrigo Vicente attribution are enforced distribution metadata"
+    },
+    {
+      "contentHash": "733201fb5ccbed3879c155d2f92c73bd0fdae67c531fcdc542dc054bfd5ed638",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0019",
+      "supersededBy": null,
+      "title": "Device visibility feedback is issued from fresh authority with durable audience sequences"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -346,10 +354,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "33054364e5af2b15a28fccd6990f27e9d1d21f9574fe3f1c0a0209789e9250a0",
-  "profileHash": "9167e4cfdb8ae38340e57b1c917a6e510b2a42a4045ce5467ee70422e69d8e54",
+  "planHash": "9cffbba04afa2f6baa221140a5b7a7d42272538ab4ff19192e5f6caf0a96421d",
+  "profileHash": "346fa0d3e69e935c27d679bd3b754594dea93ced33497e15a737414656f1a1d0",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.14.0",
+  "profileVersion": "2.15.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -614,6 +622,54 @@
       "kind": "rule",
       "sourceDecision": "ADR-0014",
       "statement": "ProductionService may receive direct Program authorization from the device route only after the same request bearer has been freshly authorized for the exact Program target and control."
+    },
+    {
+      "id": "device-feedback-authority-is-captured-once",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "The validated request, credential-generation audience, credential authority, and issuer key identifier must be captured once and must not be reread from mutable collaborators after an asynchronous boundary."
+    },
+    {
+      "id": "device-feedback-derives-from-current-server-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "Visibility feedback subjects must come only from the current authorized action catalog and observations must come only from one committed ProductionSnapshot for the exact target."
+    },
+    {
+      "id": "device-feedback-issuer-initializes-before-exposure",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "A device feedback issuer may be exposed to an adapter only after its sequence store and required public protocol ports initialize successfully with an externally supplied signer."
+    },
+    {
+      "id": "device-feedback-reauthenticates-exact-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "Every feedback issuance must freshly authenticate the device credential and require feedback-read authority for the exact Show and production target before projection, reservation, or signing."
+    },
+    {
+      "id": "device-feedback-reserved-sequences-are-never-reused",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "After a sequence reservation succeeds, signing failure may create a gap but no reserved sequence may be reused."
+    },
+    {
+      "id": "device-feedback-return-is-atomic",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "One issuance must return the complete canonically signed ordered projection or no batch; projection, reservation, or signing failure must never return a partial batch."
+    },
+    {
+      "id": "device-feedback-sequences-precede-signing",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "An exact contiguous sequence batch must be persisted by immutable issuer key identifier and credential-generation audience before signing begins."
+    },
+    {
+      "id": "device-feedback-single-instance-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0019",
+      "statement": "Passing issuer and file-store evidence may not be represented as key lifecycle, multi-process coordination, directory-fsync power-loss durability, network delivery, three-second scheduling, acknowledgement, reconnect recovery, renderer or OBS observation, Companion integration, or hardware state."
     },
     {
       "id": "device-lifecycle-authority-is-external",

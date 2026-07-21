@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "overlaykit-feedback-sequence-store/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "records"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "records": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issuerKeyId", "audienceCredentialId", "lastSequence"],
+        "properties": {
+          "issuerKeyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "audienceCredentialId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "lastSequence": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        }
+      }
+    }
+  }
+}
