@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0026",
+  "title": "Test linearizable device connection authority barriers",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0007",
+    "ADR-0009",
+    "ADR-0010",
+    "ADR-0013",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a dedicated device WebSocket authenticated only by one Authorization bearer, bound to the Show and current authority of that credential, without accepting Studio cookies, Output query tokens, or a client-selected Show.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21 and server/src/handlers/websocket.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery permits only one effective connection for a credential generation; an authenticated replacement must close and drain the prior connection before the replacement can begin work, preferring a disconnected interval over overlapping authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Revocation, rotation, exact credential expiry, and Show archival must block queued work, wait for work that already began, close affected connections, and report success to the owner only after no affected connection or operation remains.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The existing device credential lifecycle authenticates generation-bound bearer authority and the HTTP control route freshly authorizes each execution, but no server component owns long-lived device connections or coordinates credential and Show lifecycle barriers against operation admission.",
+      "evidence": "protocol/src/device-credential.ts, server/src/auth/DeviceCredentialRuntime.ts, server/src/routes/deviceControl.ts, and server/src/handlers/websocket.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-017: One server-owned, single-instance DeviceConnectionAuthorityCoordinator can bind an exclusive connection lease to an exact credential generation and Show, admit an operation only at its execution boundary, replace a connection without overlapping effective authority, and make rotation, revocation, expiry, and Show archival linearizable barriers that deny later work and resolve only after affected operations drain and transports close.",
+      "evidence": "SDD-017 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-017 only for a pure single-instance coordinator whose immutable authority capture, exact audience identity, exclusive lease replacement, synchronous execution-boundary admission, per-credential transition serialization, rotation, revocation, controlled exact expiry, Show archival, operation draining, transport closing, failure quiescence, unrelated-credential isolation, and fail-closed scheduling were demonstrated through hostile tests, full repository checks, builds, and audit.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-017 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This proposed Slice does not establish an HTTP upgrade route, bearer parsing, WebSocket messages, lifecycle-route composition, command parsing or execution, queue ownership, signed-frame issuance or delivery, close codes, multi-instance coordination, cancellation of an operation that already began, process-crash recovery, Companion integration, renderer or OBS observation, or hardware behavior.",
+      "evidence": "SDD-017 proposed Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A connection lease is admitted only for a complete immutable authority whose audience matches its credential generation, whose Show remains available, and whose expiration is still in the future; old generations, revoked credentials, archived Shows, malformed identities, and expired credentials fail closed.",
+      "verification": "Authority validation, mutation, generation retirement, revocation, Show archival, and exact-expiry tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "At most one connection for a credential is effective: replacement blocks new operations immediately, starts closing the old transport, waits for its begun operations and close completion, and only then admits work on the replacement.",
+      "verification": "Controlled close, drain, concurrent replacement, no-overlap, close-failure, and stale-lease tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Operation admission invokes the operation synchronously at the execution boundary, rejects queued or stale work after any barrier begins, tracks asynchronous work until settlement, and permits a successful barrier response only after all previously begun work has settled.",
+      "verification": "Queued-before-barrier, running-during-barrier, rejection, throw, rejection, and never-settled operation tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Rotation retires old generations while allowing a later generation, revocation permanently blocks the credential, expiry schedules the same barrier for the exact authority deadline without traffic, and Show archival blocks and drains every known credential for that Show without blocking another Show.",
+      "verification": "Generation race, reconnect race, controlled clock, multi-credential Show barrier, isolation, and idempotency tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Transport close failure cannot produce successful barrier or replacement evidence, cannot reactivate the old lease, and is surfaced without projecting a component control state from the close reason.",
+      "verification": "Rejected close, retained quiescence, retry, and close-reason boundary tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0026 records Discovery facts, H-017, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond the reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only one pure server coordinator, focused tests, and proposed governance artifacts; it does not modify the WebSocket, credential, Show, production-command, Companion, renderer, or hardware adapters.",
+      "evidence": "git diff for CHG-0026"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-017 across replacement, operation admission, drain ordering, rotation, revocation, exact expiry, Show archival, races, stale leases, close failure, idempotency, isolation, mutation, and bounds.",
+      "evidence": "Focused coordinator tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0021 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-017.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0021"
+    }
+  ]
+}
