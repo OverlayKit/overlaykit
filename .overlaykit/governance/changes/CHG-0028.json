@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0028",
+  "title": "Test target-complete device bootstrap readiness",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0010",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a device connection to remain not_ready after exclusive authority is granted until every credential-authorized Preview or Program target has one current complete snapshot acknowledged as applied with the SHA-256 of the exact transmitted bytes.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery gives each target an initial attempt plus three retries shared by send failure, a three-second acknowledgement timeout, and a current ack error; retries produce a fresh snapshot and globally new issuer-audience sequence, while any exhausted target closes the whole connection.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery sets one absolute twelve-second deadline beginning when connection authority is granted, requires one globally sequence-ordered emission lane across targets, and invalidates only the changed target without consuming or resetting its retry budget while coalescing intermediate states.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery ignores an acknowledgement for an older issued target-hash pair and an exact duplicate applied acknowledgement after readiness, but closes immediately for malformed acknowledgement fields, unauthorized targets, or a target-hash pair never emitted on that connection; internal capture, sequence, construction, hash, or signing failure also closes immediately.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0020 supplies target-specific complete bootstrap frame semantics with global issuer-audience sequences, while ADR-0022 deliberately leaves every admitted device transport not_ready and unmounted; no accepted component coordinates multi-target bootstrap application evidence, retries, state-change races, and deadline closure.",
+      "evidence": "ADR-0020, ADR-0022, protocol/src/device-control-frame.ts, and server/src/handlers/DeviceWebSocketGateway.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-019: One strict public DeviceBootstrapAck contract and one pure single-instance DeviceBootstrapReadinessCoordinator can serialize opaque snapshot emission by global sequence, hash immutable exact payload bytes, maintain independent target attempt state under one authority-relative deadline, accept readiness only for current applied acknowledgements across all authorized targets, coalesce target invalidations linearly, and distinguish retryable send, timeout, or application failures from immediate protocol or internal closure.",
+      "evidence": "SDD-019 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-019 only for a public strict target-hash acknowledgement and one isolated production-unmounted coordinator whose globally ordered target emission, copied-byte SHA-256, send-confirmed current application, per-target mixed retry accounting, three-second timeout progress, twelve-second authority-relative deadline, state invalidation, coalescence, race handling, stale and duplicate admission, and fail-closed protocol or adapter behavior were demonstrated by hostile tests, packed-package execution, compiled CommonJS-to-ESM composition, full repository checks, builds, audit, and governance verification.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-019 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This accepted Slice does not build or sign a real DeviceControlFrame, reserve durable production sequences, read ProductionService, mount into DeviceWebSocketGateway, retire natural disconnects, parse network JSON, execute commands, emit deltas after readiness, implement backpressure, certify wall-clock scheduling, classify hardware application truth beyond the device claim, integrate Companion, observe renderer or OBS output, or demonstrate hardware behavior.",
+      "evidence": "SDD-019 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The public acknowledgement contract is versioned, target-bound, strict against extra fields, requires canonical lowercase SHA-256 and applied or bounded error status, freezes accepted data, and executes from the installed protocol tarball with declarations.",
+      "verification": "Protocol parser, mutation, schema, packed ESM, CommonJS import, and declaration tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Readiness begins only after start, emits each authorized target through one strictly increasing global sequence lane, hashes copied exact bytes, and resolves ready only after every target's current target-hash pair is acknowledged applied.",
+      "verification": "Controlled factory, byte mutation, transport ordering, multi-target, and partial-applied tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Each target independently permits three retries shared by send failure, three-second timeout, and current application error; every retry is immediate when the failure is known, obtains a fresh increasing sequence and payload, and exhaustion closes the whole connection.",
+      "verification": "Mixed-failure, target-isolation, fresh-attempt, timeout, and exhaustion tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Target changes invalidate a current or already-applied target atomically without consuming or resetting retries, coalesce intermediate changes, retain other target application, and permit an acknowledgement only when its pair remains current at the transition boundary.",
+      "verification": "Controlled in-flight factory and send races, repeated invalidation, partial readiness, and stale acknowledgement tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The coordinator ignores only previously issued stale pairs and exact duplicate applied acknowledgements, while malformed, unauthorized, cross-target, or never-issued acknowledgements, non-increasing sequences, invalid snapshots, internal factory or hashing failure, deadline expiry, and close failure fail closed without readiness.",
+      "verification": "Hostile acknowledgement, sequence, snapshot, clock, scheduler, deadline, and close-adapter tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0028 records Discovery facts, H-019, measurable criteria, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only one public acknowledgement contract, one pure readiness coordinator, focused and packed-package tests, documentation, exports, and proposed governance records; production composition remains unmodified.",
+      "evidence": "git diff for CHG-0028"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-019 across exact bytes, global sequence, target completeness, mixed retries, deadlines, coalescence, acknowledgements, races, adapter failures, immutability, package execution, and declarations.",
+      "evidence": "Focused protocol, coordinator, and package-distribution tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, package distribution, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0023 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-019.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0023"
+    }
+  ]
+}

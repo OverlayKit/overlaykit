@@ -63,6 +63,10 @@
       "types": "./dist/device-control-frame.d.ts",
       "import": "./dist/device-control-frame.js"
     },
+    "./device-bootstrap": {
+      "types": "./dist/device-bootstrap.d.ts",
+      "import": "./dist/device-bootstrap.js"
+    },
     "./device-credential": {
       "types": "./dist/device-credential.d.ts",
       "import": "./dist/device-credential.js"

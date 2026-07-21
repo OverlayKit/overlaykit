@@ -17,6 +17,9 @@ const catalogRuntimePath = fileURLToPath(
 const feedbackRuntimePath = fileURLToPath(
   new URL('../dist/services/DeviceFeedbackIssuer.js', import.meta.url),
 );
+const bootstrapRuntimePath = fileURLToPath(
+  new URL('../dist/services/DeviceBootstrapReadinessCoordinator.js', import.meta.url),
+);
 const channelManagerPath = fileURLToPath(
   new URL('../dist/services/ChannelManager.js', import.meta.url),
 );
@@ -26,12 +29,14 @@ const productionServicePath = fileURLToPath(
 const compiled = await readFile(runtimePath, 'utf8');
 const compiledCatalog = await readFile(catalogRuntimePath, 'utf8');
 const compiledFeedback = await readFile(feedbackRuntimePath, 'utf8');
+const compiledBootstrap = await readFile(bootstrapRuntimePath, 'utf8');
 const protocolSpecifier = '@overlaykit/protocol/device-credential';
 const catalogProtocolSpecifier = '@overlaykit/protocol/control-action-catalog';
 const feedbackProtocolSpecifiers = [
   '@overlaykit/protocol/control-feedback-authority',
   '@overlaykit/protocol/control-visibility-feedback',
 ];
+const bootstrapProtocolSpecifier = '@overlaykit/protocol/device-bootstrap';
 
 if (!new RegExp(`import\\(['\"]${protocolSpecifier}['\"]\\)`).test(compiled)) {
   throw new Error('Compiled device runtime does not preserve native dynamic import');
@@ -65,9 +70,21 @@ for (const specifier of feedbackProtocolSpecifiers) {
   }
 }
 
+const bootstrapImportsProtocol = compiledBootstrap.includes(`import('${bootstrapProtocolSpecifier}')`)
+  || compiledBootstrap.includes(`import("${bootstrapProtocolSpecifier}")`);
+const bootstrapRequiresProtocol = compiledBootstrap.includes(`require('${bootstrapProtocolSpecifier}')`)
+  || compiledBootstrap.includes(`require("${bootstrapProtocolSpecifier}")`);
+if (!bootstrapImportsProtocol) {
+  throw new Error('Compiled bootstrap readiness runtime does not preserve native dynamic import');
+}
+if (bootstrapRequiresProtocol) {
+  throw new Error('Compiled bootstrap readiness runtime rewrites the ESM protocol import to require');
+}
+
 const { createDeviceCredentialRuntime } = require(runtimePath);
 const { createDeviceActionCatalogRuntime } = require(catalogRuntimePath);
 const { createDeviceFeedbackIssuerRuntime } = require(feedbackRuntimePath);
+const { createDeviceBootstrapReadinessCoordinator } = require(bootstrapRuntimePath);
 const { ChannelManager } = require(channelManagerPath);
 const { ProductionService } = require(productionServicePath);
 const records = new Map();
@@ -185,6 +202,42 @@ const admitted = await feedbackProtocol.admitControlFeedback(
     Buffer.from(signature, 'base64url'),
   ),
 );
+let bootstrapEmission = null;
+let bootstrapCloseReason = null;
+const bootstrap = await createDeviceBootstrapReadinessCoordinator({
+  targets: ['preview'],
+  snapshotFactory: {
+    create: () => ({
+      sequence: 1,
+      bytes: new TextEncoder().encode('compiled-bootstrap-snapshot'),
+    }),
+  },
+  transport: {
+    send: (emission) => {
+      bootstrapEmission = emission;
+    },
+    close: (reason) => {
+      bootstrapCloseReason = reason;
+    },
+  },
+});
+await bootstrap.start();
+for (let attempt = 0; attempt < 20 && !bootstrapEmission; attempt += 1) {
+  await Promise.resolve();
+}
+if (!bootstrapEmission) {
+  throw new Error('Compiled bootstrap readiness runtime did not emit a snapshot');
+}
+await bootstrap.acknowledge({
+  schemaVersion: 'overlaykit-device-bootstrap-ack/v1',
+  type: 'device.bootstrap.ack',
+  target: bootstrapEmission.target,
+  sha256: bootstrapEmission.sha256,
+  status: 'applied',
+});
+for (let attempt = 0; attempt < 20 && !bootstrap.isReady(); attempt += 1) {
+  await Promise.resolve();
+}
 
 if (
   initCalls !== 1
@@ -193,8 +246,10 @@ if (
   || catalog.actions[0]?.subject.controlId !== 'build.visibility'
   || feedback?.event?.value !== 'active'
   || admitted.acceptedSequence !== 1
+  || !bootstrap.isReady()
+  || bootstrapCloseReason !== null
 ) {
-  throw new Error('Compiled device runtime did not compose executable authority, catalog, and feedback');
+  throw new Error('Compiled device runtime did not compose executable authority, catalog, feedback, and bootstrap readiness');
 }
 
-process.stdout.write('[verify-device-runtime] native ESM authority, catalog, and feedback verified\n');
+process.stdout.write('[verify-device-runtime] native ESM authority, catalog, feedback, and bootstrap readiness verified\n');
