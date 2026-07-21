@@ -8,6 +8,7 @@ import {
   createDeviceCredentialRuntime,
   type InitializableDeviceCredentialStore,
 } from '../../src/auth/DeviceCredentialRuntime';
+import type { DeviceActionCatalogRuntime } from '../../src/services/DeviceActionCatalogRuntime';
 import { createServerRuntime } from '../../src/index';
 import type { Storage } from '../../src/storage';
 
@@ -96,5 +97,28 @@ describe('device credential server composition', () => {
     })).rejects.toThrow('device authority unavailable');
     expect(init).toHaveBeenCalledTimes(1);
     expect(createDeviceCredentials).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects server bootstrap when the action catalog protocol cannot be composed', async () => {
+    const auth = new AuthService(new MemoryAuthStore());
+    const init = vi.fn(async () => undefined);
+    const dataStorage = { init } as unknown as Storage;
+    const credentialProtocol = await import('@overlaykit/protocol/device-credential');
+    const deviceCredentials = await createDeviceCredentialRuntime({
+      store: new RecordingStore(),
+      loadProtocol: async () => credentialProtocol,
+    });
+    const createDeviceActionCatalog = vi.fn(async (): Promise<DeviceActionCatalogRuntime> => {
+      throw new Error('catalog projector unavailable');
+    });
+
+    await expect(createServerRuntime({
+      auth,
+      dataStorage,
+      deviceCredentials,
+      createDeviceActionCatalog,
+    })).rejects.toThrow('catalog projector unavailable');
+    expect(init).toHaveBeenCalledTimes(1);
+    expect(createDeviceActionCatalog).toHaveBeenCalledTimes(1);
   });
 });

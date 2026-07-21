@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0021",
+  "title": "Test authenticated device action catalog publication",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0005", "ADR-0009", "ADR-0012", "ADR-0013", "ADR-0014", "ADR-0015", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 requires a vendor-neutral typed action catalog to be discoverable before a Linux operator binds controller buttons, while action execution and state feedback remain separate Control API responsibilities.",
+      "evidence": "SPEC-0001 REQ-INT-001, REQ-INT-002, AC-017, AC-018, and WF-004",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ADR-0015 established only a pure component-visibility catalog projection and explicitly left the trusted server inventory adapter, HTTP publication, cache semantics, and runtime composition unanswered.",
+      "evidence": "ADR-0015 and protocol/src/control-action-catalog.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted device HTTP boundary already rejects cookies, query authority, and ambiguous Authorization fields, resolves device credentials freshly, and binds visibility commands to a route-derived Show; ProductionService exposes cloned Preview and Program snapshots containing the currently loaded element trees.",
+      "evidence": "server/src/routes/deviceControl.ts, server/src/services/ProductionService.ts, and ADR-0014",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The CommonJS server cannot synchronously require the ESM protocol runtime; accepted server composition loads protocol subpaths dynamically while retaining structural TypeScript ports.",
+      "evidence": "ADR-0012, ADR-0013, and server/src/auth/DeviceCredentialRuntime.ts",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-012: A no-store device GET endpoint can freshly authenticate a route-bound active Show, derive a bounded visibility inventory from immutable copies of the current Preview and Program snapshots, and invoke the accepted pure projector through an asynchronously composed protocol port so the response describes only point-in-time executable and authorized actions without becoming execution authority or claiming current state.",
+      "evidence": "SDD-012 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-012 only for authenticated point-in-time component-visibility discovery after authority transport, fresh credential lifecycle, route Show binding, active-Show enforcement, current snapshot inventory, ambiguity, bounds, cache, disclosure, error containment, ESM/CommonJS composition, repository-quality, build, and audit evidence passed.",
+      "evidence": "focused server tests, compiled runtime verifier, ADR-0016, and Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish catalog revision or caching protocols beyond no-store, current-state or expected-revision delivery, feedback transport and signing, a resource bound for cloning an already-loaded snapshot, atomicity across future asynchronous or distributed production adapters, saved-Scene discovery, Take, value, trigger or cue descriptors, issuance-time control validation, Studio consumption, Companion, hardware behavior, or authority after the instant of catalog projection.",
+      "evidence": "SDD-012 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "An authenticated GET for one route-derived Show freshly resolves the bearer, rejects browser or ambiguous authority, requires an existing active Show, and returns the versioned projected catalog with no-store headers.",
+      "verification": "Focused HTTP tests for valid, missing, malformed, cookie-bearing, query-bearing, rotated, revoked, cross-Show, missing-Show, and archived-Show requests plus exact cache headers."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The server inventory contains each recursively loaded component once per actual Preview or Program snapshot, uses deterministic bounded labels, omits unloaded targets, and fails closed when duplicate component identifiers make visibility execution ambiguous.",
+      "verification": "Inventory and HTTP tests for nested components, both targets, empty snapshots, snapshot changes, labels, duplicates, bounds, and source immutability."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The response contains only the exact current inventory and authenticated scope, target, and control intersection and includes no bearer, credential identity, generation, scope list, verifier, session, revision, current value, or claim of future authorization.",
+      "verification": "Exact response, authority matrix, serialization forbidden-field, and post-publication command-authorization tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Production server startup composes the ESM catalog projector asynchronously without introducing a synchronous CommonJS require or weakening the injected test boundary.",
+      "verification": "Server type-check, compiled runtime verifier, production build, and injected-port failure tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Slice 1 publishes only component.visibility discovery and changes no command, feedback, Studio, Companion, or hardware contract.",
+      "verification": "Closed action-kind response tests and Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0021 records facts, H-012, the accepted inference, measurable criteria, and unresolved guarantees for authenticated point-in-time component-visibility discovery.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only catalog runtime composition, snapshot inventory derivation, the device HTTP catalog route, focused tests, build verification, and the accepted governance decision.",
+      "evidence": "git diff for CHG-0021"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-012 across authority transport, fresh credential state, Show binding and lifecycle, inventory truth, ambiguity, bounds, cache behavior, disclosure, ESM/CommonJS composition, and preserved execution authorization.",
+      "evidence": "Focused server unit, HTTP, and compiled runtime tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused server checks, full repository checks, build, and audit pass for the proposed Slice manifest.",
+      "evidence": "npm run governance:check, server checks, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0016 was created only after the human authority accepted H-012 within the demonstrated authenticated point-in-time discovery boundary.",
+      "evidence": "ADR-0016 context and Human Doctrine review on 2026-07-21"
+    }
+  ]
+}

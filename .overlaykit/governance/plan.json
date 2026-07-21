@@ -188,6 +188,14 @@
       "id": "ADR-0015",
       "supersededBy": null,
       "title": "Action catalogs project capability and authority intersection"
+    },
+    {
+      "contentHash": "e66365f6d3bd6f5eb22b3b9f4caa00d5d90956b737636fa42c04afc4294c04b2",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0016",
+      "supersededBy": null,
+      "title": "Device action catalogs are authenticated point-in-time discovery"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -322,10 +330,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "0fdc6b2c910e39c21c5f68b952fb284875f6937abb5688782c84d5d6e11d0d2b",
-  "profileHash": "1e9806c86fe64f98619d9de5d85dc82e5812149d492450cfd2f27518f5f8f490",
+  "planHash": "7b93c9bcc148c0e9435b72cee9c1f7c6392dd8dc33fc77656812632d1744a3da",
+  "profileHash": "043f666fb882a5e2d12ee8d1c358b1c3723905cde2a6b04c8f659003f96bcd4a",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.11.0",
+  "profileVersion": "2.12.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -470,6 +478,54 @@
       "kind": "rule",
       "sourceDecision": "ADR-0014",
       "statement": "Device control accepts exactly one Bearer credential from Authorization and must reject credential transport through query parameters, request bodies, cookies, or duplicate Authorization fields."
+    },
+    {
+      "id": "device-catalog-adapter-is-bounded-and-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "The inventory adapter must stop before exceeding 1,000 aggregate capabilities, bound labels to protocol limits, and allow duplicate target-control identities to fail the complete pure projection rather than silently choosing one."
+    },
+    {
+      "id": "device-catalog-authenticates-fresh-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "Every device catalog request must freshly authenticate exactly one bearer and must not accept cookies, query authority, duplicate Authorization fields, or a Studio session as device authority."
+    },
+    {
+      "id": "device-catalog-binds-active-route-show",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "The authenticated device authority must name the exact route-derived Show, and inventory may be read only after that Show is confirmed to exist and remain active."
+    },
+    {
+      "id": "device-catalog-command-authority-remains-separate",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "Selecting a catalog entry never bypasses fresh command authorization, active-Show checks, expected revision, idempotency, or domain validation at execution time."
+    },
+    {
+      "id": "device-catalog-esm-runtime-is-composed-asynchronously",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "A CommonJS server must load the ESM catalog projector through native asynchronous import behind an injected port and must verify the compiled runtime rather than synchronously requiring the ESM package."
+    },
+    {
+      "id": "device-catalog-http-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "Passing this HTTP slice may not be presented as feedback delivery, expected-revision delivery, catalog version coherence, distributed atomicity, saved-Scene discovery, Take, value, trigger or cue support, Studio parity, Companion integration, or hardware behavior."
+    },
+    {
+      "id": "device-catalog-inventory-reflects-loaded-snapshots",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "Visibility inventory is derived from immutable copies of currently loaded Preview and Program element trees, including nested components and excluding unloaded targets."
+    },
+    {
+      "id": "device-catalog-is-point-in-time-no-store",
+      "kind": "rule",
+      "sourceDecision": "ADR-0016",
+      "statement": "HTTP catalog responses must be marked no-store and must not include current value, production revision, credential material, or any claim that a descriptor authorizes future execution."
     },
     {
       "id": "device-control-claims-are-bounded",
