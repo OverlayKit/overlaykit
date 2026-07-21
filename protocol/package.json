@@ -59,6 +59,10 @@
       "types": "./dist/control-visibility-feedback.d.ts",
       "import": "./dist/control-visibility-feedback.js"
     },
+    "./device-control-frame": {
+      "types": "./dist/device-control-frame.d.ts",
+      "import": "./dist/device-control-frame.js"
+    },
     "./device-credential": {
       "types": "./dist/device-credential.d.ts",
       "import": "./dist/device-credential.js"

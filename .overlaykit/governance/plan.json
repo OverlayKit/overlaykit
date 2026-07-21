@@ -220,6 +220,14 @@
       "id": "ADR-0019",
       "supersededBy": null,
       "title": "Device visibility feedback is issued from fresh authority with durable audience sequences"
+    },
+    {
+      "contentHash": "bd502dae3c117272ff41e6e5f20501c591d00b8c1a38562bfeb166d6a8ec883b",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0020",
+      "supersededBy": null,
+      "title": "Signed device control frames bind catalog deltas to renewable server truth"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -354,10 +362,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "9cffbba04afa2f6baa221140a5b7a7d42272538ab4ff19192e5f6caf0a96421d",
-  "profileHash": "346fa0d3e69e935c27d679bd3b754594dea93ced33497e15a737414656f1a1d0",
+  "planHash": "de45256ef497d28df730ac470341a64d3b8150b7d21b23966b91621ee7335b6a",
+  "profileHash": "ebf021ad3248a142e6d4b493045d63e970994ed49fad1f3695082c9e394b6163",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.15.0",
+  "profileVersion": "2.16.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -552,10 +560,58 @@
       "statement": "HTTP catalog responses must be marked no-store and must not include current value, production revision, credential material, or any claim that a descriptor authorizes future execution."
     },
     {
+      "id": "device-control-addition-requires-initial-state",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "A new or replaced action descriptor may become available only when its initial authoritative observation is carried in the same atomic frame."
+    },
+    {
+      "id": "device-control-bootstrap-is-complete",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "The first frame must be bootstrap and must contain the complete bounded target catalog, no removals, and exactly one authoritative initial observation for every included action."
+    },
+    {
+      "id": "device-control-catalog-hash-is-deterministic",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "Each frame must bind lowercase SHA-256 over the versioned code-unit-ordered canonical bytes of its exact resulting Show and target catalog."
+    },
+    {
       "id": "device-control-claims-are-bounded",
       "kind": "rule",
       "sourceDecision": "ADR-0014",
       "statement": "Passing local device HTTP tests may not be presented as proof of network delivery, renderer or OBS application, device feedback, catalogs, cues, Take, value mutation, Companion or hardware support, device-specific rate limits, audit retention, multi-process coordination, or in-flight revocation or Show-archival linearizability."
+    },
+    {
+      "id": "device-control-delta-builder-observes-complete-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "A delta builder must receive the complete current authorized target catalog and observations even though it emits only additions, replacements, removals, and changed values."
+    },
+    {
+      "id": "device-control-frame-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "Passing frame-protocol evidence may not be represented as WebSocket authentication or delivery, commands, timers, three-second scheduling, connected or disconnected projection, operation error delivery, backpressure, reconnect implementation, server integration, key lifecycle, Companion integration, renderer or OBS observation, or hardware behavior."
+    },
+    {
+      "id": "device-control-frame-is-canonical-and-signed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "Every admitted device control frame must bind its normalized complete payload to a pinned issuer, credential-generation audience, positive monotonic sequence, and verified signature."
+    },
+    {
+      "id": "device-control-frame-reduction-is-atomic",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "Frame reduction must validate prior state, revision, confirmation time, transition completeness and resulting catalog hash before returning any new state."
+    },
+    {
+      "id": "device-control-lease-is-authoritative-evidence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "Only a signed catalog-bound server confirmation may renew unchanged active or inactive controls; a transport acknowledgement may not renew their truth."
     },
     {
       "id": "device-control-preserves-production-concurrency",
@@ -568,6 +624,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0014",
       "statement": "A device Control API request must resolve only device authority and must never authenticate, construct, or inherit a Studio session principal."
+    },
+    {
+      "id": "device-control-removal-is-unavailable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0020",
+      "statement": "A control removed from the resulting authorized catalog must become unavailable atomically rather than unknown, disconnected, or failed."
     },
     {
       "id": "device-credential-file-commit-is-copy-on-write",
