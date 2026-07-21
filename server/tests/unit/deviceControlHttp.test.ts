@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { createDeviceCredentialCryptoOptions } from '../../src/auth/DeviceCredentialCrypto';
@@ -10,6 +10,10 @@ import {
 import { FileDeviceCredentialStore } from '../../src/auth/FileDeviceCredentialStore';
 import { createApp } from '../../src/index';
 import { ChannelManager } from '../../src/services/ChannelManager';
+import {
+  createDeviceActionCatalogRuntime,
+  type DeviceActionCatalogRuntime,
+} from '../../src/services/DeviceActionCatalogRuntime';
 import { ProductionService } from '../../src/services/ProductionService';
 import type {
   ActionRecord,
@@ -95,6 +99,7 @@ describe('device bearer production control boundary', () => {
   let directory: string;
   let now: number;
   let runtime: DeviceCredentialRuntime;
+  let actionCatalog: DeviceActionCatalogRuntime;
   let storage: TestStorage;
   let auth: AuthService;
   let production: ProductionService;
@@ -117,6 +122,7 @@ describe('device bearer production control boundary', () => {
         },
       }),
     });
+    actionCatalog = await createDeviceActionCatalogRuntime();
     storage = new TestStorage();
     storage.shows.set('show-1', show('show-1'));
     storage.shows.set('show-2', show('show-2'));
@@ -125,7 +131,13 @@ describe('device bearer production control boundary', () => {
     production = new ProductionService(new ChannelManager());
     production.loadPreview('show-1', scene());
     production.take('show-1', 1, 'initial-take');
-    app = createApp({ auth, dataStorage: storage, production, deviceCredentials: runtime });
+    app = createApp({
+      auth,
+      dataStorage: storage,
+      production,
+      deviceCredentials: runtime,
+      deviceActionCatalog: actionCatalog,
+    });
   });
 
   afterEach(async () => {
@@ -157,6 +169,10 @@ describe('device bearer production control boundary', () => {
     componentId = 'lower-third'
   ): string {
     return `/api/device/shows/${showId}/production/${target}/components/${componentId}/visibility`;
+  }
+
+  function catalogEndpoint(showId = 'show-1'): string {
+    return `/api/device/shows/${showId}/actions`;
   }
 
   function command(operationId: string, expectedRevision = 1, visible = false) {
@@ -375,5 +391,265 @@ describe('device bearer production control boundary', () => {
       .send(command('missing-show'))
       .expect(404);
     expect(production.getState('show-1').preview.revision).toBe(1);
+  });
+
+  it('publishes only the exact current inventory and device authority intersection', async () => {
+    const issued = await issue({
+      targets: ['preview', 'program'],
+      controlIds: ['lower-third.visibility', 'scoreboard.visibility'],
+    });
+
+    const response = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .expect(200);
+
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.headers.pragma).toBe('no-cache');
+    expect(response.body.data).toEqual({
+      schemaVersion: 'overlaykit-control-action-catalog/v1',
+      showId: 'show-1',
+      actions: [
+        {
+          actionId: 'component.visibility/preview/lower-third',
+          kind: 'component.visibility',
+          subject: {
+            showId: 'show-1',
+            target: 'preview',
+            controlId: 'lower-third.visibility',
+          },
+          componentId: 'lower-third',
+          label: 'Lower third',
+          input: { visible: { type: 'boolean', required: true } },
+        },
+        {
+          actionId: 'component.visibility/preview/scoreboard',
+          kind: 'component.visibility',
+          subject: {
+            showId: 'show-1',
+            target: 'preview',
+            controlId: 'scoreboard.visibility',
+          },
+          componentId: 'scoreboard',
+          label: 'Scoreboard',
+          input: { visible: { type: 'boolean', required: true } },
+        },
+        {
+          actionId: 'component.visibility/program/lower-third',
+          kind: 'component.visibility',
+          subject: {
+            showId: 'show-1',
+            target: 'program',
+            controlId: 'lower-third.visibility',
+          },
+          componentId: 'lower-third',
+          label: 'Lower third',
+          input: { visible: { type: 'boolean', required: true } },
+        },
+        {
+          actionId: 'component.visibility/program/scoreboard',
+          kind: 'component.visibility',
+          subject: {
+            showId: 'show-1',
+            target: 'program',
+            controlId: 'scoreboard.visibility',
+          },
+          componentId: 'scoreboard',
+          label: 'Scoreboard',
+          input: { visible: { type: 'boolean', required: true } },
+        },
+      ],
+    });
+
+    const serialized = JSON.stringify(response.body.data);
+    expect(serialized).not.toContain(issued.token);
+    expect(serialized).not.toContain(issued.credential.credentialId);
+    for (const forbidden of ['generation', 'scopes', 'expiresAt', 'revision', 'currentState']) {
+      expect(serialized).not.toContain(forbidden);
+    }
+  });
+
+  it('derives nested capabilities independently from current Preview and Program snapshots', async () => {
+    const issued = await issue({
+      targets: ['preview', 'program'],
+      controlIds: ['alert.visibility', 'lower-third.visibility'],
+    });
+    production.loadPreview('show-1', {
+      id: 'alert-scene',
+      name: 'Alert scene',
+      elements: [{
+        id: 'container',
+        tag: 'section',
+        content: '{{dynamicLabel}}',
+        styles: {},
+        children: [{
+          id: 'alert',
+          tag: 'div',
+          content: 'Ignored content',
+          attributes: { 'aria-label': `  ${'Live alert '.repeat(20)}  ` },
+          styles: {},
+        }],
+      }],
+    });
+    const previewBefore = production.getSnapshot('show-1', 'preview');
+    const programBefore = production.getSnapshot('show-1', 'program');
+
+    const response = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .expect(200);
+
+    expect(response.body.data.actions).toHaveLength(2);
+    expect(response.body.data.actions[0]).toMatchObject({
+      componentId: 'alert',
+      subject: { target: 'preview', controlId: 'alert.visibility' },
+    });
+    expect(response.body.data.actions[0].label).toHaveLength(160);
+    expect(response.body.data.actions[1]).toMatchObject({
+      componentId: 'lower-third',
+      subject: { target: 'program', controlId: 'lower-third.visibility' },
+    });
+    expect(production.getSnapshot('show-1', 'preview')).toEqual(previewBefore);
+    expect(production.getSnapshot('show-1', 'program')).toEqual(programBefore);
+  });
+
+  it('re-resolves catalog authority and never falls back to a Studio session', async () => {
+    const issued = await issue();
+    const authenticateSession = vi.spyOn(auth, 'authenticateSession');
+
+    await request(app).get(catalogEndpoint()).expect(401);
+    await request(app)
+      .get(`${catalogEndpoint()}?access_token=${encodeURIComponent(issued.token)}`)
+      .set('Authorization', `Bearer ${issued.token}`)
+      .expect(400);
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .set('Cookie', 'overlaykit_session=ok_session_example')
+      .expect(400);
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', [`Bearer ${issued.token}`, `Bearer ${issued.token}`])
+      .expect(400);
+
+    const rotated = await runtime.lifecycle.rotate(DEVICE_OWNER, issued.credential.credentialId);
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .expect(401);
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${rotated.token}`)
+      .expect(200);
+    await runtime.lifecycle.revoke(DEVICE_OWNER, issued.credential.credentialId);
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${rotated.token}`)
+      .expect(401);
+
+    expect(authenticateSession).not.toHaveBeenCalled();
+  });
+
+  it('binds discovery to the credential Show and active Show lifecycle', async () => {
+    const wrongShow = await issue({ showId: 'show-2' });
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${wrongShow.token}`)
+      .expect(403);
+
+    const empty = await request(app)
+      .get(catalogEndpoint('show-2'))
+      .set('Authorization', `Bearer ${wrongShow.token}`)
+      .expect(200);
+    expect(empty.body.data.actions).toEqual([]);
+
+    storage.shows.set('archived-show', show('archived-show', 2_000));
+    const archived = await issue({ showId: 'archived-show' });
+    await request(app)
+      .get(catalogEndpoint('archived-show'))
+      .set('Authorization', `Bearer ${archived.token}`)
+      .expect(409);
+
+    const missing = await issue({ showId: 'missing-show' });
+    await request(app)
+      .get(catalogEndpoint('missing-show'))
+      .set('Authorization', `Bearer ${missing.token}`)
+      .expect(404);
+  });
+
+  it('returns an empty catalog for unavailable authority and fails closed on ambiguous inventory', async () => {
+    const readOnly = await issue({ scopes: ['feedback:read'] });
+    const empty = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${readOnly.token}`)
+      .expect(200);
+    expect(empty.body.data.actions).toEqual([]);
+
+    production.loadPreview('show-1', {
+      id: 'ambiguous-scene',
+      name: 'Ambiguous scene',
+      elements: [
+        { id: 'duplicate', tag: 'div', content: 'First', styles: {} },
+        { id: 'duplicate', tag: 'div', content: 'Second', styles: {} },
+      ],
+    });
+    const ambiguous = await issue({ controlIds: ['duplicate.visibility'] });
+    const snapshotBefore = production.getSnapshot('show-1', 'preview');
+    const denied = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${ambiguous.token}`)
+      .expect(409);
+    expect(denied.body).toEqual({
+      error: {
+        code: 'ACTION_CATALOG_UNAVAILABLE',
+        message: 'Current device actions cannot be projected',
+      },
+    });
+    expect(production.getSnapshot('show-1', 'preview')).toEqual(snapshotBefore);
+
+    production.loadPreview('show-1', {
+      id: 'oversized-scene',
+      name: 'Oversized scene',
+      elements: Array.from({ length: 1_001 }, (_, index) => ({
+        id: `component-${index}`,
+        tag: 'div',
+        content: `Component ${index}`,
+        styles: {},
+      })),
+    });
+    const oversized = await issue({ controlIds: ['component-0.visibility'] });
+    await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${oversized.token}`)
+      .expect(409, {
+        error: {
+          code: 'ACTION_CATALOG_UNAVAILABLE',
+          message: 'Current device actions cannot be projected',
+        },
+      });
+  });
+
+  it('contains projector failures without disclosing internal details', async () => {
+    const issued = await issue();
+    const failingApp = createApp({
+      auth,
+      dataStorage: storage,
+      production,
+      deviceCredentials: runtime,
+      deviceActionCatalog: {
+        projectAuthorizedControlActionCatalog: () => {
+          throw new Error('private projector detail');
+        },
+      },
+    });
+
+    const response = await request(failingApp)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .expect(500);
+    expect(response.body).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Device action catalog failed' },
+    });
+    expect(JSON.stringify(response.body)).not.toContain('private projector detail');
   });
 });

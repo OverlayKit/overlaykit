@@ -3,6 +3,10 @@ import type { DeviceCredentialRuntime } from '../auth/DeviceCredentialRuntime';
 import type { Storage } from '../storage';
 import { ProductionError, type ProductionService } from '../services/ProductionService';
 import type { ProductionBus } from '../types/production';
+import {
+  buildDeviceActionInventory,
+  type DeviceActionCatalogRuntime,
+} from '../services/DeviceActionCatalogRuntime';
 
 const DEVICE_REALM = 'overlaykit-device';
 const VISIBILITY_SCOPE = 'component.visibility:write' as const;
@@ -33,6 +37,18 @@ function respondAuthenticationRequired(res: Response): void {
     .set('WWW-Authenticate', challenge('invalid_token'))
     .json({
       error: { code: 'DEVICE_AUTH_REQUIRED', message: 'A valid device credential is required' },
+    });
+}
+
+function respondAuthorizationForbidden(res: Response): void {
+  res
+    .status(403)
+    .set('WWW-Authenticate', challenge('insufficient_scope'))
+    .json({
+      error: {
+        code: 'DEVICE_AUTH_FORBIDDEN',
+        message: 'Device authority does not grant this action',
+      },
     });
 }
 
@@ -121,15 +137,7 @@ function deviceCredentialCode(error: unknown): string | null {
 function respondWithError(res: Response, error: unknown): void {
   const code = deviceCredentialCode(error);
   if (code === 'DEVICE_CREDENTIAL_FORBIDDEN') {
-    res
-      .status(403)
-      .set('WWW-Authenticate', challenge('insufficient_scope'))
-      .json({
-        error: {
-          code: 'DEVICE_AUTH_FORBIDDEN',
-          message: 'Device authority does not grant this action',
-        },
-      });
+    respondAuthorizationForbidden(res);
     return;
   }
   if (code === 'INVALID_DEVICE_CREDENTIAL') {
@@ -147,10 +155,27 @@ function respondWithError(res: Response, error: unknown): void {
   });
 }
 
+function respondCatalogError(res: Response, error: unknown): void {
+  const code = deviceCredentialCode(error);
+  if (code === 'INVALID_ACTION_INVENTORY' || code === 'DUPLICATE_ACTION_CAPABILITY') {
+    res.status(409).json({
+      error: {
+        code: 'ACTION_CATALOG_UNAVAILABLE',
+        message: 'Current device actions cannot be projected',
+      },
+    });
+    return;
+  }
+  res.status(500).json({
+    error: { code: 'INTERNAL_ERROR', message: 'Device action catalog failed' },
+  });
+}
+
 export function createDeviceControlRouter(
   storage: Storage,
   production: ProductionService,
-  runtime: DeviceCredentialRuntime
+  runtime: DeviceCredentialRuntime,
+  actionCatalog?: DeviceActionCatalogRuntime,
 ): Router {
   const router = Router();
 
@@ -159,6 +184,58 @@ export function createDeviceControlRouter(
     res.set('Pragma', 'no-cache');
     next();
   });
+
+  if (actionCatalog) {
+    router.get(
+      '/device/shows/:showId/actions',
+      async (req: Request, res: Response) => {
+        const token = bearerToken(req, res);
+        if (!token) return;
+        if (!validRouteIdentifier(req.params.showId, 200)) {
+          respondInvalidRequest(res, 'INVALID_DEVICE_AUTH_REQUEST', 'Route identifiers are invalid');
+          return;
+        }
+
+        try {
+          const authority = await runtime.lifecycle.authenticate(token);
+          if (!authority) {
+            respondAuthenticationRequired(res);
+            return;
+          }
+          if (authority.showId !== req.params.showId) {
+            respondAuthorizationForbidden(res);
+            return;
+          }
+
+          const show = await storage.getShow(req.params.showId);
+          if (!show) {
+            res.status(404).json({ error: { code: 'SHOW_NOT_FOUND', message: 'Show not found' } });
+            return;
+          }
+          if (show.archivedAt !== null) {
+            res.status(409).json({
+              error: { code: 'SHOW_ARCHIVED', message: 'Archived Shows cannot be controlled' },
+            });
+            return;
+          }
+
+          const inventory = buildDeviceActionInventory(production, req.params.showId);
+          const catalog = actionCatalog.projectAuthorizedControlActionCatalog(
+            inventory,
+            authority,
+          );
+          res.json({ data: catalog });
+        } catch (error) {
+          const code = deviceCredentialCode(error);
+          if (code === 'INVALID_DEVICE_CREDENTIAL') {
+            respondAuthenticationRequired(res);
+            return;
+          }
+          respondCatalogError(res, error);
+        }
+      },
+    );
+  }
 
   router.post(
     '/device/shows/:showId/production/:target/components/:componentId/visibility',

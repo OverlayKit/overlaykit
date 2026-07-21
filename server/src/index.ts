@@ -33,16 +33,22 @@ import { createDeviceControlRouter } from './routes/deviceControl';
 import { createShowsRouter } from './routes/shows';
 import { createProductionRouter } from './routes/production';
 import { productionService, type ProductionService } from './services/ProductionService';
+import {
+  createDeviceActionCatalogRuntime,
+  type DeviceActionCatalogRuntime,
+} from './services/DeviceActionCatalogRuntime';
 
 export interface AppDependencies {
   auth?: AuthService;
   dataStorage?: Storage;
   production?: ProductionService;
   deviceCredentials?: DeviceCredentialRuntime;
+  deviceActionCatalog?: DeviceActionCatalogRuntime;
 }
 
 export interface ServerRuntimeDependencies extends AppDependencies {
   createDeviceCredentials?: () => Promise<DeviceCredentialRuntime>;
+  createDeviceActionCatalog?: () => Promise<DeviceActionCatalogRuntime>;
 }
 
 export interface ServerRuntime {
@@ -51,6 +57,7 @@ export interface ServerRuntime {
   dataStorage: Storage;
   production: ProductionService;
   deviceCredentials: DeviceCredentialRuntime;
+  deviceActionCatalog: DeviceActionCatalogRuntime;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
@@ -59,6 +66,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const dataStorage = dependencies.dataStorage ?? storage;
   const production = dependencies.production ?? productionService;
   const deviceCredentials = dependencies.deviceCredentials;
+  const deviceActionCatalog = dependencies.deviceActionCatalog;
 
   if (config.trustProxy !== undefined) app.set('trust proxy', config.trustProxy);
 
@@ -81,7 +89,15 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   app.use('/', healthRoutes);
   app.use('/sounds', express.static(path.join(__dirname, '../public/sounds'), { maxAge: '7d', immutable: true }));
   if (deviceCredentials) {
-    app.use('/api', createDeviceControlRouter(dataStorage, production, deviceCredentials));
+    app.use(
+      '/api',
+      createDeviceControlRouter(
+        dataStorage,
+        production,
+        deviceCredentials,
+        deviceActionCatalog,
+      ),
+    );
   }
   app.use('/api', enforceBrowserOrigin(config.corsOrigin));
   app.use('/api/auth/setup', rateLimit({
@@ -142,13 +158,22 @@ export async function createServerRuntime(
   await auth.init();
   const deviceCredentials = dependencies.deviceCredentials
     ?? await (dependencies.createDeviceCredentials ?? createDeviceCredentialRuntime)();
+  const deviceActionCatalog = dependencies.deviceActionCatalog
+    ?? await (dependencies.createDeviceActionCatalog ?? createDeviceActionCatalogRuntime)();
 
   return {
-    app: createApp({ auth, dataStorage, production, deviceCredentials }),
+    app: createApp({
+      auth,
+      dataStorage,
+      production,
+      deviceCredentials,
+      deviceActionCatalog,
+    }),
     auth,
     dataStorage,
     production,
     deviceCredentials,
+    deviceActionCatalog,
   };
 }
 

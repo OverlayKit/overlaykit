@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0016",
+  "title": "Device action catalogs are authenticated point-in-time discovery",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "control-action-catalog",
+    "control-api",
+    "device-authorization",
+    "production-inventory",
+    "server-module-composition"
+  ],
+  "context": "SPEC-0001 requires a vendor-neutral Control API to publish a typed action catalog before a Linux operator binds controller buttons. ADR-0015 established a deterministic pure catalog projection but left server inventory authority, HTTP publication, cache semantics, and CommonJS-to-ESM composition unanswered. SDD-012 asked how the server could publish only actions currently executable and authorized without allowing a possibly stale response to become execution authority. Slice 1 added an authenticated GET endpoint for one route-derived Show, an iterative server inventory adapter over cloned Preview and Program snapshots, and an asynchronously loaded protocol projector port. Tests demonstrated rejection of missing, malformed, cookie-bearing, query-bearing, ambiguous, rotated, revoked, expired, and cross-Show authority; active-Show enforcement; exact scope, target, control, and availability filtering; independent Preview and Program inventory; nested component discovery; empty unloaded targets; deterministic bounded labels; source immutability; fail-closed duplicate and over-1,000 capability handling; no-store headers; forbidden-field omission; internal-error containment; and preserved Studio-principal separation. Compiled build verification demonstrated that the CommonJS server preserves and executes the native ESM protocol import without rewriting it to require. Full governance, repository checks, build, and audit evidence passed. The human authority accepted H-012 only within this point-in-time component-visibility discovery boundary.",
+  "decision": "The device Control API publishes component-visibility discovery at GET `/api/device/shows/:showId/actions` only when the device bearer is freshly authenticated, names the exact route-derived Show, and that Show currently exists and is not archived. Device requests may not derive authority from cookies, query parameters, duplicate Authorization fields, or a Studio session. The server derives an explicit inventory from immutable copies of the currently loaded Preview and Program element trees, visits nested components in deterministic target and tree order, bounds labels to the protocol limit, and stops before exceeding 1,000 aggregate capabilities. Duplicate component identifiers within one target remain visible to the pure projector and cause the complete catalog to fail closed because the corresponding command would be ambiguous. The server passes inventory and current DeviceCredentialAuthority through the ADR-0015 projector loaded by a native asynchronous ESM import behind an injected structural port. Responses are marked no-store and contain no current value, production revision, credential material, or reusable execution grant. Catalog entries are point-in-time discovery only; every later command still requires fresh authorization, active-Show enforcement, expected revision, and idempotency at the ADR-0014 execution boundary.",
+  "consequences": [
+    "A valid device can discover only visibility actions that exist in the currently loaded Preview or Program snapshot and intersect its current scope, target, and control grants.",
+    "Rotated, revoked, expired, malformed, or wrong-Show credentials cannot reuse a previously valid discovery request as current authority.",
+    "A credential with no matching visibility scope, target, control, or loaded component receives a valid empty catalog instead of capabilities it cannot execute.",
+    "Archived and missing Shows are rejected only after the device identity is authenticated and bound to the route Show.",
+    "Catalog responses are non-cacheable discovery snapshots and intentionally omit the revision required by command execution.",
+    "Duplicate component identifiers and inventories larger than 1,000 capabilities fail the complete response without mutating production snapshots or exposing internal projector details.",
+    "The CommonJS server must obtain the ESM catalog projector through native dynamic import and fail bootstrap when that composition is unavailable.",
+    "The demonstrated bound begins while traversing cloned snapshots; it does not bound the prior cost of cloning an already-loaded snapshot.",
+    "Catalog revisions, feedback state and signing, expected-revision delivery, asynchronous or distributed snapshot atomicity, saved-Scene discovery, Take, values, triggers, cues, Studio parity, Companion, and hardware remain unanswered."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-catalog-authenticates-fresh-authority",
+      "statement": "Every device catalog request must freshly authenticate exactly one bearer and must not accept cookies, query authority, duplicate Authorization fields, or a Studio session as device authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-binds-active-route-show",
+      "statement": "The authenticated device authority must name the exact route-derived Show, and inventory may be read only after that Show is confirmed to exist and remain active."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-inventory-reflects-loaded-snapshots",
+      "statement": "Visibility inventory is derived from immutable copies of currently loaded Preview and Program element trees, including nested components and excluding unloaded targets."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-adapter-is-bounded-and-fails-closed",
+      "statement": "The inventory adapter must stop before exceeding 1,000 aggregate capabilities, bound labels to protocol limits, and allow duplicate target-control identities to fail the complete pure projection rather than silently choosing one."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-is-point-in-time-no-store",
+      "statement": "HTTP catalog responses must be marked no-store and must not include current value, production revision, credential material, or any claim that a descriptor authorizes future execution."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-command-authority-remains-separate",
+      "statement": "Selecting a catalog entry never bypasses fresh command authorization, active-Show checks, expected revision, idempotency, or domain validation at execution time."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-esm-runtime-is-composed-asynchronously",
+      "statement": "A CommonJS server must load the ESM catalog projector through native asynchronous import behind an injected port and must verify the compiled runtime rather than synchronously requiring the ESM package."
+    },
+    {
+      "kind": "rule",
+      "id": "device-catalog-http-claims-are-bounded",
+      "statement": "Passing this HTTP slice may not be presented as feedback delivery, expected-revision delivery, catalog version coherence, distributed atomicity, saved-Scene discovery, Take, value, trigger or cue support, Studio parity, Companion integration, or hardware behavior."
+    }
+  ]
+}
