@@ -228,6 +228,14 @@
       "id": "ADR-0020",
       "supersededBy": null,
       "title": "Signed device control frames bind catalog deltas to renewable server truth"
+    },
+    {
+      "contentHash": "56845d8e6b96cae673f1bfc515e3a162f69c5e4cf54e58a8532e58a444bb53df",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0021",
+      "supersededBy": null,
+      "title": "Device connection authority is exclusive and retired through linearizable barriers"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -362,10 +370,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "de45256ef497d28df730ac470341a64d3b8150b7d21b23966b91621ee7335b6a",
-  "profileHash": "ebf021ad3248a142e6d4b493045d63e970994ed49fad1f3695082c9e394b6163",
+  "planHash": "82aad37477e59f5da356b618f162a4e3c4bca5534016acd54df9ef246a56b5b7",
+  "profileHash": "c2b9d42d08e1c6f952c49179734359f587f288126c48a503438edba05c0b6f05",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.16.0",
+  "profileVersion": "2.17.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -476,6 +484,24 @@
       "statement": "Every device action must resolve and authorize the bearer against the exact route-derived authority before Show lookup or production mutation so rotation, expiration, revocation, and scope changes fail closed on the next request."
     },
     {
+      "id": "device-authority-barrier-blocks-before-drain",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "Replacement, rotation, revocation, expiration and Show archival must deny later operation admission before waiting for begun work and transport closure."
+    },
+    {
+      "id": "device-authority-barrier-success-requires-quiescence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "A lifecycle barrier may report success only after every affected begun operation settles and every affected transport closes successfully."
+    },
+    {
+      "id": "device-authority-expiration-fails-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "Expiration must schedule a close-and-drain barrier without traffic, and inability to schedule that deadline must prevent connection admission."
+    },
+    {
       "id": "device-authority-is-exact",
       "kind": "rule",
       "sourceDecision": "ADR-0009",
@@ -558,6 +584,30 @@
       "kind": "rule",
       "sourceDecision": "ADR-0016",
       "statement": "HTTP catalog responses must be marked no-store and must not include current value, production revision, credential material, or any claim that a descriptor authorizes future execution."
+    },
+    {
+      "id": "device-connection-authority-identity-is-immutable",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "A connection lease must capture immutable credential, generation audience, Show and expiration identity; a credential cannot change Show and one audience cannot change expiration."
+    },
+    {
+      "id": "device-connection-authority-is-exclusive",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "At most one exact lease for a credential may admit work, and a replacement may become effective only after the prior transport closes and its begun operations drain."
+    },
+    {
+      "id": "device-connection-close-reason-is-not-control-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "A transport close reason is diagnostic lifecycle metadata and may not establish an individual control value or availability state."
+    },
+    {
+      "id": "device-connection-coordinator-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "Passing coordinator evidence may not be represented as WebSocket authentication or delivery, lifecycle-route integration, command execution, signed-frame delivery, close-code behavior, multi-instance coordination, cancellation of begun work, crash recovery, Companion integration, renderer or OBS observation, or hardware behavior."
     },
     {
       "id": "device-control-addition-requires-initial-state",
@@ -750,6 +800,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0013",
       "statement": "Issue authority comes from an existing active Show route, and rotate or revoke must reject a stored credential that does not belong to the active Show named by that route."
+    },
+    {
+      "id": "device-operation-authority-begins-at-execution",
+      "kind": "rule",
+      "sourceDecision": "ADR-0021",
+      "statement": "Receiving or queueing an instruction grants no authority; an operation may begin only after its current exact lease is synchronously admitted at the execution boundary."
     },
     {
       "id": "device-principal-is-not-studio",

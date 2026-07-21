@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0021",
+  "title": "Device connection authority is exclusive and retired through linearizable barriers",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-connections",
+    "device-authority",
+    "credential-lifecycle",
+    "operation-admission",
+    "show-lifecycle"
+  ],
+  "context": "Discovery established that a Linux production controller must use a dedicated device connection whose authority is inherited from its credential and Show rather than selected by the client. Only one connection may be effective for a credential; an authenticated reconnect must prefer a disconnected interval over overlapping authority. Rotation, revocation, exact expiry, and Show archival must prevent queued work from beginning, wait for already begun work, close affected transports, and report success only after no affected connection or operation remains. Forced transport closure projects disconnected at the device, while its diagnostic cause cannot invent an individual component state. Existing credential and HTTP control boundaries authenticate generation-bound bearers and freshly authorize commands, while ADR-0020 defines signed control-state frames, but no accepted component coordinated long-lived connection authority against operation admission and lifecycle changes. SDD-017 tested one pure single-instance DeviceConnectionAuthorityCoordinator without a network adapter. Slice 1 captured immutable credential, generation, audience, Show and expiration identity; serialized transitions per credential; exposed exact lease identity; admitted operations synchronously at their execution boundary; started transport close while draining begun asynchronous work; retired generations; revoked credentials; archived Shows; and scheduled expiration. Hostile evidence demonstrated no effective overlap during replacements, denial of queued work after a barrier begins, waiting for transport and operation settlement, stale and forged lease rejection, generation successor admission only after retirement, exact controlled expiry without traffic, defensive expiry when scheduling is late, multi-credential Show draining, unrelated-Show isolation, idempotent barriers, retained quiescence after close failure, fail-closed initial scheduling, immutable inputs, bounded identifiers, and full repository compatibility. Refutation found and corrected premature identity registration by rejected expired connections and admission when expiration scheduling failed. The human authority accepted H-017 only within this pure single-instance coordination boundary.",
+  "decision": "A server process coordinates device connection authority through one DeviceConnectionAuthorityCoordinator. A candidate authority is normalized and captured immutably and must bind a credential identifier, exact positive generation audience, one Show, and a future expiration; a repeated credential identity cannot change Show and a repeated generation audience cannot change expiration. The coordinator grants an opaque connection lease only after any previous connection for that credential has entered quiescence, started transport close, drained every operation that already began, and closed successfully. A queued instruction receives no authority merely by arriving: it may begin only through synchronous lease admission at its execution boundary. Invoking replacement or a lifecycle barrier blocks later operation admission immediately for the affected credential or Show. Rotation retires all generations through the named generation while allowing a later generation only after retirement completes; revocation blocks the credential; Show archival blocks every known credential bound to that Show; expiration invokes the same close-and-drain barrier at the exact modeled deadline without requiring traffic. A barrier resolves successfully only after all affected begun operations settle and all affected transports close. Close or expiration-scheduling failure cannot produce successful admission or barrier evidence and leaves any prior lease non-effective. Transition queues are isolated by credential so an unrelated Show or credential may continue operating. Transport-close reasons are diagnostic lifecycle metadata and do not establish active, inactive, unknown, failed, or unavailable component state. This decision is single-process and does not establish HTTP upgrade authentication, bearer parsing, WebSocket messages, lifecycle-route composition, command parsing or execution, signed-frame delivery, close codes, distributed coordination, cancellation of work that already began, process-crash recovery, Companion integration, renderer or OBS observation, or hardware behavior.",
+  "consequences": [
+    "At most one lease for a credential can admit work, including during overlapping reconnect attempts.",
+    "A short disconnected interval is permitted during replacement because overlapping effective authority is prohibited.",
+    "Instructions received before a barrier but not admitted at the execution boundary cannot begin after that barrier starts.",
+    "Operations that already began are not claimed to be cancellable; barrier success waits for their settlement.",
+    "Rotation, revocation, expiration, and Show archival have one close-and-drain completion meaning within a server process.",
+    "Failure to schedule expiration prevents connection admission, and failure to close prevents successful barrier evidence.",
+    "An unrelated credential is not blocked while another credential drains.",
+    "Network authentication, adapter integration, distributed ownership, commands, feedback delivery and hardware remain later architectural questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-connection-authority-is-exclusive",
+      "statement": "At most one exact lease for a credential may admit work, and a replacement may become effective only after the prior transport closes and its begun operations drain."
+    },
+    {
+      "kind": "rule",
+      "id": "device-connection-authority-identity-is-immutable",
+      "statement": "A connection lease must capture immutable credential, generation audience, Show and expiration identity; a credential cannot change Show and one audience cannot change expiration."
+    },
+    {
+      "kind": "rule",
+      "id": "device-operation-authority-begins-at-execution",
+      "statement": "Receiving or queueing an instruction grants no authority; an operation may begin only after its current exact lease is synchronously admitted at the execution boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-barrier-blocks-before-drain",
+      "statement": "Replacement, rotation, revocation, expiration and Show archival must deny later operation admission before waiting for begun work and transport closure."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-barrier-success-requires-quiescence",
+      "statement": "A lifecycle barrier may report success only after every affected begun operation settles and every affected transport closes successfully."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-expiration-fails-closed",
+      "statement": "Expiration must schedule a close-and-drain barrier without traffic, and inability to schedule that deadline must prevent connection admission."
+    },
+    {
+      "kind": "rule",
+      "id": "device-connection-close-reason-is-not-control-truth",
+      "statement": "A transport close reason is diagnostic lifecycle metadata and may not establish an individual control value or availability state."
+    },
+    {
+      "kind": "rule",
+      "id": "device-connection-coordinator-claims-are-bounded",
+      "statement": "Passing coordinator evidence may not be represented as WebSocket authentication or delivery, lifecycle-route integration, command execution, signed-frame delivery, close-code behavior, multi-instance coordination, cancellation of begun work, crash recovery, Companion integration, renderer or OBS observation, or hardware behavior."
+    }
+  ]
+}
