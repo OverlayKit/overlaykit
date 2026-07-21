@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0013",
+  "title": "Server composes device authority before network listen",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-credential-http",
+    "device-credential-runtime",
+    "server-bootstrap",
+    "server-module-interop",
+    "self-hosted-security"
+  ],
+  "context": "ADR-0009 established the adapter-neutral device credential lifecycle, ADR-0010 established one file-store instance as the persistence authority, ADR-0011 established production secret generation and verification, and ADR-0012 published that lifecycle as one ESM implementation. The server still compiled in classic CommonJS mode, under which the installed TypeScript compiler rewrote dynamic import into require even though synchronous require is outside the protocol package contract. The production bootstrap also did not construct the lifecycle or expose the Owner operations required by US-009. SDD-009 asked how the CommonJS server could load the ESM authority and expose the Owner lifecycle without beginning network listen with incomplete authority or duplicating protocol runtime behavior. Slice 1 made the server explicitly CommonJS under TypeScript node16 semantics, loaded the protocol through native dynamic import, initialized one file store, constructed one lifecycle with the production crypto adapter, and injected that runtime into Owner-only issue, rotate, and revoke routes before the production app was returned. Tests and the post-build verifier demonstrated preserved native import without protocol require, executable compiled composition, loader and store failure, rejected bootstrap, session, origin, role, active-Show and Show-substitution boundaries, verifier-only persistence, no-store bearer responses, generation invalidation, and revocation. A compiled-server smoke test reached health successfully. The human authority accepted H-009 only within one self-hosted bootstrap and that Owner HTTP lifecycle boundary.",
+  "decision": "The self-hosted server remains explicitly CommonJS but compiles and resolves modules with TypeScript node16 semantics so the protocol ESM authority is loaded through native dynamic import and is never rewritten to synchronous require. One production bootstrap invocation loads the public device-credential module, initializes exactly one FileDeviceCredentialStore instance, constructs one DeviceCredentialLifecycle with the approved production crypto adapter, and injects that shared runtime into the application before any REST or WebSocket listener is created. Package loading, store initialization, or lifecycle composition failure rejects bootstrap. Device credential issue, rotate, and revoke routes require an authenticated Owner session and an allowed browser origin. Issue is bound to an existing active Show selected by the route rather than request-body authority. Rotate and revoke require the stored credential to belong to the active Show named by the route. Issue and rotate disclose the bearer in a no-store response; revoke returns only public credential metadata. API responses never expose sealedSecret, and persisted state contains only the approved verifier rather than the bearer plaintext.",
+  "consequences": [
+    "The server consumes the same executable protocol lifecycle tested and published by @overlaykit/protocol rather than maintaining a server-side implementation copy.",
+    "The server can retain CommonJS output while native dynamic import provides the asynchronous ESM boundary required by the protocol package.",
+    "Production startup cannot open network listeners when protocol loading, credential-store initialization, or lifecycle construction fails.",
+    "All Owner lifecycle routes in one production bootstrap share the same credential lifecycle and owning file-store instance.",
+    "A request body cannot substitute another Show for issuance, and rotate or revoke cannot mutate a credential through a different Show route.",
+    "Bearer plaintext is disclosed only by issue and rotate responses with no-store headers; loss of that response is not solved by this decision.",
+    "Credential listing, lost-response recovery, concurrent Show archival, Studio UI, device request authentication, commands, feedback transport, Companion, registry provenance, multi-process storage, in-flight revocation, device rate limits, audit logs, and hardware behavior remain separate questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "server-protocol-loader-preserves-native-import",
+      "statement": "The CommonJS server must load the ESM protocol runtime through native dynamic import, and its production build must reject a rewrite of that package boundary to synchronous require."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-precedes-network-listen",
+      "statement": "Production REST and WebSocket listeners may be created only after protocol loading, device credential store initialization, and lifecycle composition succeed."
+    },
+    {
+      "kind": "rule",
+      "id": "one-device-store-per-bootstrap",
+      "statement": "One production bootstrap invocation must share one initialized device credential store and its lifecycle across all mounted Owner lifecycle routes."
+    },
+    {
+      "kind": "rule",
+      "id": "device-lifecycle-http-is-owner-only",
+      "statement": "Device credential issue, rotate, and revoke operations require an authenticated Owner session and the interactive browser-origin boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "device-lifecycle-http-is-show-bound",
+      "statement": "Issue authority comes from an existing active Show route, and rotate or revoke must reject a stored credential that does not belong to the active Show named by that route."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bearer-disclosure-is-bounded",
+      "statement": "Only successful issue and rotate responses may disclose a device bearer, those responses must be non-cacheable, API responses must omit sealedSecret, and persistence must omit bearer plaintext."
+    },
+    {
+      "kind": "rule",
+      "id": "device-server-composition-claims-are-bounded",
+      "statement": "Passing bootstrap and Owner HTTP tests may not be presented as credential listing, response-loss recovery, concurrent archival linearizability, device request authentication, command or feedback transport, UI or Companion integration, registry provenance, multi-process coordination, in-flight revocation, rate-limit policy, audit logging, or hardware support."
+    }
+  ]
+}

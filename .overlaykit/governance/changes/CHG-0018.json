@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0018",
+  "title": "Test server composition of device credential authority",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0009", "ADR-0010", "ADR-0011", "ADR-0012", "ADR-0013"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The server currently compiles with TypeScript CommonJS and classic node resolution; under that module setting the installed TypeScript compiler rewrites a dynamic import expression into require, which is outside the accepted @overlaykit/protocol package contract.",
+      "evidence": "server/tsconfig.json, ADR-0012, and local TypeScript transpilation observation on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Node.js documents dynamic import as supported in CommonJS for loading ES modules, while TypeScript documents node16 as matching Node module formats and resolution and allowing a dynamic import call from CommonJS to load an ES module.",
+      "evidence": "https://nodejs.org/api/esm.html#import-expressions and https://www.typescriptlang.org/docs/handbook/modules/reference",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The production server initializes storage and interactive authentication before listening but does not construct DeviceCredentialLifecycle, initialize one FileDeviceCredentialStore for it, or expose Owner device credential endpoints.",
+      "evidence": "server/src/index.ts, server/src/auth/index.ts, server/src/routes/auth.ts, and studio/src/views/IntegrationsView.vue on main after ADR-0012",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-009: For one self-hosted server bootstrap, explicit CommonJS package semantics with TypeScript node16 compilation, one awaited native dynamic import of the ESM protocol authority, one initialized file store, and dependency injection into an Owner-only router can compose the accepted device credential lifecycle before network listen and expose issue, rotate, and revoke operations with one-time bearer disclosure, prior-generation invalidation, and fail-closed startup without duplicating protocol runtime behavior.",
+      "evidence": "SDD-009 hypothesis H-009",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-009 only for one self-hosted bootstrap and the Owner HTTP lifecycle after emitted-JavaScript inspection and execution, real ESM protocol loading, loader and store failure, bootstrap rejection, session, origin, role, active-Show, Show-substitution, persistence, one-time response, rotation, revocation, smoke, repository-quality, build, and audit evidence passed.",
+      "evidence": "server focused tests, compiled runtime verifier, ADR-0013, and Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The accepted Slice does not establish credential listing, recovery after an issuance response is lost, linearizability against concurrent Show archival, Studio UI, device bearer HTTP or WebSocket authentication, command execution, feedback transport, Companion integration, registry publication or provenance, multi-process storage, in-flight revocation linearizability, rate-limit policy for device operations, audit logging, or hardware behavior.",
+      "evidence": "SDD-009 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The server remains explicitly CommonJS, TypeScript resolves modern package exports in node16 mode, and the compiled runtime loader contains native import for @overlaykit/protocol/device-credential without a generated require for that subpath.",
+      "verification": "Compiled JavaScript inspection and execution under the supported Node runtime."
+    },
+    {
+      "id": "SC-002",
+      "statement": "One production bootstrap invocation initializes one device credential store and constructs one lifecycle from the public protocol package before creating listeners; package-load, store-init, or composition failure rejects bootstrap before an app is returned.",
+      "verification": "Injected loader/store call-count, ordering, shared-instance, and failure tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "An authenticated Owner can issue a credential only for an existing active Show, and the response discloses the bearer once with no-store headers; persistence never contains that bearer, and API responses never contain sealedSecret.",
+      "verification": "HTTP integration and persisted-document inspection."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Owner rotation returns one new bearer and invalidates the previous generation, while revocation returns only public metadata and prevents authentication of the current bearer.",
+      "verification": "HTTP lifecycle and protocol authentication tests against one injected authority."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Anonymous, non-Owner, disallowed-origin, missing-Show, and archived-Show requests fail before credential mutation, and protocol lifecycle errors map to bounded HTTP errors without exposing internal causes.",
+      "verification": "HTTP authorization, origin, Show-boundary, mutation-count, and error-shape tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The Slice proves only single-bootstrap server composition and Owner lifecycle HTTP behavior and leaves device request authentication, operation authorization, catalogs, feedback, UI, transport, and distributed guarantees unanswered.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0018 records SDD-009 as an accepted security experiment and separates observed facts, H-009, the reviewed inference, measurable criteria, and unresolved guarantees.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only server compiler semantics, device lifecycle composition, Owner lifecycle routes, focused tests, and the accepted governance decision; no device command transport, feedback socket, Studio UI, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0018"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-009 from emitted JavaScript, real protocol runtime loading, bootstrap ordering and failure, HTTP authority, Show binding, one-time disclosure, persistence, rotation, and revocation.",
+      "evidence": "server focused tests and compiled runtime verifier"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0013 was created only after the human authority accepted H-009 within the demonstrated single-bootstrap and Owner HTTP boundary.",
+      "evidence": "ADR-0013 context and Human Doctrine review on 2026-07-21"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, focused server checks, compiled runtime verification, full repository checks, build, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, server checks, npm run check, npm run build, and npm audit"
+    }
+  ]
+}

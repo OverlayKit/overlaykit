@@ -2,10 +2,11 @@
   "name": "@overlaykit/server",
   "version": "0.1.0",
   "description": "WebSocket and REST API server for OverlayKit",
+  "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && node scripts/copy-assets.mjs",
+    "build": "tsc && node scripts/copy-assets.mjs && node scripts/verify-device-runtime.mjs",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
