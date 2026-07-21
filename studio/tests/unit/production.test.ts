@@ -9,6 +9,7 @@ function state(previewRevision: number, takenRevision?: number): ProductionState
     scene: null,
     elements: [],
     variables: {},
+    controls: [],
     orientation: 'landscape' as const,
     updatedAt: null,
   };

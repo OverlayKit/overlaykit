@@ -36,6 +36,26 @@ export interface AutoRemove {
   exitAnimation?: Animation;
 }
 
+export type ControlType = 'text' | 'number' | 'toggle' | 'select' | 'color';
+export type ControlValue = string | number | boolean;
+
+export interface ControlOption {
+  label: string;
+  value: string;
+}
+
+export interface ControlDefinition {
+  id: string;
+  label: string;
+  type: ControlType;
+  path: string;
+  description?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: ControlOption[];
+}
+
 /**
  * Component events & actions (Feature B). A component can declare triggers; when a
  * trigger fires (locally on the overlay, or remotely via a webhook), its actions
@@ -81,6 +101,7 @@ export interface ElementNode {
   events?: ElementEvent[];
   triggers?: ComponentTrigger[];
   autoRemove?: AutoRemove;
+  controls?: ControlDefinition[];
 
   // Dashboard-specific properties (optional)
   position?: { x: number; y: number };

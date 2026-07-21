@@ -19,3 +19,4 @@ export { default as AdvancedDrawer } from './components/AdvancedDrawer.vue';
 export { default as Checklist } from './components/Checklist.vue';
 export { default as ChecklistRow } from './components/ChecklistRow.vue';
 export { default as Step } from './components/Step.vue';
+export { default as OperatorControls } from './components/OperatorControls.vue';

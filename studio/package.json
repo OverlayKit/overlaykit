@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.25.0",
+    "@overlaykit/protocol": "0.1.0",
     "@overlaykit/ui": "0.1.0",
     "vue": "^3.3.6",
     "vue-router": "^4.6.4"

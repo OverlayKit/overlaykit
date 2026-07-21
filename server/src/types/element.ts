@@ -31,6 +31,26 @@ export interface AutoRemove {
   exitAnimation?: Animation;
 }
 
+export type ControlType = 'text' | 'number' | 'toggle' | 'select' | 'color';
+export type ControlValue = string | number | boolean;
+
+export interface ControlOption {
+  label: string;
+  value: string;
+}
+
+export interface ControlDefinition {
+  id: string;
+  label: string;
+  type: ControlType;
+  path: string;
+  description?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: ControlOption[];
+}
+
 // Component events & actions (Feature B). Mirror of shared/types/element.ts.
 export type ComponentTriggerType = 'countdown.complete' | 'click' | 'mounted';
 
@@ -68,4 +88,5 @@ export interface ElementNode {
   events?: ElementEvent[];
   triggers?: ComponentTrigger[];
   autoRemove?: AutoRemove;
+  controls?: ControlDefinition[];
 }

@@ -19,5 +19,8 @@
   },
   "peerDependencies": {
     "vue": "^3.0.0"
+  },
+  "dependencies": {
+    "@overlaykit/protocol": "0.1.0"
   }
 }

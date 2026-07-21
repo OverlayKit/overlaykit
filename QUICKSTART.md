@@ -21,10 +21,13 @@ Open http://localhost:5173 and create the single local owner account. Studio red
 Create a Show, open **Scenes**, and save a Scene. Then open **Production**:
 
 1. Select a Scene in the rundown to load it into Preview.
-2. Inspect the Preview monitor. Program remains unchanged.
-3. Press **Take** to atomically promote Preview to Program.
+2. Adjust any component controls declared by the designer and apply them to Preview.
+3. Inspect the Preview monitor. Program remains unchanged.
+4. Press **Take** to atomically promote Preview to Program.
 
 Editor **Send to Preview** follows the same boundary. Runtime operations do not overwrite the saved Scene.
+
+In visual Editor mode, add controls under **Contenido → Controles de Preview**. Enabling animated visibility also creates an explicit toggle declaration. Scenes without declarations expose no arbitrary variable controls.
 
 ## 4. OBS Setup
 

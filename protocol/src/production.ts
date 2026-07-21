@@ -1,9 +1,6 @@
 import type { ControlDefinition, ControlValue, ElementNode } from './element';
 import type { Orientation, Scene } from './scene';
 
-// Structural server boundary mirroring @overlaykit/protocol/production. The
-// server remains CommonJS with classic Node resolution, while the public package
-// exposes TypeScript source through package exports for bundler consumers.
 export type ProductionBus = 'preview' | 'program';
 
 export interface ProductionControl extends ControlDefinition {

@@ -1,6 +1,7 @@
 import type { ProductionState } from './api';
 
 export type ProductionBus = 'preview' | 'program';
+const OVERLAY_URL = import.meta.env.VITE_OVERLAY_URL || 'http://localhost:5183';
 
 export function productionMonitorUrl(showId: string, bus: ProductionBus): string {
   const query = new URLSearchParams({
@@ -11,7 +12,7 @@ export function productionMonitorUrl(showId: string, bus: ProductionBus): string
     hideWatermark: 'true',
     readOnly: 'true',
   });
-  return `http://localhost:5183/production?${query.toString()}`;
+  return `${OVERLAY_URL}/production?${query.toString()}`;
 }
 
 export function outputUrl(showId: string, token: string): string {
@@ -23,7 +24,7 @@ export function outputUrl(showId: string, token: string): string {
     hideWatermark: 'true',
     token,
   });
-  return `http://localhost:5183/production?${query.toString()}`;
+  return `${OVERLAY_URL}/production?${query.toString()}`;
 }
 
 export function canTake(state: ProductionState | null): boolean {

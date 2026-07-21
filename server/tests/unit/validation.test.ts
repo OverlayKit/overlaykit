@@ -108,6 +108,33 @@ describe('Validation', () => {
       expect(result).toBeNull();
     });
 
+    it('accepts declared typed controls and rejects unknown control types or malformed paths', () => {
+      const element = {
+        id: 'score',
+        tag: 'section',
+        styles: {},
+        controls: [
+          { id: 'score.home', label: 'Home', type: 'number', path: 'score.home', min: 0, max: 99, step: 1 },
+          {
+            id: 'score.color',
+            label: 'Color',
+            type: 'select',
+            path: 'score.color',
+            options: [{ label: 'Cyan', value: 'cyan' }],
+          },
+        ],
+      };
+      expect(validateElementNode(element)).toBeNull();
+      expect(validateElementNode({
+        ...element,
+        controls: [{ id: 'bad', label: 'Bad', type: 'slider', path: 'score.home' }],
+      })).not.toBeNull();
+      expect(validateElementNode({
+        ...element,
+        controls: [{ id: 'bad', label: 'Bad', type: 'text', path: 'score[home]' }],
+      })).not.toBeNull();
+    });
+
     it('should accept element with dashboard render fields', () => {
       const element = {
         id: 'el-1',

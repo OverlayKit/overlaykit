@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0009",
+  "title": "Declare typed component controls and operate Preview",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The transitional Panel infers controls from interpolation paths and writes variables to a legacy shared channel without naming Preview or Program.",
+      "evidence": "panel/src/App.vue",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ElementNode is the current reusable visual contract and can carry component-owned control declarations through saved Scenes and runtime snapshots.",
+      "evidence": "protocol/src/element.ts and server/src/types/element.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Preview and Program already have separate Show-scoped snapshots and revisions, while Take is the only implemented promotion command.",
+      "evidence": "server/src/services/ProductionService.ts",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A server-derived control catalog and an expected-revision batch command can replace inferred variable access without introducing a second production state model.",
+      "evidence": "ADR-0004#operator-controls-are-declared and SPEC-0001#REQ-RUN-003",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Value controls for text, number, toggle, selection, and color cover the first contextual Production workflow; action controls require the later vendor-neutral Control API contract.",
+      "evidence": "SPEC-0001#REQ-DOM-006 and SPEC-0001#REQ-INT-001",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Action controls, direct-to-Program mode, device credentials, and Stream Deck adapters remain unimplemented and are not claimed by this change.",
+      "evidence": "SPEC-0001#REQ-RUN-003 and SPEC-0001#REQ-INT-001 and SPEC-0001#REQ-INT-002",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Components may declare text, number, toggle, select, and color controls with stable identifiers, labels, safe variable paths, and type-specific constraints.",
+      "verification": "Protocol type checks and JSON Schema validation tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Scene preparation rejects duplicate identifiers, duplicate paths, unsafe paths, invalid constraints, and values that violate their declared control type.",
+      "verification": "Adversarial ProductionService tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A batch control command explicitly targets Show Preview, validates the expected Preview revision and operation identifier, applies all values atomically, and increments Preview once.",
+      "verification": "State-machine and authenticated route tests for success, conflict, rejection, and idempotency."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Applying Preview controls never changes Program or the persisted Scene; Program receives the prepared values only through Take.",
+      "verification": "Runtime isolation tests compare Preview, Program, and saved source before and after control commands."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Studio Production and the transitional Panel render only the server-derived declared catalog through one shared operator-control component and label the target as Preview.",
+      "verification": "Shared UI unit tests and desktop/mobile browser inspection."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Editor can add, edit, and remove typed control declarations on the selected visual component, and enabling component visibility creates an explicit toggle declaration.",
+      "verification": "Editor type checks and browser authoring inspection."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0009 references ADR-0004 and SPEC-0001 and its implemented record contains no blocking unknown.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The canonical protocol, server validation, Preview command, Studio, Panel, and Editor consume the declared control contract without variable inference.",
+      "evidence": "protocol, server, shared/ui, studio, panel, and editor source"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Automated tests cover schema validation, atomic mutation, stale revisions, idempotency, source isolation, and generated operator UI behavior.",
+      "evidence": "server and shared/ui tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Desktop and mobile evidence shows a producer loading a Scene, adjusting declared Preview controls, and observing Program remain unchanged before Take.",
+      "evidence": "Playwright screenshots and browser state inspection"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, quality, test, build, and dependency audit suites pass for the final manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build and npm audit"
+    },
+    {
+      "id": "DOD-006",
+      "statement": "The signed pull-request commit and GitHub observation are current for the final planHash and manifestHash.",
+      "evidence": "GitHub Constitution workflow artifacts"
+    }
+  ]
+}

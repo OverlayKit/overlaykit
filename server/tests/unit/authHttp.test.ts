@@ -99,7 +99,13 @@ describe('local security boundary', () => {
     const sourceScene = {
       id: 'opening',
       name: 'Opening',
-      elements: [{ id: 'title', tag: 'div', content: '{{title}}', styles: {} }],
+      elements: [{
+        id: 'title',
+        tag: 'div',
+        content: '{{title}}',
+        styles: {},
+        controls: [{ id: 'opening.title', label: 'Title', type: 'text', path: 'title' }],
+      }],
     };
     const preview = await agent
       .post(`/api/shows/${showId}/production/preview`)
@@ -107,7 +113,20 @@ describe('local security boundary', () => {
       .send({ scene: sourceScene, variables: { title: 'Hello' } })
       .expect(200);
     expect(preview.body.data).toMatchObject({
-      preview: { revision: 1, scene: { id: 'opening' } },
+      preview: {
+        revision: 1,
+        scene: { id: 'opening' },
+        controls: [{ id: 'opening.title', value: 'Hello' }],
+      },
+      program: { revision: 0, scene: null },
+    });
+    const controlled = await agent
+      .post(`/api/shows/${showId}/production/preview/controls`)
+      .set('Origin', ORIGIN)
+      .send({ expectedPreviewRevision: 1, operationId: 'control-1', values: { 'opening.title': 'Ready' } })
+      .expect(200);
+    expect(controlled.body.data).toMatchObject({
+      preview: { revision: 2, variables: { title: 'Ready' } },
       program: { revision: 0, scene: null },
     });
     await agent
@@ -118,9 +137,13 @@ describe('local security boundary', () => {
     const taken = await agent
       .post(`/api/shows/${showId}/production/take`)
       .set('Origin', ORIGIN)
-      .send({ expectedPreviewRevision: 1, operationId: 'take-1' })
+      .send({ expectedPreviewRevision: 2, operationId: 'take-1' })
       .expect(200);
-    expect(taken.body.data.program).toMatchObject({ revision: 1, scene: { id: 'opening' } });
+    expect(taken.body.data.program).toMatchObject({
+      revision: 1,
+      scene: { id: 'opening' },
+      variables: { title: 'Ready' },
+    });
     await agent.get('/api/shows').expect(200);
     await agent.delete(`/api/shows/${created.body.data.id}`).set('Origin', ORIGIN).expect(200);
     expect((await agent.get('/api/shows').expect(200)).body.data).toEqual([]);

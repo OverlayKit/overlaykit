@@ -4,10 +4,10 @@ OverlayKit is an MIT-licensed, self-hosted overlay studio for OBS and XSplit. It
 
 ## What Is Included
 
-- **Studio**: first-run owner setup, login, Shows, scene navigation, Preview/Program operation, and output security.
+- **Studio**: first-run owner setup, login, Shows, scene navigation, declared Preview controls, Preview/Program operation, and output security.
 - **Overlay runtime**: `/production` renders a selected runtime bus; tokenized OBS URLs are fixed to Program.
-- **Editor**: visual scene authoring for reusable overlay collections.
-- **Panel**: transitional variable, visibility, and sound controls while typed component controls are developed.
+- **Editor**: visual scene authoring with component-owned, typed operator controls.
+- **Panel**: focused Preview operator surface generated only from declared component controls.
 - **Server**: local REST API plus WebSocket fan-out for one self-hosted instance.
 - **Packages**: @overlaykit/protocol, @overlaykit/renderer, and @overlaykit/ui.
 
@@ -29,6 +29,8 @@ Open Studio and create the local owner account:
 
 Create a Show and save a Scene. In **Production**, load that Scene into Preview, inspect it, and press **Take** to promote the complete snapshot to Program. Runtime operations do not modify the saved Scene.
 
+Components may declare text, number, toggle, selection, and color controls in Editor. Production renders only that declared catalog. Applying a control creates a new Preview revision; Program remains unchanged until **Take**.
+
 Use **Output** to rotate the read-only token and copy the complete OBS browser-source URL. OBS receives Program only; an output credential cannot subscribe to Preview or mutate production.
 
 Preview and Program snapshots currently live in server memory. They survive WebSocket reconnects but reset when the server process restarts. Durable production recovery is intentionally not claimed yet.
@@ -37,14 +39,14 @@ Preview and Program snapshots currently live in server memory. They survive WebS
 
 | Workspace | Purpose |
 | --- | --- |
-| protocol | Shared scene, element, variable, and WebSocket types. |
+| protocol | Shared scene, element, production, control, variable, and WebSocket types. |
 | shared | @overlaykit/renderer runtime package. |
 | shared/ui | @overlaykit/ui Vue component package. |
 | server | REST API and WebSocket server. |
 | studio | Authenticated show workspace and product navigation. |
 | client | OBS production browser-source view. |
 | editor | Visual overlay editor. |
-| panel | Live operator panel. |
+| panel | Declared-control Preview operator panel. |
 | landing | Public OSS landing page. |
 
 ## Development
