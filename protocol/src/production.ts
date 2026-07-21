@@ -34,3 +34,30 @@ export interface ProductionState {
   program: ProductionSnapshot;
   lastTake: TakeReceipt | null;
 }
+
+export interface ComponentVisibilityIntent {
+  kind: 'component.visibility';
+  showId: string;
+  target: ProductionBus;
+  componentId: string;
+  visible: boolean;
+  operationId: string;
+  expectedRevision: number;
+}
+
+export interface ComponentVisibilityReceipt {
+  kind: 'component.visibility';
+  showId: string;
+  target: ProductionBus;
+  componentId: string;
+  visible: boolean;
+  resultingState: 'active' | 'inactive';
+  operationId: string;
+  targetRevision: number;
+  executedAt: number;
+}
+
+export interface ComponentVisibilityResult {
+  receipt: ComponentVisibilityReceipt;
+  state: ProductionState;
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0005",
+  "title": "Production intents name their target and direct Program authority",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "control-integrations",
+    "production-runtime",
+    "runtime-authorization",
+    "runtime-evidence"
+  ],
+  "context": "Discovery with the Linux production operator established that browser context switching causes latency, confusion, timing errors, and visible production mistakes. SDD-001 asked whether explicit Preview or Program targeting plus a separate direct-Program capability could support immediate operator intent without collapsing the buses. Slice 1 implemented only component visibility in the in-process production domain. Focused tests demonstrated target validation, separate revisions, Program denial without capability, idempotent replay, operation conflicts, resulting server state, and saved Scene immutability. Review rejected the stronger term observedState because no renderer or device was observed, then the human authority accepted H-001 within this narrower evidence boundary.",
+  "decision": "Every production intent names its Show and exactly one target bus. No adapter, UI, or transport may infer Preview or Program. Direct Program mutation requires a capability established outside the intent payload and supplied by an authorization boundary. An accepted intent validates the expected target revision and operation identifier, changes only the named runtime snapshot, never mutates saved Scene source, and returns a receipt describing resulting authoritative server state. A receipt is not evidence that OBS rendered the result or that hardware observed it; those claims require later experiments.",
+  "consequences": [
+    "Preview remains the preparation default, but time-critical workflows may target Program when an explicit authority grants that capability.",
+    "An intent payload cannot grant itself permission to mutate Program.",
+    "Adapters must preserve the target chosen by an authorized Owner or producer and cannot silently substitute another bus.",
+    "Expected revisions and operation identifiers are part of the production intent contract rather than transport-specific metadata.",
+    "Runtime receipts describe server state only until renderer and device feedback are independently observed.",
+    "Network transport, device identity, catalogs, coordinated workflows, unknown state, and the three-second end-to-end budget remain unanswered architectural questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "production-target-is-explicit",
+      "statement": "Every production intent names Preview or Program and a missing or unknown target fails closed."
+    },
+    {
+      "kind": "rule",
+      "id": "program-authority-is-external",
+      "statement": "Direct Program authority is established by an authorization boundary and is never asserted by the intent payload itself."
+    },
+    {
+      "kind": "rule",
+      "id": "target-revision-is-checked",
+      "statement": "A production intent validates the expected revision of its named target before mutation."
+    },
+    {
+      "kind": "rule",
+      "id": "runtime-intents-are-idempotent",
+      "statement": "Replaying one operation identifier with the same intent does not apply twice, and reuse for another intent fails as a conflict."
+    },
+    {
+      "kind": "rule",
+      "id": "runtime-source-remains-immutable",
+      "statement": "A production intent changes runtime state only and never overwrites saved Scene source."
+    },
+    {
+      "kind": "rule",
+      "id": "receipt-scope-is-honest",
+      "statement": "A server receipt reports resulting authoritative server state and cannot be presented as renderer or device observation without additional evidence."
+    }
+  ]
+}

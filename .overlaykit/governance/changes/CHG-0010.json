@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0010",
+  "title": "Test explicit production targets for operator visibility intents",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0004",
+    "ADR-0005"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Production currently maintains separate Show-scoped Preview and Program snapshots and Take is the only command that changes Program.",
+      "evidence": "server/src/services/ProductionService.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Linux production operators need physical controls because browser context switching creates latency, confusion, timing errors, and visible production mistakes.",
+      "evidence": "Doctrine-Driven Development Discovery for the Linux operator capability",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The discovered work includes content updates, component visibility, and precisely timed Scene changes, from one action through a coordinated workflow.",
+      "evidence": "Doctrine-Driven Development Discovery for the Linux operator capability",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A physical control must distinguish active, inactive, failed, and unknown state; confirmation absent after three seconds cannot be represented as current truth.",
+      "evidence": "Doctrine-Driven Development Discovery for the Linux operator capability",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-001: Requiring every operator intent to name Preview or Program, with a separate direct-Program authorization, can support immediate live operation without collapsing the two production buses.",
+      "evidence": "SDD-001 hypothesis H-001",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-001 only for the in-process production domain after target validation, bus isolation, authorization, idempotency, and source immutability passed; renderer and hardware observation were not inferred.",
+      "evidence": "server/tests/unit/productionService.test.ts and ADR-0005",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not determine network transport, hardware integration, device identity, action catalogs, coordinated workflow representation, or durable state feedback.",
+      "evidence": "SDD-001 Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A minimal visibility intent names its Show, component, desired visibility, operation identifier, expected target revision, and Preview or Program target.",
+      "verification": "Canonical protocol type checks and ProductionService tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A missing or invalid target is rejected and a direct Program intent is rejected unless the caller presents the explicit domain capability for Program mutation.",
+      "verification": "Adversarial ProductionService tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A Preview visibility intent changes and increments only Preview; an authorized Program visibility intent changes and increments only Program.",
+      "verification": "State-machine tests compare both buses before and after each intent."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Replaying the same operation and payload does not apply it twice, while reusing the operation identifier for another intent is rejected.",
+      "verification": "Idempotency and operation-conflict tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The intent returns active or inactive resulting server state, failures are explicit, and the in-process Slice completes within the discovered three-second confirmation budget.",
+      "verification": "Receipt and timeout-budget tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Runtime visibility changes never mutate the saved Scene supplied to Production.",
+      "verification": "Source-isolation tests compare the original Scene before and after intents."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0010 records SDD-001 as an experiment, distinguishes facts from H-001, and makes no Control API or Stream Deck implementation claim.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Only the canonical visibility-intent contract, the in-process production domain, and focused tests change in this Slice.",
+      "evidence": "git diff for CHG-0010"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review evaluates whether H-001 preserved explicit targeting, bus isolation, authorization, idempotency, resulting server state, and source immutability without claiming renderer observation.",
+      "evidence": "ProductionService test results"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0005 was created only after the Slice evidence was reviewed, an overclaim was corrected, and the human authority accepted H-001 within the demonstrated boundary.",
+      "evidence": "ADR-0005 context and server tests"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, quality, test, and build suites pass for the final Slice manifest.",
+      "evidence": "npm run governance:check and npm run check and npm run build"
+    }
+  ]
+}
