@@ -148,6 +148,14 @@
       "id": "ADR-0010",
       "supersededBy": null,
       "title": "Device credential persistence is single-instance atomic"
+    },
+    {
+      "contentHash": "74f49336bd776235f2d26a0fdde9b32d6d73fe6427f1766825855c5954b2fff6",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0011",
+      "supersededBy": null,
+      "title": "Device bearers use versioned domain-separated verifiers"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -282,10 +290,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "d634583c98253f7a3adb5734a7f66e604d10e330b0d57da836e7a3daeeded85e",
-  "profileHash": "7d87b9b7958485666ad547c0bad9d5a9b1219bd8af4401149466ea7c9359171d",
+  "planHash": "add871cfedf78f576e90847f827f84a48c2c47b7f965d1909ec88cd0f19e49c7",
+  "profileHash": "9cc542324618015cc889bd3f757628527c8d652f1e7238f4eb4a81f6f9805d8d",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.6.0",
+  "profileVersion": "2.7.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -408,6 +416,18 @@
       "statement": "The complete versioned credential document and its lifecycle invariants must validate before any persisted record is exposed or mutated."
     },
     {
+      "id": "device-crypto-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "Passing adapter tests may not be presented as primitive certification, memory or host compromise resistance, transport security, bearer recovery, replay prevention, rate limiting, endpoint integration, or hardware support."
+    },
+    {
+      "id": "device-crypto-failures-fail-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "Entropy or sealing failure prevents credential persistence, and verifier parsing, digest, or comparison failure denies authentication."
+    },
+    {
       "id": "device-lifecycle-authority-is-external",
       "kind": "rule",
       "sourceDecision": "ADR-0009",
@@ -424,6 +444,30 @@
       "kind": "rule",
       "sourceDecision": "ADR-0009",
       "statement": "Rotation preserves credential identity, replaces its secret, increments generation, and binds feedback audience to credentialId.generation so prior generations fail closed."
+    },
+    {
+      "id": "device-secret-has-256-random-bits",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "A production device secret must be generated from exactly 32 bytes returned by the approved cryptographic random source and encoded as canonical unpadded base64url."
+    },
+    {
+      "id": "device-verifier-is-not-a-password-verifier",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "The device verifier construction applies only to a 256-bit machine-generated secret and may not replace the approved KDF for human passwords."
+    },
+    {
+      "id": "device-verifier-is-versioned-and-domain-separated",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "A stored device verifier must use the accepted version and algorithm and hash the complete bearer after the device-credential domain separator."
+    },
+    {
+      "id": "device-verifier-parses-before-comparison",
+      "kind": "rule",
+      "sourceDecision": "ADR-0011",
+      "statement": "Authentication must reject unsupported or noncanonical verifier representations before comparing an equal-length 32-byte candidate and stored digest with the approved constant-time primitive."
     },
     {
       "id": "done-is-observed",

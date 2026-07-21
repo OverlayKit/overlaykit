@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-profile/v2",
   "name": "overlaykit-oss",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "decisionIds": [
     "ADR-0003",
     "ADR-0004",
@@ -10,7 +10,8 @@
     "ADR-0007",
     "ADR-0008",
     "ADR-0009",
-    "ADR-0010"
+    "ADR-0010",
+    "ADR-0011"
   ],
   "specificationIds": ["SPEC-0001"],
   "gates": [],

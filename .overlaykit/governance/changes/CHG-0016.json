@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0016",
+  "title": "Test production device credential verification",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0004", "ADR-0009", "ADR-0010", "ADR-0011"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "ADR-0009 delegates device secret generation and sealing to trusted production adapters, and ADR-0010 persists only the resulting sealedSecret without defining its cryptographic representation.",
+      "evidence": "ADR-0009, ADR-0010, protocol/src/device-credential.ts, and server/src/auth/FileDeviceCredentialStore.ts",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Node.js documents randomBytes as producing cryptographically strong pseudorandom data and timingSafeEqual as comparing underlying bytes with a constant-time algorithm while warning that surrounding code can still introduce timing leakage.",
+      "evidence": "https://nodejs.org/api/crypto.html#cryptorandombytessize-callback and https://nodejs.org/api/crypto.html#cryptotimingsafeequala-b",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "RFC 7636 recommends 32 random octets encoded as a 43-character base64url verifier and explains that a salt is unnecessary when the verifier already has 256 bits of entropy; FIPS 180-4 specifies SHA-256 but does not certify this runtime or composition.",
+      "evidence": "RFC 7636 sections 4.1, 4.2, 7.1, and 7.3; NIST FIPS 180-4",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-007: Given successful Node.js cryptographic primitives, a 32-byte random device secret encoded as base64url and a versioned, domain-separated SHA-256 verifier compared only after strict parsing with a constant-time primitive can verify bearer possession without persisting bearer plaintext or a recovery key, while entropy, digest, token-format, and verifier-format failures abort issuance or fail authentication closed.",
+      "evidence": "SDD-007 hypothesis H-007",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Review accepted H-007 only for the production secret generator and verifier adapter under successful Node.js cryptographic primitives after entropy-shape, domain-separation, plaintext-exclusion, token, digest, version, algorithm, canonical-format, constant-time-comparison-shape, primitive-failure, lifecycle-composition, rotation, and failed-issuance tests passed.",
+      "evidence": "server/tests/unit/deviceCredentialCrypto.test.ts and ADR-0011",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The accepted Slice cannot demonstrate cryptographic primitive correctness, FIPS validation, memory secrecy, host or process compromise resistance, transport protection, bearer disclosure recovery, endpoint authentication, request replay protection, rate limiting, in-flight revocation linearizability, multi-process storage, hardware integration, or the complete server composition root.",
+      "evidence": "SDD-007 accepted Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Credential generation requests exactly 32 random bytes, emits a 43-character base64url secret and a protocol-valid identifier, and propagates entropy failure before a record is stored.",
+      "verification": "Injected entropy length, token grammar, and entropy-failure lifecycle tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Sealing accepts only the production device-token grammar and emits one explicit version and algorithm with a canonical 32-byte base64url digest over a device-specific domain and the complete bearer.",
+      "verification": "Domain input, strict token grammar, verifier grammar, and plaintext-exclusion tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Matching accepts only the exact supported version, algorithm, canonical digest length, and token grammar, then invokes the comparison primitive with two equal 32-byte values; all substitutions and primitive failures return false.",
+      "verification": "Token, digest, version, algorithm, malformed-value, digest-failure, and comparison-shape refutation tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The adapter composes with the existing lifecycle so a current token authenticates, rotation invalidates its predecessor, and neither issuance nor failed sealing leaves bearer plaintext in the store.",
+      "verification": "Memory-store lifecycle composition, rotation, and failed-issuance tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The Slice claims only production secret generation and verifier behavior under successful Node.js primitives; surrounding runtime, transport, endpoint, replay, rate-limit, hardware, and certification guarantees remain unknown.",
+      "verification": "Slice boundary review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0016 records SDD-007 as an accepted security experiment and separates external facts, H-007, the reviewed inference, and unresolved guarantees.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice adds only a server-side cryptographic adapter, focused tests, and the accepted decision; no route, socket, UI, store migration, or hardware adapter is added.",
+      "evidence": "git diff for CHG-0016"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-007 through entropy, digest, token, verifier, algorithm, version, substitution, comparison-shape, lifecycle, and rotation cases.",
+      "evidence": "server/tests/unit/deviceCredentialCrypto.test.ts"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "ADR-0011 was created only after the human authority accepted H-007 within the demonstrated production-codec boundary.",
+      "evidence": "ADR-0011 context and Human Doctrine review"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Governance, focused server quality, full repository checks, and builds pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, server checks, npm run check, and npm run build"
+    }
+  ]
+}

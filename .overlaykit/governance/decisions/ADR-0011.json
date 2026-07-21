@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0011",
+  "title": "Device bearers use versioned domain-separated verifiers",
+  "status": "accepted",
+  "date": "2026-07-20",
+  "supersedes": null,
+  "governs": [
+    "credential-sealing",
+    "device-authorization",
+    "protocol-security",
+    "self-hosted-runtime"
+  ],
+  "context": "ADR-0009 established an adapter-neutral device credential lifecycle and ADR-0010 established sealed credential persistence, but neither defined the production entropy source or sealed-secret representation. SDD-007 asked how the self-hosted server could verify possession of a device bearer without persisting a usable token and without treating a high-entropy machine credential like a human password. Node.js documents randomBytes as cryptographically strong pseudorandom data and timingSafeEqual as a constant-time byte comparison whose surrounding code must still avoid leakage. RFC 7636 recommends 32 random octets encoded as 43 base64url characters and distinguishes that high-entropy verifier from password material. Slice 1 generated exactly 32 random bytes, sealed the complete production bearer with a versioned domain-separated SHA-256 digest, parsed verifiers strictly before comparing equal 32-byte values, and failed issuance or authentication closed on malformed inputs and primitive failures. Tests demonstrated exact entropy shape, domain input, plaintext exclusion, token and verifier substitutions, constant-time comparison shape, lifecycle composition, rotation invalidation, and no store mutation after failed sealing. The human authority accepted H-007 only within that production-codec boundary.",
+  "decision": "The self-hosted server generates each device credential secret from exactly 32 bytes returned by Node.js randomBytes and encodes those bytes as an unpadded 43-character base64url value. It generates a protocol-valid opaque credential identifier with Node.js randomUUID. The complete bearer is accepted for sealing only when it matches the production device-token grammar. The stored verifier is `okdv1$sha256$<digest>`, where `<digest>` is the canonical unpadded base64url encoding of SHA-256 over the UTF-8 bytes of `overlaykit:device-credential:v1`, followed by one zero byte and then the complete bearer bytes. Authentication accepts only that exact version, algorithm, canonical 32-byte digest, and production token grammar; it computes the candidate in the same domain and compares two equal-length 32-byte values with timingSafeEqual. Entropy or digest failures abort issuance before storage, while malformed verifiers, unsupported versions or algorithms, digest failures, and comparison failures deny authentication. This verifier is for a 256-bit machine-generated secret and must not replace the password KDF used for human credentials.",
+  "consequences": [
+    "A persisted device credential record contains a versioned verifier and never the bearer plaintext or a decryption key.",
+    "A verifier copied from storage is not syntactically accepted as an OverlayKit device bearer.",
+    "Verifier version and algorithm are explicit so unsupported representations fail closed and future migrations require a separate decision.",
+    "Domain separation binds this digest representation to OverlayKit device credentials and prevents accidental reuse as another token class verifier.",
+    "No salt or slow password KDF is added to this machine credential; its offline guessing resistance depends on successful generation of the full 256-bit random secret and SHA-256 preimage resistance.",
+    "The server adapter remains structurally compatible with the source-published protocol lifecycle without adding a production runtime import across the current CommonJS and ESM package boundary.",
+    "Cryptographic primitive correctness, runtime certification, memory secrecy, host compromise, transport, bearer disclosure, replay, rate limiting, endpoint binding, in-flight revocation, multi-process storage, and hardware integration remain separate questions."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-secret-has-256-random-bits",
+      "statement": "A production device secret must be generated from exactly 32 bytes returned by the approved cryptographic random source and encoded as canonical unpadded base64url."
+    },
+    {
+      "kind": "rule",
+      "id": "device-verifier-is-versioned-and-domain-separated",
+      "statement": "A stored device verifier must use the accepted version and algorithm and hash the complete bearer after the device-credential domain separator."
+    },
+    {
+      "kind": "rule",
+      "id": "device-verifier-parses-before-comparison",
+      "statement": "Authentication must reject unsupported or noncanonical verifier representations before comparing an equal-length 32-byte candidate and stored digest with the approved constant-time primitive."
+    },
+    {
+      "kind": "rule",
+      "id": "device-crypto-failures-fail-closed",
+      "statement": "Entropy or sealing failure prevents credential persistence, and verifier parsing, digest, or comparison failure denies authentication."
+    },
+    {
+      "kind": "rule",
+      "id": "device-verifier-is-not-a-password-verifier",
+      "statement": "The device verifier construction applies only to a 256-bit machine-generated secret and may not replace the approved KDF for human passwords."
+    },
+    {
+      "kind": "rule",
+      "id": "device-crypto-claims-are-bounded",
+      "statement": "Passing adapter tests may not be presented as primitive certification, memory or host compromise resistance, transport security, bearer recovery, replay prevention, rate limiting, endpoint integration, or hardware support."
+    }
+  ]
+}
