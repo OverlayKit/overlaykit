@@ -7,10 +7,12 @@ export const DEVICE_CONNECTION_CLOSE_REASONS = [
   'credential.revoked',
   'credential.expired',
   'show.archived',
+  'authority.changed',
+  'authority.unavailable',
   'authority.rejected',
 ] as const;
 
-export type DeviceConnectionCloseReason = typeof DEVICE_CONNECTION_CLOSE_REASONS[number];
+export type DeviceConnectionCloseReason = (typeof DEVICE_CONNECTION_CLOSE_REASONS)[number];
 
 export interface DeviceConnectionAuthority {
   readonly credentialId: string;
@@ -47,7 +49,7 @@ export type DeviceConnectionAuthorityErrorCode =
 export class DeviceConnectionAuthorityError extends Error {
   constructor(
     readonly code: DeviceConnectionAuthorityErrorCode,
-    message: string,
+    message: string
   ) {
     super(message);
     this.name = 'DeviceConnectionAuthorityError';
@@ -74,14 +76,14 @@ interface ConnectionSlot {
 
 function requiredIdentifier(value: unknown, label: string): string {
   if (
-    typeof value !== 'string'
-    || value.length === 0
-    || value.length > MAX_IDENTIFIER_LENGTH
-    || value !== value.trim()
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > MAX_IDENTIFIER_LENGTH ||
+    value !== value.trim()
   ) {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      `${label} is invalid`,
+      `${label} is invalid`
     );
   }
   return value;
@@ -91,7 +93,7 @@ function positiveSafeInteger(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) <= 0) {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      `${label} must be a positive safe integer`,
+      `${label} must be a positive safe integer`
     );
   }
   return value as number;
@@ -101,19 +103,19 @@ function normalizedAuthority(value: DeviceConnectionAuthority): DeviceConnection
   if (!value || typeof value !== 'object') {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      'Device connection authority is required',
+      'Device connection authority is required'
     );
   }
   const credentialId = requiredIdentifier(value.credentialId, 'Credential identifier');
   const generation = positiveSafeInteger(value.generation, 'Credential generation');
   const audienceCredentialId = requiredIdentifier(
     value.audienceCredentialId,
-    'Credential audience',
+    'Credential audience'
   );
   if (audienceCredentialId !== `${credentialId}.g${generation}`) {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      'Credential audience does not match its generation',
+      'Credential audience does not match its generation'
     );
   }
   const showId = requiredIdentifier(value.showId, 'Show identifier');
@@ -131,7 +133,7 @@ function normalizedConnection(value: DeviceAuthorityConnection): DeviceAuthority
   if (!value || typeof value !== 'object' || typeof value.close !== 'function') {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      'Device connection is invalid',
+      'Device connection is invalid'
     );
   }
   const id = requiredIdentifier(value.id, 'Connection identifier');
@@ -147,7 +149,7 @@ function normalizedNow(now: () => number): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new DeviceConnectionAuthorityError(
       'INVALID_DEVICE_CONNECTION_AUTHORITY',
-      'Authority clock must return a non-negative safe integer',
+      'Authority clock must return a non-negative safe integer'
     );
   }
   return value;
@@ -170,14 +172,14 @@ function defaultScheduler(now: () => number): DeviceAuthorityScheduler {
 function closeFailure(): DeviceConnectionAuthorityError {
   return new DeviceConnectionAuthorityError(
     'DEVICE_CONNECTION_CLOSE_FAILED',
-    'Device connection did not close cleanly',
+    'Device connection did not close cleanly'
   );
 }
 
 function schedulingFailure(): DeviceConnectionAuthorityError {
   return new DeviceConnectionAuthorityError(
     'DEVICE_AUTHORITY_SCHEDULING_FAILED',
-    'Device authority expiration could not be scheduled',
+    'Device authority expiration could not be scheduled'
   );
 }
 
@@ -204,8 +206,25 @@ export class DeviceConnectionAuthorityCoordinator {
   async connect(
     authorityInput: DeviceConnectionAuthority,
     connectionInput: DeviceAuthorityConnection,
+    authorityIsCurrentInput?: () => boolean
   ): Promise<DeviceConnectionLease> {
     const connection = normalizedConnection(connectionInput);
+    if (authorityIsCurrentInput !== undefined && typeof authorityIsCurrentInput !== 'function') {
+      return this.rejectIncoming(
+        connection,
+        new DeviceConnectionAuthorityError(
+          'INVALID_DEVICE_CONNECTION_AUTHORITY',
+          'Device authority currency witness is invalid'
+        )
+      );
+    }
+    const authorityIsCurrent = (): boolean => {
+      try {
+        return authorityIsCurrentInput?.() ?? true;
+      } catch {
+        return false;
+      }
+    };
 
     let authority: DeviceConnectionAuthority;
     try {
@@ -213,25 +232,44 @@ export class DeviceConnectionAuthorityCoordinator {
     } catch (error) {
       return this.rejectIncoming(connection, error);
     }
+    if (!authorityIsCurrent()) {
+      return this.rejectIncoming(
+        connection,
+        new DeviceConnectionAuthorityError(
+          'DEVICE_AUTHORITY_BLOCKED',
+          'Device authority changed during admission'
+        ),
+        'authority.changed'
+      );
+    }
 
     const immediateBlock = this.authorityBlock(authority);
     if (immediateBlock) {
       return this.rejectIncoming(connection, immediateBlock.error, immediateBlock.reason);
     }
-    try {
-      this.bindAuthorityIdentity(authority);
-    } catch (error) {
-      return this.rejectIncoming(connection, error);
-    }
-
     return this.enqueue(authority.credentialId, async () => {
+      if (!authorityIsCurrent()) {
+        return this.rejectIncoming(
+          connection,
+          new DeviceConnectionAuthorityError(
+            'DEVICE_AUTHORITY_BLOCKED',
+            'Device authority changed during admission'
+          ),
+          'authority.changed'
+        );
+      }
       const blockedBeforeReplacement = this.authorityBlock(authority);
       if (blockedBeforeReplacement) {
         return this.rejectIncoming(
           connection,
           blockedBeforeReplacement.error,
-          blockedBeforeReplacement.reason,
+          blockedBeforeReplacement.reason
         );
+      }
+      try {
+        this.assertAuthorityIdentity(authority);
+      } catch (error) {
+        return this.rejectIncoming(connection, error);
       }
 
       const current = this.slots.get(authority.credentialId);
@@ -249,9 +287,20 @@ export class DeviceConnectionAuthorityCoordinator {
         return this.rejectIncoming(
           connection,
           blockedAfterReplacement.error,
-          blockedAfterReplacement.reason,
+          blockedAfterReplacement.reason
         );
       }
+      if (!authorityIsCurrent()) {
+        return this.rejectIncoming(
+          connection,
+          new DeviceConnectionAuthorityError(
+            'DEVICE_AUTHORITY_BLOCKED',
+            'Device authority changed during admission'
+          ),
+          'authority.changed'
+        );
+      }
+      this.rememberAuthorityIdentity(authority);
 
       const lease = Object.freeze({
         connectionId: connection.id,
@@ -277,14 +326,11 @@ export class DeviceConnectionAuthorityCoordinator {
     });
   }
 
-  async execute<T>(
-    lease: DeviceConnectionLease,
-    operation: () => T | Promise<T>,
-  ): Promise<T> {
+  async execute<T>(lease: DeviceConnectionLease, operation: () => T | Promise<T>): Promise<T> {
     if (typeof operation !== 'function') {
       throw new DeviceConnectionAuthorityError(
         'INVALID_DEVICE_CONNECTION_AUTHORITY',
-        'Device operation is required',
+        'Device operation is required'
       );
     }
     const slot = this.requireEffectiveSlot(lease);
@@ -305,15 +351,36 @@ export class DeviceConnectionAuthorityCoordinator {
     }
   }
 
+  retire(lease: DeviceConnectionLease, reason: DeviceConnectionCloseReason): Promise<void> {
+    if (!lease || typeof lease !== 'object' || !DEVICE_CONNECTION_CLOSE_REASONS.includes(reason)) {
+      return Promise.reject(
+        new DeviceConnectionAuthorityError(
+          'INVALID_DEVICE_CONNECTION_AUTHORITY',
+          'Device connection retirement is invalid'
+        )
+      );
+    }
+    const credentialId = lease.authority?.credentialId;
+    const current = typeof credentialId === 'string' ? this.slots.get(credentialId) : undefined;
+    if (!current || current.lease !== lease || current.phase !== 'active') {
+      return Promise.resolve();
+    }
+    current.phase = 'quiescing';
+    return this.enqueue(credentialId, async () => {
+      const slot = this.slots.get(credentialId);
+      if (slot?.lease === lease) await this.closeSlot(slot, reason);
+    });
+  }
+
   rotateCredential(credentialIdInput: string, retiredGenerationInput: number): Promise<void> {
     const credentialId = requiredIdentifier(credentialIdInput, 'Credential identifier');
     const retiredGeneration = positiveSafeInteger(
       retiredGenerationInput,
-      'Retired credential generation',
+      'Retired credential generation'
     );
     this.retiredGenerations.set(
       credentialId,
-      Math.max(this.retiredGenerations.get(credentialId) ?? 0, retiredGeneration),
+      Math.max(this.retiredGenerations.get(credentialId) ?? 0, retiredGeneration)
     );
     return this.enqueue(credentialId, async () => {
       const current = this.slots.get(credentialId);
@@ -349,26 +416,29 @@ export class DeviceConnectionAuthorityCoordinator {
           }
         }).then(
           () => ({ ok: true as const }),
-          (error: unknown) => ({ ok: false as const, error }),
+          (error: unknown) => ({ ok: false as const, error })
         )
-      ),
+      )
     );
     const failure = outcomes.find((outcome) => !outcome.ok);
     if (failure && !failure.ok) throw failure.error;
   }
 
-  private bindAuthorityIdentity(authority: DeviceConnectionAuthority): void {
+  private assertAuthorityIdentity(authority: DeviceConnectionAuthority): void {
     const currentShow = this.credentialShows.get(authority.credentialId);
     const currentExpiration = this.audienceExpirations.get(authority.audienceCredentialId);
     if (
-      (currentShow && currentShow !== authority.showId)
-      || (currentExpiration !== undefined && currentExpiration !== authority.expiresAt)
+      (currentShow && currentShow !== authority.showId) ||
+      (currentExpiration !== undefined && currentExpiration !== authority.expiresAt)
     ) {
       throw new DeviceConnectionAuthorityError(
         'DEVICE_AUTHORITY_IDENTITY_CONFLICT',
-        'Credential authority identity conflicts with an earlier connection',
+        'Credential authority identity conflicts with an earlier connection'
       );
     }
+  }
+
+  private rememberAuthorityIdentity(authority: DeviceConnectionAuthority): void {
     this.credentialShows.set(authority.credentialId, authority.showId);
     this.audienceExpirations.set(authority.audienceCredentialId, authority.expiresAt);
   }
@@ -381,7 +451,7 @@ export class DeviceConnectionAuthorityCoordinator {
       return {
         error: new DeviceConnectionAuthorityError(
           'DEVICE_AUTHORITY_BLOCKED',
-          'Device credential is revoked',
+          'Device credential is revoked'
         ),
         reason: 'credential.revoked',
       };
@@ -390,18 +460,16 @@ export class DeviceConnectionAuthorityCoordinator {
       return {
         error: new DeviceConnectionAuthorityError(
           'DEVICE_AUTHORITY_BLOCKED',
-          'Device Show is archived',
+          'Device Show is archived'
         ),
         reason: 'show.archived',
       };
     }
-    if (
-      authority.generation <= (this.retiredGenerations.get(authority.credentialId) ?? 0)
-    ) {
+    if (authority.generation <= (this.retiredGenerations.get(authority.credentialId) ?? 0)) {
       return {
         error: new DeviceConnectionAuthorityError(
           'DEVICE_AUTHORITY_BLOCKED',
-          'Device credential generation is retired',
+          'Device credential generation is retired'
         ),
         reason: 'credential.rotated',
       };
@@ -410,7 +478,7 @@ export class DeviceConnectionAuthorityCoordinator {
       return {
         error: new DeviceConnectionAuthorityError(
           'DEVICE_AUTHORITY_EXPIRED',
-          'Device credential is expired',
+          'Device credential is expired'
         ),
         reason: 'credential.expired',
       };
@@ -422,30 +490,30 @@ export class DeviceConnectionAuthorityCoordinator {
     if (!lease || typeof lease !== 'object') {
       throw new DeviceConnectionAuthorityError(
         'DEVICE_CONNECTION_NOT_ACTIVE',
-        'Device connection lease is not active',
+        'Device connection lease is not active'
       );
     }
     const credentialId = lease.authority?.credentialId;
     const slot = typeof credentialId === 'string' ? this.slots.get(credentialId) : undefined;
     if (
-      !slot
-      || slot.lease !== lease
-      || slot.phase !== 'active'
-      || (this.transitionCounts.get(credentialId) ?? 0) > 0
-      || this.revokedCredentials.has(credentialId)
-      || this.archivedShows.has(slot.authority.showId)
-      || slot.authority.generation <= (this.retiredGenerations.get(credentialId) ?? 0)
+      !slot ||
+      slot.lease !== lease ||
+      slot.phase !== 'active' ||
+      (this.transitionCounts.get(credentialId) ?? 0) > 0 ||
+      this.revokedCredentials.has(credentialId) ||
+      this.archivedShows.has(slot.authority.showId) ||
+      slot.authority.generation <= (this.retiredGenerations.get(credentialId) ?? 0)
     ) {
       throw new DeviceConnectionAuthorityError(
         'DEVICE_CONNECTION_NOT_ACTIVE',
-        'Device connection lease is not active',
+        'Device connection lease is not active'
       );
     }
     if (slot.authority.expiresAt <= normalizedNow(this.now)) {
       this.expireSlot(slot);
       throw new DeviceConnectionAuthorityError(
         'DEVICE_AUTHORITY_EXPIRED',
-        'Device credential is expired',
+        'Device credential is expired'
       );
     }
     return slot;
@@ -454,8 +522,8 @@ export class DeviceConnectionAuthorityCoordinator {
   private expireSlot(slot: ConnectionSlot): void {
     void this.enqueue(slot.authority.credentialId, async () => {
       if (
-        this.slots.get(slot.authority.credentialId) === slot
-        && slot.authority.expiresAt <= normalizedNow(this.now)
+        this.slots.get(slot.authority.credentialId) === slot &&
+        slot.authority.expiresAt <= normalizedNow(this.now)
       ) {
         await this.closeSlot(slot, 'credential.expired');
       }
@@ -500,7 +568,7 @@ export class DeviceConnectionAuthorityCoordinator {
 
   private async closeSlot(
     slot: ConnectionSlot,
-    reason: DeviceConnectionCloseReason,
+    reason: DeviceConnectionCloseReason
   ): Promise<void> {
     if (this.slots.get(slot.authority.credentialId) !== slot) return;
     slot.phase = 'quiescing';
@@ -516,7 +584,7 @@ export class DeviceConnectionAuthorityCoordinator {
     const [closeOutcome] = await Promise.all([
       closePromise.then(
         () => ({ ok: true as const }),
-        () => ({ ok: false as const }),
+        () => ({ ok: false as const })
       ),
       this.waitForDrain(slot),
     ]);
@@ -541,10 +609,7 @@ export class DeviceConnectionAuthorityCoordinator {
   }
 
   private enqueue<T>(credentialId: string, task: () => Promise<T>): Promise<T> {
-    this.transitionCounts.set(
-      credentialId,
-      (this.transitionCounts.get(credentialId) ?? 0) + 1,
-    );
+    this.transitionCounts.set(credentialId, (this.transitionCounts.get(credentialId) ?? 0) + 1);
     const previous = this.queueTails.get(credentialId) ?? Promise.resolve();
     const result = previous.then(async () => {
       try {
@@ -557,7 +622,7 @@ export class DeviceConnectionAuthorityCoordinator {
     });
     const tail = result.then(
       () => undefined,
-      () => undefined,
+      () => undefined
     );
     this.queueTails.set(credentialId, tail);
     void tail.then(() => {
@@ -569,7 +634,7 @@ export class DeviceConnectionAuthorityCoordinator {
   private async rejectIncoming(
     connection: DeviceAuthorityConnection,
     error: unknown,
-    reason: DeviceConnectionCloseReason = 'authority.rejected',
+    reason: DeviceConnectionCloseReason = 'authority.rejected'
   ): Promise<never> {
     try {
       await connection.close(reason);

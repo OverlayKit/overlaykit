@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0031",
+  "title": "Test continuously evidenced device connection authority",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0011",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a device bearer to prove its effective scopes and permissions before WebSocket upgrade and requires every active connection to lose authority when those effective permissions change or are revoked.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery accepts a maximum ten-second host detection window during which an undetected stale connection may still execute; after detection, authority is removed immediately and physical transport must close within twelve additional seconds.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires invalidation to reject queued and new operations while permitting an already-admitted operation to settle, and requires restored permissions to use a new connection rather than reviving the old one.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires effective authority identity to be SHA-256 over a deterministic canonical payload containing schema version, credential and audience identifiers, generation, Show, targets, controls, scopes, and expiration, without bearer or administrative metadata.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires notification observation to be armed before the admission reread, monitor unavailability before upgrade to return bearer-independent 503, changed authority during admission to return 401, and all inconclusive revalidation to fail closed.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-022: One production-unmounted private TypeScript monitor can canonically identify effective credential authority, close the subscribe-read admission race, maintain no more than ten seconds of stale positive evidence through notifications plus polling, remove operation authority through the existing serialized coordinator, and close a non-cooperative WebSocket transport within twelve seconds without retaining bearer material.",
+      "evidence": "SDD-022 hypothesis authorized for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-022 only for the private production-unmounted monitor, composable gateway, and coordinator boundary whose canonical hash projection, secret separation, subscribe-before-reread admission, same-hash notification handling, five-second polling, ten-second hard staleness, unavailable-source closure, serialized currency witness, non-poisoning rejected identity, irreversible exact-lease retirement, admitted-operation drainage, natural cleanup, and bounded forced transport close were demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, and governance verification.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-022 refutation evidence",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This accepted Slice does not provide or mount a concrete authority notification and resolver adapter, prove cross-process propagation, mount DeviceWebSocketGateway in server/index.ts, execute device commands or deltas, cancel or roll back an admitted internal operation, verify Caddy, TLS, proxy, or physical network timing, integrate Companion, observe hardware state, render pixels, observe OBS output, or establish operator perception.",
+      "evidence": "SDD-022 accepted Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Effective device authority has one immutable canonical schema and SHA-256 identity whose field order and arrays are deterministic, whose every authorized field mutation changes the hash, and whose data excludes bearer material.",
+      "verification": "Canonical projection, mutation, malformed-input, deep-freeze, and secret-boundary tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Admission subscribes before rereading current authority, grants no slot before positive revalidation, rejects race changes, distinguishes unavailable monitoring as 503 from changed or invalid authority as 401, and cannot install a slot after its currency witness becomes false.",
+      "verification": "Subscription-order, synchronous race, delayed preparation, HTTP rejection, upgrade race, and serialized coordinator witness tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "An active connection revalidates from authoritative reads, treats notifications only as triggers, polls within the accepted window, and invalidates no later than ten seconds after its last positive observation when reads hang or evidence is unavailable.",
+      "verification": "Lost-notification, stale same-hash notification, hanging resolver, hard-staleness, malformed observation, scheduler, clock, and source failure tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Detected invalidation irreversibly quiesces the exact lease, rejects queued and new operations, drains already-admitted operations, cannot poison later authority identity, and requires a new connection after restoration.",
+      "verification": "Exact-lease retire, duplicate retire, running-operation drainage, queued rejection, ABA, reconnect, and rejected-identity tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Active invalidation and natural disconnection release monitor resources and retire authority, while an uncooperative WebSocket is forcibly terminated within the configured bound and configuration cannot exceed twelve seconds.",
+      "verification": "Gateway invalidation, natural close, adapter fault, uncooperative socket, and close-timeout cap tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0031 records Discovery facts, H-022, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only one private authority monitor, composable gateway admission and lifecycle behavior, coordinator currency and retirement boundaries, focused tests, and accepted governance records.",
+      "evidence": "git diff for CHG-0031"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-022 across canonical bytes, secret retention, notification and reread races, stale equal observations, lost notifications, hanging reads, scheduler and source faults, admission serialization, identity poisoning, operation drainage, disconnect cleanup, and forced transport close.",
+      "evidence": "DeviceConnectionAuthorityMonitor, DeviceConnectionAuthorityCoordinator, and DeviceWebSocketGateway hostile unit tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, build, licensing, and audit pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, and npm audit"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0026 and the bounded inference are created only after the human authority reviews the refutation evidence and explicitly accepts H-022.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0026"
+    }
+  ]
+}

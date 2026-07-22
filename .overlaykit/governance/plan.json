@@ -268,6 +268,14 @@
       "id": "ADR-0025",
       "supersededBy": null,
       "title": "Device bootstrap payloads require atomic current signed issuance"
+    },
+    {
+      "contentHash": "2d455c1d43b54da29a0c086115b88015ae045bdd414b4f88c9d845f41810af49",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0026",
+      "supersededBy": null,
+      "title": "Device connections require continuously evidenced effective authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -402,10 +410,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "e7b7fa8e122594bbbb9f1e87d4cee2c74bcd256084cc8e735340cbd1176c9953",
-  "profileHash": "0d5324848660494cc1cb13acc94e84c50a7267cde913656f067bc0dbb926d802",
+  "planHash": "b7d49ec01a00df3baeccbec6248d692e5125166a0450ed7dae1c210e257f15e1",
+  "profileHash": "effe0a339a9a582b344f978b54f0239e1e73309071ad538957aaba4634001997",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.21.0",
+  "profileVersion": "2.22.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -516,6 +524,12 @@
       "statement": "Every device action must resolve and authorize the bearer against the exact route-derived authority before Show lookup or production mutation so rotation, expiration, revocation, and scope changes fail closed on the next request."
     },
     {
+      "id": "device-admission-rechecks-authority-at-slot-installation",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "The coordinator must recheck the monitor currency witness before queueing, within the serialized credential lane, and immediately before installing the exclusive connection slot."
+    },
+    {
       "id": "device-authority-barrier-blocks-before-drain",
       "kind": "rule",
       "sourceDecision": "ADR-0021",
@@ -528,10 +542,22 @@
       "statement": "A lifecycle barrier may report success only after every affected begun operation settles and every affected transport closes successfully."
     },
     {
+      "id": "device-authority-evidence-has-ten-second-hard-staleness",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "A device connection must fail closed when its last positive authoritative observation reaches ten seconds or when source, resolver, clock, notification, or scheduler evidence becomes unavailable."
+    },
+    {
       "id": "device-authority-expiration-fails-closed",
       "kind": "rule",
       "sourceDecision": "ADR-0021",
       "statement": "Expiration must schedule a close-and-drain barrier without traffic, and inability to schedule that deadline must prevent connection admission."
+    },
+    {
+      "id": "device-authority-invalidation-is-irreversible",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "After host detection of changed, expired, or unavailable authority, the old connection may never regain operation authority; restoration requires a new authenticated connection."
     },
     {
       "id": "device-authority-is-exact",
@@ -546,10 +572,28 @@
       "statement": "Every device action and feedback-authority projection resolves the presented bearer against current expiration, revocation, generation, and sealed-secret state before admission."
     },
     {
+      "id": "device-authority-monitor-subscribes-before-reread",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "Before upgrade authority can be granted, the host must arm authority observation before rereading current effective authority and must reject or invalidate every change observed across that race."
+    },
+    {
+      "id": "device-authority-notifications-do-not-renew-freshness",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "An authority notification, including one with the admitted hash, may trigger revalidation but cannot renew the positive-evidence timestamp without an authoritative reread."
+    },
+    {
       "id": "device-authority-precedes-network-listen",
       "kind": "rule",
       "sourceDecision": "ADR-0013",
       "statement": "Production REST and WebSocket listeners may be created only after protocol loading, device credential store initialization, and lifecycle composition succeed."
+    },
+    {
+      "id": "device-authority-retirement-blocks-new-work-and-bounds-transport",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "Invalidation must quiesce the exact lease immediately, reject queued and new operations, permit only already-admitted operations to settle, and close or forcibly terminate transport within twelve seconds."
     },
     {
       "id": "device-bearer-disclosure-is-bounded",
@@ -726,6 +770,12 @@
       "statement": "A connection lease must capture immutable credential, generation audience, Show and expiration identity; a credential cannot change Show and one audience cannot change expiration."
     },
     {
+      "id": "device-connection-authority-is-canonical-and-secret-free",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "A connection authority identity must be SHA-256 over the exact canonical effective-authority payload and must exclude the bearer, sealed verifier, label, and administrative timestamps."
+    },
+    {
       "id": "device-connection-authority-is-exclusive",
       "kind": "rule",
       "sourceDecision": "ADR-0021",
@@ -742,6 +792,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0021",
       "statement": "Passing coordinator evidence may not be represented as WebSocket authentication or delivery, lifecycle-route integration, command execution, signed-frame delivery, close-code behavior, multi-instance coordination, cancellation of begun work, crash recovery, Companion integration, renderer or OBS observation, or hardware behavior."
+    },
+    {
+      "id": "device-continuous-authority-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0026",
+      "statement": "Passing monitor evidence may not be represented as a production-mounted authority source, guaranteed cross-process notification delivery, physical network timing, internal operation cancellation, command or delta authority, Caddy or TLS verification, device hardware state, renderer or OBS observation, or operator perception."
     },
     {
       "id": "device-control-addition-requires-initial-state",

@@ -12,8 +12,15 @@ import {
 import type {
   DeviceAuthorityConnection,
   DeviceConnectionAuthority,
+  DeviceConnectionCloseReason,
   DeviceConnectionLease,
 } from '../../src/services/DeviceConnectionAuthorityCoordinator';
+import type {
+  DeviceAuthorityInvalidationReason,
+  DeviceAuthorityInvalidationTarget,
+  DeviceAuthorityMonitorAdmission,
+} from '../../src/services/DeviceConnectionAuthorityMonitor';
+import { DeviceAuthorityMonitorError } from '../../src/services/DeviceConnectionAuthorityMonitor';
 
 interface Deferred<T> {
   readonly promise: Promise<T>;
@@ -61,16 +68,72 @@ function authority(): DeviceCredentialAuthority {
 
 function pendingCoordinator() {
   const admission = deferred<DeviceConnectionLease>();
-  const connect = vi.fn((
-    _authority: DeviceConnectionAuthority,
-    _connection: DeviceAuthorityConnection,
-  ) => admission.promise);
-  return { admission, connect };
+  const connect = vi.fn(
+    (
+      _authority: DeviceConnectionAuthority,
+      _connection: DeviceAuthorityConnection,
+      _authorityIsCurrent?: () => boolean
+    ) => admission.promise
+  );
+  const retire = vi.fn(
+    async (_lease: DeviceConnectionLease, _reason: DeviceConnectionCloseReason) => undefined
+  );
+  return { admission, connect, retire };
 }
 
-async function startGateway(
-  gateway: DeviceWebSocketGateway,
-): Promise<GatewayHarness> {
+function authorityMonitorHarness() {
+  let current = true;
+  let target: DeviceAuthorityInvalidationTarget | null = null;
+  let available = true;
+  const close = vi.fn(() => {
+    current = false;
+  });
+  const prepare = vi.fn(
+    async (
+      capturedAuthority: DeviceCredentialAuthority
+    ): Promise<DeviceAuthorityMonitorAdmission> => {
+      const immutableAuthority = Object.freeze({
+        ...capturedAuthority,
+        targets: Object.freeze([...capturedAuthority.targets]),
+        controlIds: Object.freeze([...capturedAuthority.controlIds]),
+        scopes: Object.freeze([...capturedAuthority.scopes]),
+      });
+      return {
+        authority: immutableAuthority,
+        authorityHash: 'a'.repeat(64),
+        isCurrent: () => current,
+        activate(nextTarget) {
+          target = nextTarget;
+          return Object.freeze({
+            authorityHash: 'a'.repeat(64),
+            isCurrent: () => current,
+            close,
+          });
+        },
+        abort: () => {
+          current = false;
+        },
+      };
+    }
+  );
+  return {
+    monitor: {
+      isAvailable: () => available,
+      prepare,
+    },
+    close,
+    prepare,
+    setAvailable(value: boolean) {
+      available = value;
+    },
+    invalidate(reason: DeviceAuthorityInvalidationReason) {
+      current = false;
+      return target?.invalidate(reason);
+    },
+  };
+}
+
+async function startGateway(gateway: DeviceWebSocketGateway): Promise<GatewayHarness> {
   const sockets = new Set<Socket>();
   const server = createServer();
   server.on('connection', (socket) => {
@@ -79,9 +142,7 @@ async function startGateway(
   });
   server.on('upgrade', (request, socket, head) => {
     if (gateway.handleUpgrade(request, socket, head)) return;
-    socket.end(
-      'HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
-    );
+    socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
@@ -114,14 +175,16 @@ function rawUpgrade(
   port: number,
   path = DEVICE_WEBSOCKET_PATH,
   headers: ReadonlyArray<readonly [string, string]> = [],
-  includeDefaultProtocol = true,
+  includeDefaultProtocol = true
 ): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
     const socket = connectSocket(port, '127.0.0.1');
     let raw = '';
     socket.setEncoding('utf8');
     socket.once('error', reject);
-    socket.on('data', (chunk) => { raw += chunk; });
+    socket.on('data', (chunk) => {
+      raw += chunk;
+    });
     socket.once('end', () => resolve(parseRawResponse(raw)));
     socket.once('connect', () => {
       const requestHeaders: Array<readonly [string, string]> = [
@@ -135,12 +198,45 @@ function rawUpgrade(
           : []),
         ...headers,
       ];
-      socket.write([
-        `GET ${path} HTTP/1.1`,
-        ...requestHeaders.map(([name, value]) => `${name}: ${value}`),
-        '',
-        '',
-      ].join('\r\n'));
+      socket.write(
+        [
+          `GET ${path} HTTP/1.1`,
+          ...requestHeaders.map(([name, value]) => `${name}: ${value}`),
+          '',
+          '',
+        ].join('\r\n')
+      );
+    });
+  });
+}
+
+function openUncooperativeWebSocket(port: number): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = connectSocket(port, '127.0.0.1');
+    let raw = '';
+    socket.setEncoding('binary');
+    socket.once('error', reject);
+    socket.on('data', (chunk) => {
+      raw += chunk;
+      if (!raw.startsWith('HTTP/1.1 101') || !raw.includes('\r\n\r\n')) return;
+      socket.removeAllListeners('data');
+      resolve(socket);
+    });
+    socket.once('connect', () => {
+      socket.write(
+        [
+          `GET ${DEVICE_WEBSOCKET_PATH} HTTP/1.1`,
+          `Host: 127.0.0.1:${port}`,
+          'Upgrade: websocket',
+          'Connection: Upgrade',
+          'Sec-WebSocket-Version: 13',
+          `Sec-WebSocket-Key: ${randomBytes(16).toString('base64')}`,
+          'Sec-WebSocket-Protocol: overlaykit.device.v1',
+          `Authorization: Bearer ${TOKEN}`,
+          '',
+          '',
+        ].join('\r\n')
+      );
     });
   });
 }
@@ -148,14 +244,10 @@ function rawUpgrade(
 function openWebSocket(
   port: number,
   protocols: string | string[],
-  options: ClientOptions,
+  options: ClientOptions
 ): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(
-      `ws://127.0.0.1:${port}${DEVICE_WEBSOCKET_PATH}`,
-      protocols,
-      options,
-    );
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${DEVICE_WEBSOCKET_PATH}`, protocols, options);
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });
@@ -177,20 +269,21 @@ describe('DeviceWebSocketGateway', () => {
   it('returns one indistinguishable 401 before upgrade for every invalid bearer source', async () => {
     const authenticate = vi.fn(async () => null);
     const coordinator = pendingCoordinator();
-    const harness = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate },
-      coordinator,
-    }));
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+      })
+    );
     harnesses.push(harness);
 
     const responses = await Promise.all([
       rawUpgrade(harness.port),
       rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [['Authorization', 'Basic abc']]),
       rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [['Authorization', 'Bearer invalid token']]),
-      rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [[
-        'Authorization',
-        `Bearer ${TOKEN}`,
-      ]]),
+      rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [['Authorization', `Bearer ${TOKEN}`]]),
       rawUpgrade(harness.port, `${DEVICE_WEBSOCKET_PATH}?token=${TOKEN}`, [
         ['Authorization', `Bearer ${TOKEN}`],
       ]),
@@ -227,10 +320,14 @@ describe('DeviceWebSocketGateway', () => {
   it('rejects every browser Origin before authentication', async () => {
     const authenticate = vi.fn(async () => authority());
     const coordinator = pendingCoordinator();
-    const harness = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate },
-      coordinator,
-    }));
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+      })
+    );
     harnesses.push(harness);
 
     const responses = await Promise.all([
@@ -245,8 +342,9 @@ describe('DeviceWebSocketGateway', () => {
     ]);
 
     expect(responses.map((response) => response.status)).toEqual([403, 403]);
-    expect(responses.every((response) => response.body.includes('DEVICE_ORIGIN_FORBIDDEN')))
-      .toBe(true);
+    expect(responses.every((response) => response.body.includes('DEVICE_ORIGIN_FORBIDDEN'))).toBe(
+      true
+    );
     expect(authenticate).not.toHaveBeenCalled();
     expect(coordinator.connect).not.toHaveBeenCalled();
   });
@@ -254,38 +352,46 @@ describe('DeviceWebSocketGateway', () => {
   it('requires a compatible protocol and selects the highest mutual version', async () => {
     const authenticate = vi.fn(async () => authority());
     const coordinator = pendingCoordinator();
-    const harness = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate },
-      coordinator,
-      supportedProtocols: [
-        'overlaykit.device.v1',
-        'overlaykit.device.v3',
-        'overlaykit.device.v2',
-      ],
-    }));
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+        supportedProtocols: [
+          'overlaykit.device.v1',
+          'overlaykit.device.v3',
+          'overlaykit.device.v2',
+        ],
+      })
+    );
     harnesses.push(harness);
 
     const absent = await rawUpgrade(
       harness.port,
       DEVICE_WEBSOCKET_PATH,
       [['Authorization', `Bearer ${TOKEN}`]],
-      false,
+      false
     );
-    const incompatible = await rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [
-      ['Authorization', `Bearer ${TOKEN}`],
-      ['Sec-WebSocket-Protocol', 'overlaykit.device.v9'],
-    ], false);
+    const incompatible = await rawUpgrade(
+      harness.port,
+      DEVICE_WEBSOCKET_PATH,
+      [
+        ['Authorization', `Bearer ${TOKEN}`],
+        ['Sec-WebSocket-Protocol', 'overlaykit.device.v9'],
+      ],
+      false
+    );
 
     expect(absent.status).toBe(426);
     expect(incompatible.status).toBe(426);
-    expect(incompatible.headers['sec-websocket-protocol'])
-      .toBe('overlaykit.device.v3, overlaykit.device.v2, overlaykit.device.v1');
-
-    const ws = await openWebSocket(
-      harness.port,
-      ['overlaykit.device.v1', 'overlaykit.device.v2'],
-      { headers: { Authorization: `Bearer ${TOKEN}` } },
+    expect(incompatible.headers['sec-websocket-protocol']).toBe(
+      'overlaykit.device.v3, overlaykit.device.v2, overlaykit.device.v1'
     );
+
+    const ws = await openWebSocket(harness.port, ['overlaykit.device.v1', 'overlaykit.device.v2'], {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
     expect(ws.protocol).toBe('overlaykit.device.v2');
     ws.close();
   });
@@ -298,22 +404,26 @@ describe('DeviceWebSocketGateway', () => {
     };
     const authenticate = vi.fn(async () => mutableAuthority);
     const coordinator = pendingCoordinator();
-    const harness = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate },
-      coordinator,
-      generateConnectionId: () => 'connection-1',
-    }));
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+        generateConnectionId: () => 'connection-1',
+      })
+    );
     harnesses.push(harness);
 
-    const ws = await openWebSocket(
-      harness.port,
-      'overlaykit.device.v1',
-      { headers: { Authorization: `Bearer ${TOKEN}` } },
-    );
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
     expect(ws.readyState).toBe(WebSocket.OPEN);
     expect(coordinator.connect).toHaveBeenCalledTimes(1);
 
-    const [capturedAuthority, capturedConnection] = coordinator.connect.mock.calls[0];
+    const [capturedAuthority, capturedConnection, authorityIsCurrent] =
+      coordinator.connect.mock.calls[0];
+    expect(authorityIsCurrent?.()).toBe(true);
     expect(capturedAuthority).toEqual({
       credentialId: 'device-1',
       audienceCredentialId: 'device-1.g2',
@@ -354,10 +464,18 @@ describe('DeviceWebSocketGateway', () => {
 
   it('fails closed when credential authority is unavailable or coordinator admission rejects', async () => {
     const unavailableCoordinator = pendingCoordinator();
-    const unavailable = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate: vi.fn(async () => { throw new Error('store unavailable'); }) },
-      coordinator: unavailableCoordinator,
-    }));
+    const unavailableMonitor = authorityMonitorHarness();
+    const unavailable = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: {
+          authenticate: vi.fn(async () => {
+            throw new Error('store unavailable');
+          }),
+        },
+        coordinator: unavailableCoordinator,
+        authorityMonitor: unavailableMonitor.monitor,
+      })
+    );
     harnesses.push(unavailable);
 
     const unavailableResponse = await rawUpgrade(unavailable.port, DEVICE_WEBSOCKET_PATH, [
@@ -367,29 +485,306 @@ describe('DeviceWebSocketGateway', () => {
     expect(unavailableCoordinator.connect).not.toHaveBeenCalled();
 
     const coordinator = {
-      connect: vi.fn(async () => { throw new Error('authority rejected'); }),
+      connect: vi.fn((): Promise<DeviceConnectionLease> => {
+        throw new Error('authority rejected');
+      }),
+      retire: vi.fn(async () => undefined),
     };
-    const rejected = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate: vi.fn(async () => authority()) },
-      coordinator,
-    }));
-    harnesses.push(rejected);
-    const ws = await openWebSocket(
-      rejected.port,
-      'overlaykit.device.v1',
-      { headers: { Authorization: `Bearer ${TOKEN}` } },
+    const rejectedMonitor = authorityMonitorHarness();
+    const rejected = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate: vi.fn(async () => authority()) },
+        coordinator,
+        authorityMonitor: rejectedMonitor.monitor,
+      })
     );
+    harnesses.push(rejected);
+    const ws = await openWebSocket(rejected.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
     const closeCode = await new Promise<number>((resolve) => ws.once('close', resolve));
     expect(closeCode).toBe(1000);
+  });
+
+  it('returns 503 when monitor availability or currency adapters throw', async () => {
+    const authenticate = vi.fn(async () => authority());
+    const coordinator = pendingCoordinator();
+    const unavailable = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: {
+          isAvailable: () => {
+            throw new Error('health failed');
+          },
+          prepare: vi.fn(),
+        },
+      })
+    );
+    harnesses.push(unavailable);
+    const unavailableResponse = await rawUpgrade(unavailable.port);
+    expect(unavailableResponse.status).toBe(503);
+    expect(authenticate).not.toHaveBeenCalled();
+
+    const brokenCurrency = authorityMonitorHarness();
+    brokenCurrency.monitor.prepare.mockResolvedValueOnce({
+      authority: authority(),
+      authorityHash: 'a'.repeat(64),
+      isCurrent: () => {
+        throw new Error('currency failed');
+      },
+      activate: vi.fn(),
+      abort: vi.fn(),
+    });
+    const currency = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: brokenCurrency.monitor,
+      })
+    );
+    harnesses.push(currency);
+    const currencyResponse = await rawUpgrade(currency.port, DEVICE_WEBSOCKET_PATH, [
+      ['Authorization', `Bearer ${TOKEN}`],
+    ]);
+    expect(currencyResponse.status).toBe(503);
+    expect(coordinator.connect).not.toHaveBeenCalled();
+  });
+
+  it('returns the same 503 before bearer evaluation when the monitor is unavailable', async () => {
+    const authenticate = vi.fn(async () => authority());
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    authorityMonitor.setAvailable(false);
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+      })
+    );
+    harnesses.push(harness);
+
+    const responses = await Promise.all([
+      rawUpgrade(harness.port),
+      rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [['Authorization', `Bearer ${TOKEN}`]]),
+    ]);
+    expect(
+      responses.map((response) => ({
+        status: response.status,
+        body: response.body,
+        cacheControl: response.headers['cache-control'],
+      }))
+    ).toEqual([
+      {
+        status: 503,
+        body: expect.stringContaining('DEVICE_AUTH_UNAVAILABLE'),
+        cacheControl: 'no-store',
+      },
+      {
+        status: 503,
+        body: expect.stringContaining('DEVICE_AUTH_UNAVAILABLE'),
+        cacheControl: 'no-store',
+      },
+    ]);
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(coordinator.connect).not.toHaveBeenCalled();
+  });
+
+  it('does not complete 101 until monitor subscription and revalidation are prepared', async () => {
+    const authenticate = vi.fn(async () => authority());
+    const coordinator = pendingCoordinator();
+    const preparedMonitor = authorityMonitorHarness();
+    const preparedAdmission = await preparedMonitor.monitor.prepare(authority());
+    const preparation = deferred<DeviceAuthorityMonitorAdmission>();
+    const authorityMonitor = {
+      isAvailable: () => true,
+      prepare: vi.fn(() => preparation.promise),
+    };
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor,
+      })
+    );
+    harnesses.push(harness);
+
+    let opened = false;
+    const opening = openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    void opening.then(
+      () => {
+        opened = true;
+      },
+      () => undefined
+    );
+    while (authorityMonitor.prepare.mock.calls.length === 0) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    expect(opened).toBe(false);
+    expect(coordinator.connect).not.toHaveBeenCalled();
+
+    preparation.resolve(preparedAdmission);
+    const ws = await opening;
+    expect(opened).toBe(true);
+    expect(coordinator.connect).toHaveBeenCalledTimes(1);
+    ws.close();
+  });
+
+  it('rejects an authority that changes during monitor preparation without upgrading', async () => {
+    const authenticate = vi.fn(async () => authority());
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = {
+      isAvailable: () => true,
+      prepare: vi.fn(async () => {
+        throw new DeviceAuthorityMonitorError(
+          'DEVICE_AUTHORITY_CHANGED',
+          'changed during subscription'
+        );
+      }),
+    };
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor,
+      })
+    );
+    harnesses.push(harness);
+
+    const response = await rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [
+      ['Authorization', `Bearer ${TOKEN}`],
+    ]);
+    expect(response.status).toBe(401);
+    expect(coordinator.connect).not.toHaveBeenCalled();
+  });
+
+  it('retires an admitted lease and closes transport when the active monitor invalidates', async () => {
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate: vi.fn(async () => authority()) },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+        generateConnectionId: () => 'connection-monitored',
+      })
+    );
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [capturedAuthority, capturedConnection, monitoredAuthorityIsCurrent] =
+      coordinator.connect.mock.calls[0];
+    const lease = Object.freeze({
+      connectionId: capturedConnection.id,
+      authority: capturedAuthority,
+    });
+    coordinator.admission.resolve(lease);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(monitoredAuthorityIsCurrent?.()).toBe(true);
+    coordinator.retire.mockImplementationOnce(() => {
+      throw new Error('retirement adapter failed');
+    });
+
+    const closed = new Promise<number>((resolve) => ws.once('close', resolve));
+    authorityMonitor.invalidate('authority.changed');
+
+    expect(monitoredAuthorityIsCurrent?.()).toBe(false);
+    expect(coordinator.retire).toHaveBeenCalledWith(lease, 'authority.changed');
+    expect(await closed).toBe(1000);
+  });
+
+  it('retires the exact lease and releases its monitor after a natural transport close', async () => {
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate: vi.fn(async () => authority()) },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+        generateConnectionId: () => 'connection-disconnected',
+      })
+    );
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [capturedAuthority, capturedConnection] = coordinator.connect.mock.calls[0];
+    const lease = Object.freeze({
+      connectionId: capturedConnection.id,
+      authority: capturedAuthority,
+    });
+    coordinator.admission.resolve(lease);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    ws.close();
+    await closed;
+
+    await vi.waitFor(() => {
+      expect(authorityMonitor.close).toHaveBeenCalledTimes(1);
+      expect(coordinator.retire).toHaveBeenCalledWith(lease, 'authority.rejected');
+    });
+  });
+
+  it('force-closes an uncooperative transport within the bounded close timeout', async () => {
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    const closeTimeoutMs = 20;
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate: vi.fn(async () => authority()) },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+        closeTimeoutMs,
+      })
+    );
+    harnesses.push(harness);
+    const socket = await openUncooperativeWebSocket(harness.port);
+    const [capturedAuthority, capturedConnection] = coordinator.connect.mock.calls[0];
+    coordinator.admission.resolve(
+      Object.freeze({
+        connectionId: capturedConnection.id,
+        authority: capturedAuthority,
+      })
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    const startedAt = Date.now();
+    authorityMonitor.invalidate('authority.changed');
+    await closed;
+
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(closeTimeoutMs - 5);
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(
+      () =>
+        new DeviceWebSocketGateway({
+          credentials: { authenticate: vi.fn(async () => authority()) },
+          coordinator: pendingCoordinator(),
+          authorityMonitor: authorityMonitorHarness().monitor,
+          closeTimeoutMs: 12_001,
+        })
+    ).toThrow('Device transport close timeout is invalid');
   });
 
   it('ignores other WebSocket paths without consulting device authority', async () => {
     const authenticate = vi.fn(async () => authority());
     const coordinator = pendingCoordinator();
-    const harness = await startGateway(new DeviceWebSocketGateway({
-      credentials: { authenticate },
-      coordinator,
-    }));
+    const authorityMonitor = authorityMonitorHarness();
+    const harness = await startGateway(
+      new DeviceWebSocketGateway({
+        credentials: { authenticate },
+        coordinator,
+        authorityMonitor: authorityMonitor.monitor,
+      })
+    );
     harnesses.push(harness);
 
     const response = await rawUpgrade(harness.port, '/studio', [
