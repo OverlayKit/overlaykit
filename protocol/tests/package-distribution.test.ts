@@ -102,7 +102,7 @@ describe('published protocol package', () => {
       name: 'Rodrigo Vicente',
       url: 'https://x.com/rodrigoteamx',
     });
-    expect(manifest.engines.node).toBe('>=20');
+    expect(manifest.engines.node).toBe('>=24');
     expect(manifest.publishConfig.access).toBe('public');
     expect(manifest.repository).toEqual({
       type: 'git',

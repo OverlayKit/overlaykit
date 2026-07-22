@@ -97,7 +97,7 @@ const flatTemplates = computed(() => templateCategories.flatMap((c) => c.templat
 // ---- design system (theme) state ----
 const customThemes = ref<DesignTokens[]>([]);
 const activeThemeName = ref<string>('');
-const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080';
+const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/ws';
 const wsConnected = ref(false);
 const lastRemoteTheme = ref('');
 let composerWs: WebSocket | null = null;

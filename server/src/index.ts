@@ -8,6 +8,11 @@ import { storage, type Storage } from './storage';
 import { WebSocketServer } from 'ws';
 import { config, validateConfig } from './config/environment';
 import { setupWebSocketHandler } from './handlers/websocket';
+import {
+  DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS,
+  DeviceWebSocketGateway,
+} from './handlers/DeviceWebSocketGateway';
+import { WebSocketUpgradeRouter } from './handlers/WebSocketUpgradeRouter';
 import { logger, setLogLevel } from './utils/logger';
 import elementRoutes from './routes/elements';
 import variablesRoutes from './routes/variables';
@@ -37,6 +42,8 @@ import {
   createDeviceActionCatalogRuntime,
   type DeviceActionCatalogRuntime,
 } from './services/DeviceActionCatalogRuntime';
+import { DeviceConnectionAuthorityCoordinator } from './services/DeviceConnectionAuthorityCoordinator';
+import { DeviceConnectionAuthorityMonitor } from './services/DeviceConnectionAuthorityMonitor';
 
 export interface AppDependencies {
   auth?: AuthService;
@@ -58,6 +65,9 @@ export interface ServerRuntime {
   production: ProductionService;
   deviceCredentials: DeviceCredentialRuntime;
   deviceActionCatalog: DeviceActionCatalogRuntime;
+  deviceAuthorityCoordinator: DeviceConnectionAuthorityCoordinator;
+  deviceAuthorityMonitor: DeviceConnectionAuthorityMonitor;
+  deviceGateway: DeviceWebSocketGateway;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
@@ -156,10 +166,29 @@ export async function createServerRuntime(
 
   await dataStorage.init();
   await auth.init();
+  const ownsDeviceCredentials = dependencies.deviceCredentials === undefined;
   const deviceCredentials = dependencies.deviceCredentials
     ?? await (dependencies.createDeviceCredentials ?? createDeviceCredentialRuntime)();
-  const deviceActionCatalog = dependencies.deviceActionCatalog
-    ?? await (dependencies.createDeviceActionCatalog ?? createDeviceActionCatalogRuntime)();
+  let deviceActionCatalog: DeviceActionCatalogRuntime;
+  try {
+    deviceActionCatalog = dependencies.deviceActionCatalog
+      ?? await (dependencies.createDeviceActionCatalog ?? createDeviceActionCatalogRuntime)();
+  } catch (error) {
+    if (ownsDeviceCredentials) await deviceCredentials.close().catch(() => undefined);
+    throw error;
+  }
+  const deviceAuthorityCoordinator = new DeviceConnectionAuthorityCoordinator();
+  const deviceAuthorityMonitor = new DeviceConnectionAuthorityMonitor({
+    source: deviceCredentials.authoritySource,
+    onBackgroundError: (error) => logger.error('Device authority monitor failed', {
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  });
+  const deviceGateway = new DeviceWebSocketGateway({
+    credentials: deviceCredentials.lifecycle,
+    coordinator: deviceAuthorityCoordinator,
+    authorityMonitor: deviceAuthorityMonitor,
+  });
 
   return {
     app: createApp({
@@ -174,6 +203,9 @@ export async function createServerRuntime(
     production,
     deviceCredentials,
     deviceActionCatalog,
+    deviceAuthorityCoordinator,
+    deviceAuthorityMonitor,
+    deviceGateway,
   };
 }
 
@@ -186,8 +218,12 @@ async function startServer(): Promise<void> {
 
     const restServer = createServer(runtime.app);
     const wsServer = createServer();
-    const wss = new WebSocketServer({ server: wsServer });
+    const wss = new WebSocketServer({ noServer: true });
     setupWebSocketHandler(wss, runtime.auth, config.corsOrigin);
+    const upgradeRouter = new WebSocketUpgradeRouter(wss, runtime.deviceGateway);
+    wsServer.on('upgrade', (request, socket, head) => {
+      upgradeRouter.handleUpgrade(request, socket, head);
+    });
 
     restServer.listen(config.restPort, config.host, () => {
       logger.info('REST API running on http://' + config.host + ':' + config.restPort);
@@ -195,21 +231,46 @@ async function startServer(): Promise<void> {
     });
 
     wsServer.listen(config.wsPort, config.wsHost, () => {
-      logger.info('WebSocket server running on ws://' + config.wsHost + ':' + config.wsPort);
+      logger.info('Browser WebSocket running on ws://' + config.wsHost + ':' + config.wsPort + '/ws');
+      logger.info('Device WebSocket running on ws://' + config.wsHost + ':' + config.wsPort + '/device');
     });
 
-    const shutdown = (signal: string) => {
+    let shuttingDown = false;
+    const shutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       logger.info(signal + ' received, starting graceful shutdown');
-      let closed = 0;
-      const done = () => {
-        closed += 1;
-        if (closed === 2) process.exit(0);
-      };
-      restServer.close(done);
-      wsServer.close(done);
+      upgradeRouter.stop();
+      const closeServer = (server: ReturnType<typeof createServer>) => new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+      for (const client of wss.clients) client.close(1001, 'Server shutdown');
+      const closingServers = Promise.all([closeServer(restServer), closeServer(wsServer)]);
+      const forceClose = setTimeout(() => {
+        logger.warn('Shutdown deadline reached; forcing remaining transports closed');
+        for (const client of wss.clients) client.terminate();
+        runtime.deviceGateway.terminate();
+        restServer.closeAllConnections();
+        wsServer.closeAllConnections();
+      }, DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS);
+      forceClose.unref();
+      try {
+        await runtime.deviceGateway.shutdown();
+        await runtime.deviceCredentials.close();
+        await closingServers;
+        clearTimeout(forceClose);
+        process.exit(0);
+      } catch (error) {
+        clearTimeout(forceClose);
+        logger.error('Graceful shutdown failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        runtime.deviceGateway.terminate();
+        process.exit(1);
+      }
     };
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+    process.on('SIGINT', () => { void shutdown('SIGINT'); });
   } catch (error) {
     logger.error('Failed to start server', { error: error instanceof Error ? error.message : String(error) });
     process.exit(1);

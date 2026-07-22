@@ -647,6 +647,28 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     await expect(barrier).resolves.toBeUndefined();
   });
 
+  it('closes admission immediately and drains only already-admitted work during shutdown', async () => {
+    const { coordinator } = harness();
+    const connection = new TestConnection('active');
+    const lease = await coordinator.connect(authority(), connection);
+    const operationGate = deferred<void>();
+    const running = coordinator.execute(lease, () => operationGate.promise);
+
+    const shutdown = coordinator.shutdown();
+    expect(coordinator.isEffective(lease)).toBe(false);
+    await expectPending(shutdown);
+    const rejected = new TestConnection('late');
+    await expect(coordinator.connect(authority(), rejected)).rejects.toMatchObject({
+      code: 'DEVICE_AUTHORITY_BLOCKED',
+    });
+    expect(rejected.reasons).toEqual(['server.shutdown']);
+
+    operationGate.resolve();
+    await running;
+    await expect(shutdown).resolves.toBeUndefined();
+    expect(connection.reasons).toEqual(['server.shutdown']);
+  });
+
   it('rejects invalid construction and bounded identifiers', async () => {
     expect(
       () =>

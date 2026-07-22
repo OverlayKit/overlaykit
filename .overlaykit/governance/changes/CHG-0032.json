@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0032",
+  "title": "Test an exclusive observable device credential authority",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0010",
+    "ADR-0011",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026",
+    "ADR-0027"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires one logical credential authority on Linux, macOS, and Windows; a second owner or unavailable exclusive store must abort server startup instead of exposing degraded device control.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every permission change to rotate bearer and generation atomically, makes revocation irreversible, and establishes durable commit as the instant old authority becomes invalid.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires post-commit invalidation to reach every listener for the affected credential before the owner response, while listener failure cannot roll back persisted truth and must fail only that credential closed.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires strict WebSocket routing where /ws is browser and OBS transport, /device is non-browser hardware transport, and unknown paths never fall back between handlers.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-023: A Node 24 host using node:sqlite with one long-lived exclusive connection can provide cross-platform single-owner persistence, crash-released exclusivity, one-time JSON migration, serialized lifecycle observation, strict WebSocket composition, and fail-closed startup and shutdown without introducing a second authority.",
+      "evidence": "SDD-023 hypothesis approved for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-023 only for the Node 24 local-file SQLite authority, observable credential lifecycle, explicit WebSocket route ownership, and bounded shutdown composition whose exclusive second-process rejection, graceful and abrupt process-death recovery, transactional one-time JSON migration, compare-and-swap mutation, atomic permission rotation, post-commit publication ordering, listener isolation, exact expiration, strict route rejection, startup closure, operation drainage, and twelve-second forced transport closure were demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, governance verification, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-023 refutation evidence and GitHub Actions Constitution run 68",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This accepted Slice does not prove abrupt-power or physical-media durability, network or distributed-filesystem locking, cross-process listener delivery, Caddy, TLS, or proxy behavior, device bootstrap emission and acknowledgement, command execution over WebSocket, deltas, Companion integration, physical hardware state, renderer pixels, OBS output, or operator perception.",
+      "evidence": "SDD-023 accepted Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Exactly one runtime can own the SQLite credential authority, failed contenders cannot read or write authority, and ownership can be recovered after graceful or abrupt process death on every supported operating system.",
+      "verification": "Real-process exclusivity and crash-recovery tests on Ubuntu, macOS, and Windows with Node 24."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A complete valid legacy JSON store migrates transactionally once, archives only after commit, resumes safely after interruption, and malformed or incomplete migration aborts startup without dual authority.",
+      "verification": "Migration, commit-fault, archive-fault, resume, malformed-input, and authority-selection tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Issue, permission rotation, expiration, and revocation use one serialized lifecycle lane whose immutable post-commit observation is published before owner response and whose listener faults fail only affected authority closed.",
+      "verification": "Ordering, mutation, listener isolation, subscription race, exact expiration, and store-fault tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The production WebSocket listener routes /ws and /device explicitly, rejects unknown paths without fallback, and exposes no device authority when runtime composition fails.",
+      "verification": "Real HTTP upgrade routing, authentication, fallback-rejection, and startup-failure tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Shutdown stops new upgrades immediately, retires active device authority, drains only admitted operations, forcibly closes remaining transports within twelve seconds, and closes the exclusive store.",
+      "verification": "Shutdown ordering, admission race, operation drainage, forced-close, and ownership-release tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0032 records Discovery facts, H-023, measurable criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice replaces only credential JSON authority, lifecycle observation, device gateway composition, related contracts, tests, and CI runtime declarations.",
+      "evidence": "git diff for CHG-0032"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-023 with real-process, persistence-fault, migration-race, event-ordering, listener-fault, routing, startup, shutdown, and cross-platform tests.",
+      "evidence": "Focused server tests and GitHub Actions portability evidence"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, audit, and Node 24 portability checks pass for the accepted Slice manifest.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 68"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0027, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-023.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0027"
+    }
+  ]
+}

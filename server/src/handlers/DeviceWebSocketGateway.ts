@@ -40,6 +40,7 @@ interface DeviceConnectionCoordinatorPort {
     authorityIsCurrent?: () => boolean
   ): Promise<DeviceConnectionLease>;
   retire(lease: DeviceConnectionLease, reason: DeviceConnectionCloseReason): Promise<void>;
+  shutdown?(): Promise<void>;
 }
 
 interface DeviceConnectionAuthorityMonitorPort {
@@ -254,6 +255,7 @@ export class DeviceWebSocketGateway {
   private readonly closeTimeoutMs: number;
   private readonly selectedProtocols = new WeakMap<IncomingMessage, string>();
   private readonly wss: WebSocketServer;
+  private accepting = true;
 
   constructor(options: DeviceWebSocketGatewayOptions) {
     this.path = options.path ?? DEVICE_WEBSOCKET_PATH;
@@ -291,6 +293,10 @@ export class DeviceWebSocketGateway {
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
     const url = requestUrl(request);
     if (!url || url.pathname !== this.path) return false;
+    if (!this.accepting) {
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
+      return true;
+    }
     void this.admit(request, socket, head, url);
     return true;
   }
@@ -299,12 +305,34 @@ export class DeviceWebSocketGateway {
     for (const client of this.wss.clients) client.terminate();
   }
 
+  async shutdown(): Promise<void> {
+    if (!this.accepting) return;
+    this.accepting = false;
+    const shutdown = Promise.allSettled([
+      this.coordinator.shutdown?.() ?? Promise.resolve(),
+      ...[...this.wss.clients].map((client) => closeTransport(client, this.closeTimeoutMs)),
+    ]);
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    await Promise.race([
+      shutdown,
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(resolve, this.closeTimeoutMs);
+      }),
+    ]);
+    if (timeout) clearTimeout(timeout);
+    this.terminate();
+  }
+
   private async admit(
     request: IncomingMessage,
     socket: Duplex,
     head: Buffer,
     url: URL
   ): Promise<void> {
+    if (!this.accepting) {
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
+      return;
+    }
     if (rawHeaderCount(request, 'origin') > 0) {
       rejectUpgrade(socket, ORIGIN_FORBIDDEN);
       return;
@@ -340,6 +368,10 @@ export class DeviceWebSocketGateway {
     }
     if (!credentialAuthority) {
       rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
+      return;
+    }
+    if (!this.accepting) {
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
       return;
     }
 
@@ -387,6 +419,15 @@ export class DeviceWebSocketGateway {
         // The admission is already rejected; transport must still fail closed.
       }
       rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
+      return;
+    }
+    if (!this.accepting) {
+      try {
+        monitorAdmission.abort();
+      } catch {
+        // Shutdown already rejects this pending authority.
+      }
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
       return;
     }
     if (socket.destroyed) {

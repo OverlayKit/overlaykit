@@ -144,9 +144,9 @@
     {
       "contentHash": "c8455679afcd9cc085a955fc34185f37051ad52e9b8f3edcec315beac723a524",
       "declaredStatus": "accepted",
-      "effectiveStatus": "accepted",
+      "effectiveStatus": "superseded",
       "id": "ADR-0010",
-      "supersededBy": null,
+      "supersededBy": "ADR-0027",
       "title": "Device credential persistence is single-instance atomic"
     },
     {
@@ -276,6 +276,14 @@
       "id": "ADR-0026",
       "supersededBy": null,
       "title": "Device connections require continuously evidenced effective authority"
+    },
+    {
+      "contentHash": "256b9462df26afb578978f1dce12c753837eeb3d7f6ab2e98103085922f2c5f5",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0027",
+      "supersededBy": null,
+      "title": "Device credential authority requires exclusive observable SQLite ownership"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -410,10 +418,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "b7d49ec01a00df3baeccbec6248d692e5125166a0450ed7dae1c210e257f15e1",
-  "profileHash": "effe0a339a9a582b344f978b54f0239e1e73309071ad538957aaba4634001997",
+  "planHash": "a7abdc1ffe0a3fe4147d61b6766a548286b963daa4b42bfa4c6468b13e7449e3",
+  "profileHash": "8dcbf1abe14b468455385fbb929608b249408cf8a4e779923499eb333e3b75ce",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.22.0",
+  "profileVersion": "2.23.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -872,40 +880,52 @@
       "statement": "A control removed from the resulting authorized catalog must become unavailable atomically rather than unknown, disconnected, or failed."
     },
     {
-      "id": "device-credential-file-commit-is-copy-on-write",
+      "id": "device-credential-authority-is-exclusive-sqlite",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "A mutation writes and synchronizes a private unique temporary document, atomically replaces the prior complete file, and advances memory only after that replacement succeeds."
+      "sourceDecision": "ADR-0027",
+      "statement": "A self-hosted OverlayKit server must hold one long-lived exclusive Node 24 SQLite connection as the only executable credential authority and must not expose device control when that ownership cannot be acquired."
     },
     {
-      "id": "device-credential-file-has-one-owner",
+      "id": "device-credential-commit-precedes-owner-success",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "Exactly one credential-store instance may own and mutate a device credential file within the supported self-hosted runtime boundary."
+      "sourceDecision": "ADR-0027",
+      "statement": "Issue, rotation, revocation, and effective expiration must publish immutable post-commit authority or null to current affected listeners before the corresponding Owner mutation may report success."
     },
     {
-      "id": "device-credential-file-never-stores-bearer",
+      "id": "device-credential-legacy-json-is-migration-input-only",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "The credential file accepts only sealed secret material and rejects a raw OverlayKit device bearer before persistence."
+      "sourceDecision": "ADR-0027",
+      "statement": "Legacy credential JSON may be parsed and imported only as one complete transactional migration whose exact committed input is recorded before archival; it may never remain a parallel executable authority."
     },
     {
-      "id": "device-credential-mutations-use-generation-cas",
+      "id": "device-credential-listener-failure-is-audience-local",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "Credential mutations are serialized within the owning store instance and replacements commit only when the persisted generation equals the caller's expected generation."
+      "sourceDecision": "ADR-0027",
+      "statement": "A post-commit listener failure cannot roll back persisted truth and must fail only that credential audience closed by offering null to all of its current listeners."
     },
     {
-      "id": "device-credential-persistence-claims-are-bounded",
+      "id": "device-credential-permission-change-rotates-atomically",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "Restart persistence and atomic visibility proven for one owning store instance may not be presented as multi-instance, multi-process, distributed, backup, or power-loss durability."
+      "sourceDecision": "ADR-0027",
+      "statement": "Every successful permission change must atomically persist a new complete authority generation and bearer, making the prior token invalid at the transaction commit boundary."
     },
     {
-      "id": "device-credential-state-validates-before-use",
+      "id": "device-credential-sqlite-mutations-use-generation-cas",
       "kind": "rule",
-      "sourceDecision": "ADR-0010",
-      "statement": "The complete versioned credential document and its lifecycle invariants must validate before any persisted record is exposed or mutated."
+      "sourceDecision": "ADR-0027",
+      "statement": "Credential create and replacement must commit transactionally, and replacement may succeed only when the persisted generation equals the caller's expected generation."
+    },
+    {
+      "id": "device-credential-sqlite-never-stores-bearer",
+      "kind": "rule",
+      "sourceDecision": "ADR-0027",
+      "statement": "SQLite credential authority may persist only validated sealed secret material and must never persist a raw OverlayKit device bearer."
+    },
+    {
+      "id": "device-credential-sqlite-state-validates-before-use",
+      "kind": "rule",
+      "sourceDecision": "ADR-0027",
+      "statement": "Every SQLite credential row and structured authority field must satisfy the complete credential lifecycle contract before the record is exposed or mutated; malformed persisted authority fails closed."
     },
     {
       "id": "device-crypto-claims-are-bounded",
@@ -1070,6 +1090,18 @@
       "statement": "Passing bootstrap and Owner HTTP tests may not be presented as credential listing, response-loss recovery, concurrent archival linearizability, device request authentication, command or feedback transport, UI or Companion integration, registry provenance, multi-process coordination, in-flight revocation, rate-limit policy, audit logging, or hardware support."
     },
     {
+      "id": "device-shutdown-closes-admission-before-drain",
+      "kind": "rule",
+      "sourceDecision": "ADR-0027",
+      "statement": "Server shutdown must synchronously stop new upgrades and device admission before retiring authority, draining only admitted operations, closing credential storage, and forcibly terminating remaining transports within twelve seconds."
+    },
+    {
+      "id": "device-sqlite-authority-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0027",
+      "statement": "Passing SQLite authority evidence may not be represented as abrupt-power or physical-media durability, network-filesystem coordination, hostile database access prevention, cross-process listener delivery, proxy or TLS verification, bootstrap or command authority, Companion integration, hardware state, renderer or OBS observation, or operator perception."
+    },
+    {
       "id": "device-verifier-is-not-a-password-verifier",
       "kind": "rule",
       "sourceDecision": "ADR-0011",
@@ -1128,6 +1160,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0022",
       "statement": "A device WebSocket handshake must select the highest mutually supported versioned device subprotocol and reject the request before upgrade when no supported version intersects."
+    },
+    {
+      "id": "device-websocket-paths-have-one-owner",
+      "kind": "rule",
+      "sourceDecision": "ADR-0027",
+      "statement": "The production WebSocket listener must route /ws only to browser and OBS transport, /device only to non-browser device transport, and reject every other path without handler fallback."
     },
     {
       "id": "device-websocket-pre-ready-work-is-rejected",

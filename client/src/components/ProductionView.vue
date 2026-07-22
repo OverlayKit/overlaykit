@@ -118,7 +118,7 @@ const variablesStore = useVariablesStore();
 
 // State
 const rawOutputToken = new URLSearchParams(location.search).get('token');
-const rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+const rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
 const authenticatedWsUrl = new URL(rawWsUrl);
 if (rawOutputToken) authenticatedWsUrl.searchParams.set('token', rawOutputToken);
 const wsAdapter = new WebSocketAdapter(authenticatedWsUrl.toString());
