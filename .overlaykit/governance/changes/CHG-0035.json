@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0035",
   "title": "Test durable idempotent production command authority",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -17,7 +17,8 @@
     "ADR-0021",
     "ADR-0027",
     "ADR-0028",
-    "ADR-0029"
+    "ADR-0029",
+    "ADR-0030"
   ],
   "specifications": ["SPEC-0001"],
   "claims": [
@@ -64,6 +65,12 @@
       "blocking": false
     },
     {
+      "kind": "inference",
+      "statement": "Human review accepted H-026 only for the tested same-process, single-host, local-file SQLite command authority and canonical device HTTP component-visibility path whose stable-principal idempotency, fresh authorization before admission or replay disclosure, target revision fencing, atomic applied or rejected terminal outcomes, global and Show-local ordering, restart replay, commit-before-memory and publication, bounded evidence and quotas, exact-Show corruption isolation, and fail-closed non-delimitable integrity behavior were demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, governance verification, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-026 refutation evidence and GitHub Actions Constitution run 77",
+      "blocking": false
+    },
+    {
       "kind": "unknown",
       "statement": "This Slice does not establish durable Take, control-value batches, cues, macros, replay or cancellation workflows, WebSocket command framing or execution, automation adapters, temporal or external effects, command-result broadcast policy, atomic ordering with Show archival or other Show lifecycle changes, Show retirement or journal compaction, multi-user authorization, at-rest encryption, backup or restore, hostile out-of-band database resistance, multi-host coordination, abrupt-power physical-media durability, Caddy or TLS behavior, renderer state, OBS output, hardware state, or operator perception.",
       "evidence": "SDD-026 approved Slice boundary",
@@ -100,7 +107,7 @@
   "definitionOfDone": [
     {
       "id": "DOD-001",
-      "statement": "CHG-0035 records Discovery facts, H-026, measurable refutation criteria, and unresolved guarantees without claiming that the hypothesis passed.",
+      "statement": "CHG-0035 records Discovery facts, H-026, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
       "evidence": "npm run governance:check"
     },
     {
@@ -116,12 +123,12 @@
     {
       "id": "DOD-004",
       "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
-      "evidence": "Future local and GitHub Actions evidence"
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 77"
     },
     {
       "id": "DOD-005",
-      "statement": "Any bounded inference, implemented status, profile activation, and ADR-0030 are created only after the human authority reviews the refutation evidence and explicitly accepts H-026.",
-      "evidence": "Future Human Doctrine evidence review"
+      "statement": "ADR-0030, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-026.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0030"
     }
   ]
 }

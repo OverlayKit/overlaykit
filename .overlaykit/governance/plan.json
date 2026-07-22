@@ -300,6 +300,14 @@
       "id": "ADR-0029",
       "supersededBy": null,
       "title": "Live production truth requires durable commit-before-publication authority"
+    },
+    {
+      "contentHash": "0f6329c7097668937f70fffd62cf1499a324ea71ae3d562c93ce4d54b2ceaf76",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0030",
+      "supersededBy": null,
+      "title": "Production commands require durable idempotent authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -434,10 +442,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "0a90a266ee796c832d0fe7e160f1dff5cf6645b1665548b79fb1cbf796446f32",
-  "profileHash": "1db4fe59624a4e9ccfcea689914e3de102992bf08c6075e25afecbeb27987632",
+  "planHash": "dc7756875727eb30ac596f36e1d4f0031fce774ddddafddb62e56cea1c654a99",
+  "profileHash": "a02c7d9419acf56d6f01cd03fd956a477aeba6340341e89296edefbda383f571",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.25.0",
+  "profileVersion": "2.26.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -504,6 +512,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0003",
       "statement": "Every change separates facts, inferences, assumptions, and unknowns; facts and inferences require evidence."
+    },
+    {
+      "id": "component-visibility-command-shares-exclusive-sqlite-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Canonical component-visibility commands must use the existing long-lived exclusive SQLite credential and production-state connection and must never create a second executable command authority."
     },
     {
       "id": "credentials-are-purpose-scoped",
@@ -1404,6 +1418,60 @@
       "kind": "rule",
       "sourceDecision": "ADR-0029",
       "statement": "Persisted production identity must use the tested canonical JSON representation that preserves all JSON object keys, orders keys by code unit, and rejects values that are not valid complete JSON data."
+    },
+    {
+      "id": "production-command-admission-is-terminal-and-atomic",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Every admitted command must atomically commit one applied or rejected terminal result, its revision boundary, canonical evidence, global order, and durable heads; applied results must commit the exact resulting production snapshot and history in the same transaction."
+    },
+    {
+      "id": "production-command-authority-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Passing component-visibility command evidence may not be represented as Take, batch, cue, macro, WebSocket, Studio, automation, temporal-effect, Show-lifecycle, compaction, multi-user, hostile-database, multi-host, abrupt-power, proxy, renderer, OBS, hardware, or operator-perception evidence."
+    },
+    {
+      "id": "production-command-corruption-requires-proven-boundary",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Command corruption may quarantine only an exact Show when the authoritative global order proves that boundary; non-delimitable order, head, schema, or transaction integrity failure must abort writable composition."
+    },
+    {
+      "id": "production-command-identity-is-stable-principal-scoped",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Command identity must be the stable device principal plus a domain-separated SHA-256 of operationId and must bind the complete canonical semantic intent without incorporating bearer, transport, request time, or credential generation."
+    },
+    {
+      "id": "production-command-journal-is-ordered-bounded-evidence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "The command journal must retain one global monotonic order, Show-local hash integrity, explicit non-evicting quotas, and bounded evidence without raw operationId, bearer, secret, label, editorial payload, or complete snapshot."
+    },
+    {
+      "id": "production-command-publication-follows-commit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Memory replacement and observer publication for an applied command must follow durable commit and must never expose a candidate or terminal result before the transaction succeeds."
+    },
+    {
+      "id": "production-command-replay-preserves-historical-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "An identical authorized replay must return the original historical result without reapplication, conflicting reuse must reveal only operation conflict, and later current state must remain a separate temporal claim."
+    },
+    {
+      "id": "production-command-replay-requires-current-authorization",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "Current exact authorization must be verified inside serialized authority before either admission or replay disclosure; command history and idempotency evidence never grant authority."
+    },
+    {
+      "id": "production-command-timeout-is-observational-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0030",
+      "statement": "A three-second unknown may state only that the observer lacks terminal evidence for the same operationId; it must not imply failure, cancel admission, or authorize a replacement command."
     },
     {
       "id": "production-history-is-bounded-evidence",
