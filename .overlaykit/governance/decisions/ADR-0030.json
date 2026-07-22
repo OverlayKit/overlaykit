@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0030",
+  "title": "Production commands require durable idempotent authority",
+  "status": "accepted",
+  "date": "2026-07-22",
+  "supersedes": null,
+  "governs": [
+    "production-command-authority",
+    "production-command-idempotency",
+    "production-command-authorization",
+    "production-command-order",
+    "production-command-integrity",
+    "production-command-replay"
+  ],
+  "context": "ADR-0029 established durable Preview and Program state, but it did not prove command admission, idempotency, terminal results, or replay after a lost response. Without one durable command authority, an operator retry after transport loss could duplicate a production mutation or reinterpret a historical outcome using newer state. Discovery for SDD-026 required identity scoped to a stable principal plus operationId, fresh current authorization before admission or result disclosure, canonical semantic intent, target revision fencing, one global commit order, only applied or rejected durable outcomes, historical replay without claiming current feedback, explicit capacity failure without eviction, and bounded privacy-preserving evidence. Slice 1 added a canonical device HTTP component-visibility command path and one command journal on the existing exclusive SQLite connection. Refutation exercised restart after response loss and later state, credential rotation and revocation, exact expiry, malformed and unresolvable requests, stale revisions, principal isolation, duplicate and conflicting concurrency, injected faults immediately before and after COMMIT, child-process SIGKILL on both sides of COMMIT, per-Show and global quotas, raw-database privacy probes, history cross-binding, exact-Show corruption isolation, global-head failure, and schema version 3 to 4 migration. Full repository checks, builds, licensing, governance verification, and 454 package tests passed locally, while the focused 82-test authority suite passed on Ubuntu, macOS, and Windows. GitHub Actions Constitution run 77 passed signed identity, quality, build, evidence generation, enforcement, and the portability matrix for PR 34 containing signed commit 1008530bd5928b51db910c88b32e826f84836655. Its pull-request provenance-attestation step was skipped and is not part of the accepted evidence. The human authority accepted H-026 only within the tested same-process, single-host, local-file SQLite, process-crash, device HTTP, and component-visibility boundary.",
+  "decision": "OverlayKit owns one serialized production-command authority on the same long-lived exclusive SQLite connection as credential, device-transition, and production-state authority. The accepted command vocabulary is limited to the canonical component-visibility intent exercised by the device HTTP adapter. Command identity is the device credential's stable identifier plus a domain-separated SHA-256 of operationId; bearer value, transport, request time, and credential generation prove current authority but do not redefine identity. Before either new admission or replay disclosure, the authority must verify the current credential generation, verifier, expiry, Show, target, scope, and exact component capability inside the serialized transaction. Malformed, unauthorized, oversized, or unresolved requests do not consume identity. An authorized command with a stale expected revision commits one permanent rejected result and consumes that identity. An identical replay returns the original historical terminal result without mutation even if current production state has advanced; conflicting reuse returns only an operation conflict, and another stable principal has an independent namespace. Every admitted command receives one strictly increasing global sequence and participates in one Show-local hash chain. Applied admission atomically commits canonical intent and authority evidence, revision fences, the complete resulting production snapshot, production history cross-binding, terminal command result, global order, and durable heads before memory or publication. Rejected stale-revision admission atomically commits its terminal evidence without changing production state. No durable pending state exists: applied and rejected are the only journal outcomes, while a three-second unknown remains an observer condition tied to the same operationId and grants no replacement authority. A transport loss does not cancel an admitted command. Replay is checked before quota admission but never before current authorization. Per-Show and global quotas reject new admission explicitly and never evict replay evidence. Journal rows retain bounded identifiers, hashes, revision boundaries, result codes, authority generation, order, and time; they exclude raw operationId, bearers, labels, editorial payloads, and complete snapshots. Startup verifies command records, global order and head, Show-local chains, terminal consistency, and exact cross-binding to production history. Corruption may quarantine only an exact Show when the authoritative global order proves that boundary; non-delimitable order, head, schema, or transaction integrity failure aborts writable composition. Any adapter that later uses this accepted command type must enter through the same authority and may publish only after durable commit. These guarantees apply only to the cooperating OverlayKit runtime and tested boundary. Other command types, Studio and automation adapters, WebSocket execution, external or temporal effects, Show lifecycle ordering, compaction, multi-user authorization, hostile database access, multi-host coordination, physical power-loss durability, proxy transport, renderer state, OBS output, hardware state, and operator perception require separate evidence.",
+  "consequences": [
+    "Device component-visibility latency includes one exclusive SQLite transaction because admission, authorization evidence, production mutation, terminal result, and order cannot diverge.",
+    "A caller must retain and replay the same operationId after an observational timeout; issuing a replacement operation can represent a second command.",
+    "Replay returns historical command evidence while the accompanying current production state may have advanced, so consumers must not confuse the two temporal claims.",
+    "A stale expected revision is a durable rejected command and permanently consumes that principal-scoped operation identity.",
+    "Credential rotation, revocation, expiry, or scope loss can deny replay disclosure even though the historical command record remains immutable.",
+    "Per-Show or global journal exhaustion rejects new commands explicitly and requires future governed retention or compaction work; prior replay evidence is not silently deleted.",
+    "An exactly attributable corrupt Show command chain can quarantine that Show while siblings continue, but global order or durable-head uncertainty aborts writable startup.",
+    "Database schema version 4 initializes the command authority while preserving version 3 credentials and production state.",
+    "The accepted evidence does not authorize Take, control batches, cues, macros, WebSocket commands, Studio or automation command adapters, or any physical-output claim."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "component-visibility-command-shares-exclusive-sqlite-authority",
+      "statement": "Canonical component-visibility commands must use the existing long-lived exclusive SQLite credential and production-state connection and must never create a second executable command authority."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-identity-is-stable-principal-scoped",
+      "statement": "Command identity must be the stable device principal plus a domain-separated SHA-256 of operationId and must bind the complete canonical semantic intent without incorporating bearer, transport, request time, or credential generation."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-replay-requires-current-authorization",
+      "statement": "Current exact authorization must be verified inside serialized authority before either admission or replay disclosure; command history and idempotency evidence never grant authority."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-admission-is-terminal-and-atomic",
+      "statement": "Every admitted command must atomically commit one applied or rejected terminal result, its revision boundary, canonical evidence, global order, and durable heads; applied results must commit the exact resulting production snapshot and history in the same transaction."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-replay-preserves-historical-truth",
+      "statement": "An identical authorized replay must return the original historical result without reapplication, conflicting reuse must reveal only operation conflict, and later current state must remain a separate temporal claim."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-publication-follows-commit",
+      "statement": "Memory replacement and observer publication for an applied command must follow durable commit and must never expose a candidate or terminal result before the transaction succeeds."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-journal-is-ordered-bounded-evidence",
+      "statement": "The command journal must retain one global monotonic order, Show-local hash integrity, explicit non-evicting quotas, and bounded evidence without raw operationId, bearer, secret, label, editorial payload, or complete snapshot."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-corruption-requires-proven-boundary",
+      "statement": "Command corruption may quarantine only an exact Show when the authoritative global order proves that boundary; non-delimitable order, head, schema, or transaction integrity failure must abort writable composition."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-timeout-is-observational-only",
+      "statement": "A three-second unknown may state only that the observer lacks terminal evidence for the same operationId; it must not imply failure, cancel admission, or authorize a replacement command."
+    },
+    {
+      "kind": "rule",
+      "id": "production-command-authority-claims-are-bounded",
+      "statement": "Passing component-visibility command evidence may not be represented as Take, batch, cue, macro, WebSocket, Studio, automation, temporal-effect, Show-lifecycle, compaction, multi-user, hostile-database, multi-host, abrupt-power, proxy, renderer, OBS, hardware, or operator-perception evidence."
+    }
+  ]
+}

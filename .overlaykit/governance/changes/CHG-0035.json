@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0035",
+  "title": "Test durable idempotent production command authority",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0009",
+    "ADR-0014",
+    "ADR-0015",
+    "ADR-0019",
+    "ADR-0021",
+    "ADR-0027",
+    "ADR-0028",
+    "ADR-0029",
+    "ADR-0030"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires an admitted command whose response was lost to return its original terminal result when the same stable principal replays the same operationId after restart, even when later commands have advanced current production state; replay evidence must remain historical and must not claim to be current feedback.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery scopes command identity to stable principal plus operationId and binds the record to route-derived Show, target, action, typed value, expected revision, and canonical semantic intent. Bearer, transport, connection, request time, and credential generation prove authority but do not change command identity.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires fresh current authorization before command admission or result disclosure. Malformed and unauthorized requests do not consume operation identity, while an authorized canonical command rejected for a stale revision consumes its identity permanently as a durable rejected result.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every admitted command to receive one global monotonic commit order and one target-local revision boundary. Concurrent identical submissions converge on one result, conflicting reuse returns only operation_conflict, and authorization changes win or lose according to the same serialized authority order without rewriting history.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery permits only applied and rejected as durable terminal outcomes for this structural Slice. Unknown means the observer lacks terminal evidence after three seconds, remains tied to the same operationId, and cannot imply failure or authorize a replacement command. A transport loss after durable admission does not cancel execution.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires one command journal shared by Studio, device, and future automation adapters, with bounded evidence that excludes bearers, secrets, labels, editorial content, and complete snapshots. Per-Show and global quotas must fail explicitly without silent eviction, and unverifiable non-delimitable journal integrity must abort writable startup.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-026: One serialized command authority on the existing exclusive SQLite connection can atomically bind stable-principal idempotency, fresh authorization evidence, a canonical component-visibility intent, target revision fencing, live snapshot mutation, global command order, bounded terminal result, and durable heads before memory or publication, so process-crash replay cannot duplicate or ambiguously reinterpret an admitted command.",
+      "evidence": "SDD-026 hypothesis and component-visibility refutation experiment approved by Human Doctrine review on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-026 only for the tested same-process, single-host, local-file SQLite command authority and canonical device HTTP component-visibility path whose stable-principal idempotency, fresh authorization before admission or replay disclosure, target revision fencing, atomic applied or rejected terminal outcomes, global and Show-local ordering, restart replay, commit-before-memory and publication, bounded evidence and quotas, exact-Show corruption isolation, and fail-closed non-delimitable integrity behavior were demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, governance verification, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-026 refutation evidence and GitHub Actions Constitution run 77",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish durable Take, control-value batches, cues, macros, replay or cancellation workflows, WebSocket command framing or execution, automation adapters, temporal or external effects, command-result broadcast policy, atomic ordering with Show archival or other Show lifecycle changes, Show retirement or journal compaction, multi-user authorization, at-rest encryption, backup or restore, hostile out-of-band database resistance, multi-host coordination, abrupt-power physical-media durability, Caddy or TLS behavior, renderer state, OBS output, hardware state, or operator perception.",
+      "evidence": "SDD-026 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "One accepted component-visibility command commits its canonical fingerprint, current authorization evidence, target fence, complete resulting production snapshot, strictly advancing revision, global command order, terminal result, and durable heads in one SQLite transaction before memory or publication.",
+      "verification": "Transaction barriers, independent database inspection, observer ordering, and injected commit faults."
+    },
+    {
+      "id": "SC-002",
+      "statement": "An identical stable-principal replay before or after restart returns the original historical result without mutation, while a different canonical intent conflicts, another principal has an independent namespace, and fresh authorization is required before either outcome is disclosed.",
+      "verification": "Restart replay, later-state advancement, principal isolation, rotation, revocation, conflict, and privacy tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A stale expected revision commits one permanent rejected result without changing production state, while malformed and unauthorized requests create no command record or consumed identity.",
+      "verification": "Revision race, malformed input, authorization denial, database inspection, and corrected-retry tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Concurrent submissions and process death expose exactly one of two truths: no committed command and no mutation before commit, or one terminal command result and its exact resulting snapshot after commit; no durable pending state or duplicate application exists.",
+      "verification": "Concurrent duplicate and conflict barriers plus child-process SIGKILL immediately before and after COMMIT."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Per-Show and global capacity limits reject new admission without evicting prior results, bounded command rows contain no prohibited authority or editorial payload, exact corruption is isolated only when provable, and non-delimitable journal or head failure aborts writable composition.",
+      "verification": "Quota boundaries, raw database privacy probes, row and head tampering, startup failure, and sibling-Show isolation tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0035 records Discovery facts, H-026, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the shared SQLite command journal, canonical component-visibility command path, current authorization composition, post-commit publication, bounded quota and integrity behavior, focused tests, and portability evidence.",
+      "evidence": "git diff for CHG-0035"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-026 through duplicate and conflicting concurrency, stale revisions, authorization races, response loss, restart, pre-commit and post-commit process death, quota exhaustion, corruption, privacy inspection, and adapter bypass attempts.",
+      "evidence": "Focused unit, integration, and real-process tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 77"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0030, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-026.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0030"
+    }
+  ]
+}

@@ -109,7 +109,7 @@ describe('device bearer production control boundary', () => {
 
   beforeEach(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'overlaykit-device-control-'));
-    now = 1_000;
+    now = Date.now();
     credentialCounter = 0;
     entropyByte = 0;
     runtime = await createDeviceCredentialRuntime({
@@ -130,7 +130,11 @@ describe('device bearer production control boundary', () => {
     storage.shows.set('show-2', show('show-2'));
     auth = new AuthService(new MemoryAuthStore());
     await auth.init();
-    production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
+    production = new ProductionService(new ChannelManager());
+    if (!runtime.productionState) {
+      throw new Error('SQLite device runtime did not expose production authority');
+    }
+    production.mountPersistence(runtime.productionState);
     production.loadPreview('show-1', scene());
     production.take('show-1', 1, 'initial-take');
     app = createApp({
@@ -162,7 +166,7 @@ describe('device bearer production control boundary', () => {
       targets: overrides.targets ?? ['preview'],
       controlIds: overrides.controlIds ?? ['lower-third.visibility'],
       scopes: overrides.scopes ?? ['component.visibility:write'],
-      expiresAt: overrides.expiresAt ?? 10_000,
+      expiresAt: overrides.expiresAt ?? now + 9_000,
     });
   }
 
@@ -203,6 +207,16 @@ describe('device bearer production control boundary', () => {
       resultingState: 'inactive',
       operationId: 'preview-hide',
       targetRevision: 2,
+    });
+    expect(response.body.data.command).toMatchObject({
+      status: 'applied',
+      resultCode: 'APPLIED',
+      globalSequence: 1,
+      operationId: 'preview-hide',
+      expectedRevision: 1,
+      previousRevision: 1,
+      resultingRevision: 2,
+      replayed: false,
     });
     expect(response.body.data.state.preview.elements[0].styles.display).toBe('none');
     expect(response.body.data.state.program.elements[0].styles.display).toBeUndefined();
@@ -272,8 +286,8 @@ describe('device bearer production control boundary', () => {
       .send(command('after-revoke', 2, true))
       .expect(401);
 
-    const expiring = await issue({ expiresAt: 2_000 });
-    now = 2_001;
+    const expiring = await issue({ expiresAt: now + 1_000 });
+    now += 1_001;
     await request(app)
       .post(endpoint())
       .set('Authorization', `Bearer ${expiring.token}`)
@@ -480,19 +494,23 @@ describe('device bearer production control boundary', () => {
     production.loadPreview('show-1', {
       id: 'alert-scene',
       name: 'Alert scene',
-      elements: [{
-        id: 'container',
-        tag: 'section',
-        content: '{{dynamicLabel}}',
-        styles: {},
-        children: [{
-          id: 'alert',
-          tag: 'div',
-          content: 'Ignored content',
-          attributes: { 'aria-label': `  ${'Live alert '.repeat(20)}  ` },
+      elements: [
+        {
+          id: 'container',
+          tag: 'section',
+          content: '{{dynamicLabel}}',
           styles: {},
-        }],
-      }],
+          children: [
+            {
+              id: 'alert',
+              tag: 'div',
+              content: 'Ignored content',
+              attributes: { 'aria-label': `  ${'Live alert '.repeat(20)}  ` },
+              styles: {},
+            },
+          ],
+        },
+      ],
     });
     const previewBefore = production.getSnapshot('show-1', 'preview');
     const programBefore = production.getSnapshot('show-1', 'program');

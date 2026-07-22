@@ -57,9 +57,25 @@ export interface ComponentVisibilityReceipt {
   executedAt: number;
 }
 
+export interface ProductionCommandOutcome {
+  status: 'applied' | 'rejected';
+  resultCode: 'APPLIED' | 'TARGET_REVISION_CONFLICT';
+  globalSequence: number;
+  operationId: string;
+  intentHash: string;
+  authorityGeneration: number;
+  expectedRevision: number;
+  previousRevision: number;
+  resultingRevision: number;
+  resultingSnapshotHash: string;
+  committedAt: number;
+  replayed: boolean;
+}
+
 export interface ComponentVisibilityResult {
   receipt: ComponentVisibilityReceipt;
   state: ProductionState;
+  command?: ProductionCommandOutcome;
 }
 
 export interface ComponentVisibilityCueStep {

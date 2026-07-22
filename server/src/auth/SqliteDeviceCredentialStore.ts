@@ -20,7 +20,7 @@ import {
   type SqliteProductionStateStoreOptions,
 } from '../services/SqliteProductionStateStore';
 
-const SQLITE_SCHEMA_VERSION = 3;
+const SQLITE_SCHEMA_VERSION = 4;
 const MIGRATION_STATE_KEY = 'legacy_json_migration';
 const MIGRATION_NONE = 'none';
 const MIGRATION_IMPORTED_PREFIX = 'imported:';
@@ -48,13 +48,16 @@ function dataDirectory(): string {
 }
 
 function defaultDatabasePath(): string {
-  return process.env.DEVICE_CREDENTIAL_DB
-    || path.join(dataDirectory(), 'device-credentials.sqlite');
+  return (
+    process.env.DEVICE_CREDENTIAL_DB || path.join(dataDirectory(), 'device-credentials.sqlite')
+  );
 }
 
 function defaultLegacyFilePath(databasePath: string): string {
-  return process.env.DEVICE_CREDENTIAL_FILE
-    || path.join(path.dirname(databasePath), 'device-credentials.json');
+  return (
+    process.env.DEVICE_CREDENTIAL_FILE ||
+    path.join(path.dirname(databasePath), 'device-credentials.json')
+  );
 }
 
 function cloneRecord(record: StoredDeviceCredential): StoredDeviceCredential {
@@ -67,10 +70,12 @@ function cloneRecord(record: StoredDeviceCredential): StoredDeviceCredential {
 }
 
 function assertRecord(record: StoredDeviceCredential): StoredDeviceCredential {
-  const document = parseDeviceCredentialFileDocument(JSON.stringify({
-    schemaVersion: 1,
-    records: [record],
-  }));
+  const document = parseDeviceCredentialFileDocument(
+    JSON.stringify({
+      schemaVersion: 1,
+      records: [record],
+    })
+  );
   return document.records[0];
 }
 
@@ -96,7 +101,7 @@ function rowRecord(row: CredentialRow): StoredDeviceCredential {
     throw new DeviceCredentialStoreError(
       'INVALID_DEVICE_CREDENTIAL_STORE',
       'SQLite device credential authority contains malformed structured data',
-      error,
+      error
     );
   }
   return assertRecord(record);
@@ -142,14 +147,9 @@ function storeFailure(message: string, error: unknown): DeviceCredentialStoreErr
   if (error instanceof DeviceCredentialStoreError) return error;
   const code = sqliteCauseCode(error);
   const errorCode = (error as { errcode?: unknown })?.errcode;
-  const suffix = code === 'SQLITE_BUSY' || errorCode === 5
-    ? ' (exclusive authority is unavailable)'
-    : '';
-  return new DeviceCredentialStoreError(
-    'DEVICE_CREDENTIAL_STORE_IO',
-    `${message}${suffix}`,
-    error,
-  );
+  const suffix =
+    code === 'SQLITE_BUSY' || errorCode === 5 ? ' (exclusive authority is unavailable)' : '';
+  return new DeviceCredentialStoreError('DEVICE_CREDENTIAL_STORE_IO', `${message}${suffix}`, error);
 }
 
 export interface SqliteDeviceCredentialStoreOptions {
@@ -176,11 +176,11 @@ export class SqliteDeviceCredentialStore {
   constructor(options: SqliteDeviceCredentialStoreOptions = {}) {
     this.databasePath = path.resolve(options.databasePath ?? defaultDatabasePath());
     this.legacyFilePath = path.resolve(
-      options.legacyFilePath ?? defaultLegacyFilePath(this.databasePath),
+      options.legacyFilePath ?? defaultLegacyFilePath(this.databasePath)
     );
     this.legacyArchivePath = `${this.legacyFilePath}.migrated`;
-    this.openDatabase = options.openDatabase
-      ?? ((databasePath) => new DatabaseSync(databasePath, { timeout: 0 }));
+    this.openDatabase =
+      options.openDatabase ?? ((databasePath) => new DatabaseSync(databasePath, { timeout: 0 }));
     this.archiveLegacyFile = options.archiveLegacyFile ?? fs.rename;
     this.beforeCommit = options.beforeCommit ?? (() => undefined);
   }
@@ -217,8 +217,7 @@ export class SqliteDeviceCredentialStore {
 
   async get(credentialId: string): Promise<StoredDeviceCredential | null> {
     const row = this.requiredStatement(this.selectStatement).get(credentialId) as
-      | CredentialRow
-      | undefined;
+      CredentialRow | undefined;
     return row ? cloneRecord(rowRecord(row)) : null;
   }
 
@@ -230,24 +229,21 @@ export class SqliteDeviceCredentialStore {
     });
   }
 
-  async replace(
-    recordInput: StoredDeviceCredential,
-    expectedGeneration: number,
-  ): Promise<boolean> {
+  async replace(recordInput: StoredDeviceCredential, expectedGeneration: number): Promise<boolean> {
     const record = assertRecord(recordInput);
     return this.writeTransaction('replace', () => {
       const values = recordValues(record);
       const result = this.requiredStatement(this.replaceStatement).run(
         ...values.slice(1),
         record.credentialId,
-        expectedGeneration,
+        expectedGeneration
       );
       return Number(result.changes) === 1;
     });
   }
 
   createTransitionLedger(
-    options: Omit<SqliteDeviceTransitionLedgerOptions, 'database'> = {},
+    options: Omit<SqliteDeviceTransitionLedgerOptions, 'database'> = {}
   ): SqliteDeviceTransitionLedger {
     return new SqliteDeviceTransitionLedger({
       ...options,
@@ -256,12 +252,12 @@ export class SqliteDeviceCredentialStore {
   }
 
   createProductionStateStore(
-    options: Omit<SqliteProductionStateStoreOptions, 'database'> = {},
+    options: Omit<SqliteProductionStateStoreOptions, 'database'> = {}
   ): SqliteProductionStateStore {
     if (this.productionStateStore) {
       throw new DeviceCredentialStoreError(
         'INVALID_DEVICE_CREDENTIAL_STORE',
-        'SQLite production authority has already been created for this connection',
+        'SQLite production authority has already been created for this connection'
       );
     }
     this.productionStateStore = new SqliteProductionStateStore({
@@ -297,7 +293,7 @@ export class SqliteDeviceCredentialStore {
     if (rows.length !== 1 || rows[0]?.quick_check !== 'ok') {
       throw new DeviceCredentialStoreError(
         'INVALID_DEVICE_CREDENTIAL_STORE',
-        'SQLite authority failed its integrity check',
+        'SQLite authority failed its integrity check'
       );
     }
   }
@@ -329,40 +325,38 @@ export class SqliteDeviceCredentialStore {
       initializeDeviceTransitionLedgerSchema(database);
       initializeProductionStateSchema(database);
       const userVersion = database.prepare('PRAGMA user_version').get() as
-        | { user_version?: number }
-        | undefined;
+        { user_version?: number } | undefined;
       if ((userVersion?.user_version ?? 0) > SQLITE_SCHEMA_VERSION) {
         throw new DeviceCredentialStoreError(
           'INVALID_DEVICE_CREDENTIAL_STORE',
-          'SQLite device credential schema is newer than this host',
+          'SQLite device credential schema is newer than this host'
         );
       }
       database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
 
-      const current = database.prepare(
-        'SELECT value FROM authority_metadata WHERE key = ?',
-      ).get(MIGRATION_STATE_KEY) as { value?: string } | undefined;
+      const current = database
+        .prepare('SELECT value FROM authority_metadata WHERE key = ?')
+        .get(MIGRATION_STATE_KEY) as { value?: string } | undefined;
       if (!current) {
-        const count = database.prepare(
-          'SELECT COUNT(*) AS count FROM device_credentials',
-        ).get() as { count?: number } | undefined;
+        const count = database.prepare('SELECT COUNT(*) AS count FROM device_credentials').get() as
+          { count?: number } | undefined;
         if ((count?.count ?? 0) !== 0) {
           throw new DeviceCredentialStoreError(
             'INVALID_DEVICE_CREDENTIAL_STORE',
-            'SQLite authority has records without initialization evidence',
+            'SQLite authority has records without initialization evidence'
           );
         }
         if (legacyRaw === null) {
-          database.prepare(
-            'INSERT INTO authority_metadata (key, value) VALUES (?, ?)',
-          ).run(MIGRATION_STATE_KEY, MIGRATION_NONE);
+          database
+            .prepare('INSERT INTO authority_metadata (key, value) VALUES (?, ?)')
+            .run(MIGRATION_STATE_KEY, MIGRATION_NONE);
         } else {
           const document = parseDeviceCredentialFileDocument(legacyRaw);
           const insert = this.insertStatementFor(database);
           for (const record of document.records) insert.run(...recordValues(record));
-          database.prepare(
-            'INSERT INTO authority_metadata (key, value) VALUES (?, ?)',
-          ).run(MIGRATION_STATE_KEY, `${MIGRATION_IMPORTED_PREFIX}${migrationHash(legacyRaw)}`);
+          database
+            .prepare('INSERT INTO authority_metadata (key, value) VALUES (?, ?)')
+            .run(MIGRATION_STATE_KEY, `${MIGRATION_IMPORTED_PREFIX}${migrationHash(legacyRaw)}`);
         }
       } else {
         this.assertLegacyState(current.value ?? '', legacyRaw);
@@ -387,18 +381,18 @@ export class SqliteDeviceCredentialStore {
     }
     throw new DeviceCredentialStoreError(
       'INVALID_DEVICE_CREDENTIAL_STORE',
-      'Legacy credential JSON conflicts with initialized SQLite authority',
+      'Legacy credential JSON conflicts with initialized SQLite authority'
     );
   }
 
   private async archiveCommittedLegacy(database: DatabaseSync, legacyRaw: string): Promise<void> {
-    const state = database.prepare(
-      'SELECT value FROM authority_metadata WHERE key = ?',
-    ).get(MIGRATION_STATE_KEY) as { value?: string } | undefined;
+    const state = database
+      .prepare('SELECT value FROM authority_metadata WHERE key = ?')
+      .get(MIGRATION_STATE_KEY) as { value?: string } | undefined;
     if (state?.value !== `${MIGRATION_IMPORTED_PREFIX}${migrationHash(legacyRaw)}`) {
       throw new DeviceCredentialStoreError(
         'INVALID_DEVICE_CREDENTIAL_STORE',
-        'Legacy credential JSON was not committed into SQLite authority',
+        'Legacy credential JSON was not committed into SQLite authority'
       );
     }
     await this.archiveLegacyFile(this.legacyFilePath, this.legacyArchivePath);
@@ -434,7 +428,7 @@ export class SqliteDeviceCredentialStore {
     if (!this.database || !statement) {
       throw new DeviceCredentialStoreError(
         'DEVICE_CREDENTIAL_STORE_IO',
-        'SQLite device credential authority is not initialized',
+        'SQLite device credential authority is not initialized'
       );
     }
     return statement;
@@ -444,7 +438,7 @@ export class SqliteDeviceCredentialStore {
     if (!this.database) {
       throw new DeviceCredentialStoreError(
         'DEVICE_CREDENTIAL_STORE_IO',
-        'SQLite device credential authority is not initialized',
+        'SQLite device credential authority is not initialized'
       );
     }
     return this.database;
@@ -455,7 +449,7 @@ export class SqliteDeviceCredentialStore {
     if (!database) {
       throw new DeviceCredentialStoreError(
         'DEVICE_CREDENTIAL_STORE_IO',
-        'SQLite device credential authority is not initialized',
+        'SQLite device credential authority is not initialized'
       );
     }
     database.exec('BEGIN IMMEDIATE');

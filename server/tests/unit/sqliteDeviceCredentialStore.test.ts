@@ -7,6 +7,8 @@ import { pathToFileURL } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { StoredDeviceCredential } from '@overlaykit/protocol/device-credential';
 import { SqliteDeviceCredentialStore } from '../../src/auth/SqliteDeviceCredentialStore';
+import { ChannelManager } from '../../src/services/ChannelManager';
+import { ProductionService } from '../../src/services/ProductionService';
 
 const stores: SqliteDeviceCredentialStore[] = [];
 const children: ChildProcessWithoutNullStreams[] = [];
@@ -29,7 +31,11 @@ function record(generation = 1): StoredDeviceCredential {
   };
 }
 
-async function location(): Promise<{ directory: string; databasePath: string; legacyFilePath: string }> {
+async function location(): Promise<{
+  directory: string;
+  databasePath: string;
+  legacyFilePath: string;
+}> {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'overlaykit-device-sqlite-'));
   return {
     directory,
@@ -47,14 +53,19 @@ function tracked(options: ConstructorParameters<typeof SqliteDeviceCredentialSto
 function waitForOutput(child: ChildProcessWithoutNullStreams, expected: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let output = '';
-    const timeout = setTimeout(() => reject(new Error(`Child did not emit ${expected}: ${output}`)), 8_000);
+    const timeout = setTimeout(
+      () => reject(new Error(`Child did not emit ${expected}: ${output}`)),
+      8_000
+    );
     child.stdout.on('data', (chunk) => {
       output += chunk.toString();
       if (!output.includes(expected)) return;
       clearTimeout(timeout);
       resolve();
     });
-    child.stderr.on('data', (chunk) => { output += chunk.toString(); });
+    child.stderr.on('data', (chunk) => {
+      output += chunk.toString();
+    });
     child.once('exit', (code) => {
       if (!output.includes(expected)) {
         clearTimeout(timeout);
@@ -100,7 +111,7 @@ describe('SqliteDeviceCredentialStore', () => {
       process.cwd(),
       process.cwd().endsWith(`${path.sep}server`)
         ? 'src/auth/SqliteDeviceCredentialStore.ts'
-        : 'server/src/auth/SqliteDeviceCredentialStore.ts',
+        : 'server/src/auth/SqliteDeviceCredentialStore.ts'
     );
     const childScript = `
       const loaded = await import(${JSON.stringify(pathToFileURL(modulePath).href)});
@@ -110,17 +121,15 @@ describe('SqliteDeviceCredentialStore', () => {
       process.stdout.write('AUTHORITY_READY\\n');
       setInterval(() => undefined, 1000);
     `;
-    const child = spawn(process.execPath, [
-      '--import',
-      'tsx',
-      '--input-type=module',
-      '-e',
-      childScript,
-    ], {
-      cwd: process.cwd(),
-      env: { ...process.env, DEVICE_DB: paths.databasePath },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', '--input-type=module', '-e', childScript],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, DEVICE_DB: paths.databasePath },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    );
     children.push(child);
     await waitForOutput(child, 'AUTHORITY_READY');
 
@@ -175,7 +184,9 @@ describe('SqliteDeviceCredentialStore', () => {
     await fs.writeFile(paths.legacyFilePath, raw, 'utf8');
     const failing = tracked({
       ...paths,
-      archiveLegacyFile: async () => { throw new Error('injected archive failure'); },
+      archiveLegacyFile: async () => {
+        throw new Error('injected archive failure');
+      },
     });
 
     await expect(failing.init()).rejects.toMatchObject({ code: 'DEVICE_CREDENTIAL_STORE_IO' });
@@ -199,8 +210,16 @@ describe('SqliteDeviceCredentialStore', () => {
       DROP TABLE production_current_snapshots;
       DROP TABLE production_history;
       DROP TABLE production_quarantines;
+      DROP TABLE production_commands;
+      DROP TABLE production_command_order;
+      DROP TABLE production_command_quarantines;
       DELETE FROM authority_metadata
-      WHERE key IN ('production_history_head_sequence', 'production_history_head_hash');
+      WHERE key IN (
+        'production_history_head_sequence',
+        'production_history_head_hash',
+        'production_command_head_sequence',
+        'production_command_head_hash'
+      );
       PRAGMA user_version = 2;
     `);
     versionTwo.close();
@@ -212,6 +231,43 @@ describe('SqliteDeviceCredentialStore', () => {
       snapshots: [],
       quarantines: [],
     });
+  });
+
+  it('upgrades version 3 state in place and initializes an empty command journal', async () => {
+    const paths = await location();
+    const original = tracked(paths);
+    await original.init();
+    await original.create(record());
+    const originalPersistence = original.createProductionStateStore();
+    const production = new ProductionService(new ChannelManager());
+    production.mountPersistence(originalPersistence);
+    production.loadPreview('show-1', {
+      id: 'preserved-scene',
+      name: 'Preserved scene',
+      elements: [{ id: 'lower-third', tag: 'section', content: 'Preserved', styles: {} }],
+    });
+    original.close();
+    stores.splice(stores.indexOf(original), 1);
+
+    const versionThree = new DatabaseSync(paths.databasePath);
+    versionThree.exec(`
+      DROP TABLE production_commands;
+      DROP TABLE production_command_order;
+      DROP TABLE production_command_quarantines;
+      DELETE FROM authority_metadata
+      WHERE key IN ('production_command_head_sequence', 'production_command_head_hash');
+      PRAGMA user_version = 3;
+    `);
+    versionThree.close();
+
+    const upgraded = tracked(paths);
+    await upgraded.init();
+    await expect(upgraded.get('device-1')).resolves.toMatchObject({ generation: 1 });
+    const upgradedPersistence = upgraded.createProductionStateStore();
+    expect(upgradedPersistence.load().snapshots).toEqual([
+      expect.objectContaining({ showId: 'show-1', target: 'preview', revision: 1 }),
+    ]);
+    expect(upgradedPersistence.readCommandJournal()).toEqual([]);
   });
 
   it('rejects malformed migration and later JSON that conflicts with initialized authority', async () => {
@@ -228,7 +284,7 @@ describe('SqliteDeviceCredentialStore', () => {
     await fs.writeFile(
       paths.legacyFilePath,
       JSON.stringify({ schemaVersion: 1, records: [record()] }),
-      'utf8',
+      'utf8'
     );
     await expect(tracked(paths).init()).rejects.toMatchObject({
       code: 'INVALID_DEVICE_CREDENTIAL_STORE',
