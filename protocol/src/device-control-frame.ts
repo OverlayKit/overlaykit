@@ -15,7 +15,7 @@ import type { ProductionBus } from './production.js';
 export const DEVICE_CONTROL_FRAME_VERSION = 'overlaykit-device-control-frame/v2' as const;
 export const DEVICE_CONTROL_CATALOG_VERSION = 'overlaykit-device-control-catalog/v1' as const;
 export const DEVICE_CONTROL_FRAME_ENVELOPE_VERSION =
-  'overlaykit-device-control-frame-envelope/v2' as const;
+  'overlaykit-device-control-frame-envelope/v3' as const;
 export const DEVICE_CONTROL_FRAME_STATE_VERSION =
   'overlaykit-device-control-frame-state/v2' as const;
 
@@ -48,7 +48,16 @@ export interface UnsignedDeviceControlFrameEnvelope {
   readonly issuerKeyId: string;
   readonly audienceCredentialId: string;
   readonly sequence: number;
+  readonly baseIssuerKeyId: string | null;
+  readonly baseSequence: number | null;
+  readonly baseSha256: string | null;
   readonly frame: DeviceControlFrame;
+}
+
+export interface DeviceControlFrameIdentity {
+  readonly issuerKeyId: string;
+  readonly sequence: number;
+  readonly sha256: string;
 }
 
 export interface DeviceControlFrameAuthorityContext {
@@ -59,6 +68,7 @@ export interface DeviceControlFrameAuthorityContext {
   readonly controlIds: ReadonlyArray<string>;
   readonly scopes: ReadonlyArray<'feedback:read' | 'component.visibility:write'>;
   readonly lastAcceptedSequence: number;
+  readonly acceptedFrameIdentities?: ReadonlyArray<DeviceControlFrameIdentity>;
 }
 
 export type DeviceControlFrameSignatureVerifier = (
@@ -69,7 +79,20 @@ export type DeviceControlFrameSignatureVerifier = (
 
 export interface AdmittedDeviceControlFrame {
   readonly frame: DeviceControlFrame;
+  readonly identity: DeviceControlFrameIdentity;
+  readonly base: DeviceControlFrameIdentity | null;
   readonly acceptedSequence: number;
+  readonly duplicate: boolean;
+}
+
+export interface AdmittedDeviceControlFrameState {
+  readonly identity: DeviceControlFrameIdentity;
+  readonly state: DeviceControlFrameState;
+}
+
+export interface ReducedAdmittedDeviceControlFrame {
+  readonly state: AdmittedDeviceControlFrameState;
+  readonly applied: boolean;
 }
 
 export interface DeviceControlFrameEntry {
@@ -130,6 +153,7 @@ export type DeviceControlFrameErrorCode =
   | 'INVALID_OBSERVATION'
   | 'INVALID_STATE'
   | 'INVALID_TRANSITION'
+  | 'BASE_MISMATCH'
   | 'OUT_OF_ORDER_FRAME'
   | 'CATALOG_HASH_MISMATCH'
   | 'CRYPTO_UNAVAILABLE';
@@ -215,6 +239,32 @@ function requiredTime(
     throw new DeviceControlFrameError(code, `${field} is invalid`);
   }
   return value;
+}
+
+function normalizedIdentity(
+  value: DeviceControlFrameIdentity,
+  code: DeviceControlFrameErrorCode = 'INVALID_STATE'
+): DeviceControlFrameIdentity {
+  if (!value || typeof value !== 'object') {
+    throw new DeviceControlFrameError(code, 'Device control frame identity is invalid');
+  }
+  const issuerKeyId = requiredIdentifier(value.issuerKeyId, 'Identity issuer', code);
+  const sequence = requiredRevision(value.sequence, 'Identity sequence', code);
+  if (sequence === 0 || typeof value.sha256 !== 'string' || !SHA256_PATTERN.test(value.sha256)) {
+    throw new DeviceControlFrameError(code, 'Device control frame identity is invalid');
+  }
+  return Object.freeze({ issuerKeyId, sequence, sha256: value.sha256 });
+}
+
+function sameIdentity(
+  left: DeviceControlFrameIdentity,
+  right: DeviceControlFrameIdentity
+): boolean {
+  return (
+    left.issuerKeyId === right.issuerKeyId &&
+    left.sequence === right.sequence &&
+    left.sha256 === right.sha256
+  );
 }
 
 function normalizedAction(
@@ -771,11 +821,55 @@ function normalizedUnsignedEnvelope(
     }
     throw error;
   }
+  const baseFieldsAreNull =
+    envelope.baseIssuerKeyId === null &&
+    envelope.baseSequence === null &&
+    envelope.baseSha256 === null;
+  let baseIssuerKeyId: string | null = null;
+  let baseSequence: number | null = null;
+  let baseSha256: string | null = null;
+  if (frame.mode === 'bootstrap') {
+    if (!baseFieldsAreNull) {
+      throw new DeviceControlFrameAdmissionError(
+        'INVALID_ENVELOPE',
+        'Bootstrap frame cannot declare a prior base'
+      );
+    }
+  } else {
+    try {
+      baseIssuerKeyId = requiredIdentifier(
+        envelope.baseIssuerKeyId,
+        'Delta base issuer'
+      );
+      baseSequence = requiredRevision(envelope.baseSequence, 'Delta base sequence');
+    } catch (error) {
+      if (error instanceof DeviceControlFrameError) {
+        throw new DeviceControlFrameAdmissionError('INVALID_ENVELOPE', error.message);
+      }
+      throw error;
+    }
+    if (
+      baseIssuerKeyId !== issuerKeyId ||
+      baseSequence === 0 ||
+      baseSequence >= envelope.sequence ||
+      typeof envelope.baseSha256 !== 'string' ||
+      !SHA256_PATTERN.test(envelope.baseSha256)
+    ) {
+      throw new DeviceControlFrameAdmissionError(
+        'INVALID_ENVELOPE',
+        'Delta frame base is invalid'
+      );
+    }
+    baseSha256 = envelope.baseSha256;
+  }
   return {
     schemaVersion: DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,
     issuerKeyId,
     audienceCredentialId,
     sequence: envelope.sequence,
+    baseIssuerKeyId,
+    baseSequence,
+    baseSha256,
     frame,
   };
 }
@@ -821,6 +915,20 @@ function parseCanonicalPayload(payloadBytes: Uint8Array): UnsignedDeviceControlF
 }
 
 function validAuthority(authority: DeviceControlFrameAuthorityContext): boolean {
+  let identitiesAreValid = true;
+  try {
+    const identities = authority.acceptedFrameIdentities ?? [];
+    identitiesAreValid =
+      Array.isArray(identities) &&
+      identities.length <= MAX_CONTROLS &&
+      identities.every((identity) => {
+        const normalized = normalizedIdentity(identity);
+        return normalized.issuerKeyId === authority.issuerKeyId
+          && normalized.sequence <= authority.lastAcceptedSequence;
+      });
+  } catch {
+    identitiesAreValid = false;
+  }
   return (
     Boolean(authority && typeof authority === 'object') &&
     typeof authority.issuerKeyId === 'string' &&
@@ -832,8 +940,26 @@ function validAuthority(authority: DeviceControlFrameAuthorityContext): boolean 
     authority.controlIds.every((controlId) => typeof controlId === 'string') &&
     Array.isArray(authority.scopes) &&
     Number.isSafeInteger(authority.lastAcceptedSequence) &&
-    authority.lastAcceptedSequence >= 0
+    authority.lastAcceptedSequence >= 0 &&
+    identitiesAreValid
   );
+}
+
+async function sha256Bytes(bytes: Uint8Array): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new DeviceControlFrameAdmissionError(
+      'INVALID_ENVELOPE',
+      'SHA-256 is unavailable'
+    );
+  }
+  const input = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', input);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export async function admitDeviceControlFrame(
@@ -907,13 +1033,37 @@ export async function admitDeviceControlFrame(
       'Frame contains a control outside credential authority'
     );
   }
-  if (unsigned.sequence <= authority.lastAcceptedSequence) {
+  const identity = Object.freeze({
+    issuerKeyId: unsigned.issuerKeyId,
+    sequence: unsigned.sequence,
+    sha256: await sha256Bytes(payloadBytes),
+  });
+  const duplicate = (authority.acceptedFrameIdentities ?? []).some((accepted) =>
+    sameIdentity(normalizedIdentity(accepted), identity)
+  );
+  if (unsigned.sequence <= authority.lastAcceptedSequence && !duplicate) {
     throw new DeviceControlFrameAdmissionError(
       'FRAME_REPLAYED',
       'Frame sequence was already admitted'
     );
   }
-  return { frame: unsigned.frame, acceptedSequence: unsigned.sequence };
+  const base =
+    unsigned.baseIssuerKeyId === null ||
+    unsigned.baseSequence === null ||
+    unsigned.baseSha256 === null
+      ? null
+      : Object.freeze({
+          issuerKeyId: unsigned.baseIssuerKeyId,
+          sequence: unsigned.baseSequence,
+          sha256: unsigned.baseSha256,
+        });
+  return Object.freeze({
+    frame: unsigned.frame,
+    identity,
+    base,
+    acceptedSequence: Math.max(authority.lastAcceptedSequence, unsigned.sequence),
+    duplicate,
+  });
 }
 
 async function assertStateCatalogHash(state: DeviceControlFrameState): Promise<void> {
@@ -1062,6 +1212,64 @@ export async function reduceDeviceControlFrame(
     catalogHash: frame.catalogHash,
     controls: nextControls,
   };
+}
+
+export async function reduceAdmittedDeviceControlFrame(
+  current: AdmittedDeviceControlFrameState | null,
+  admitted: AdmittedDeviceControlFrame
+): Promise<ReducedAdmittedDeviceControlFrame> {
+  if (!admitted || typeof admitted !== 'object') {
+    throw new DeviceControlFrameError('INVALID_TRANSITION', 'Admitted frame is invalid');
+  }
+  const identity = normalizedIdentity(admitted.identity, 'INVALID_TRANSITION');
+  const base = admitted.base
+    ? normalizedIdentity(admitted.base, 'INVALID_TRANSITION')
+    : null;
+  if (current === null) {
+    if (base !== null || admitted.frame.mode !== 'bootstrap') {
+      throw new DeviceControlFrameError(
+        'BASE_MISMATCH',
+        'First admitted frame requires a base-free bootstrap'
+      );
+    }
+    return Object.freeze({
+      state: Object.freeze({
+        identity,
+        state: await reduceDeviceControlFrame(null, admitted.frame),
+      }),
+      applied: true,
+    });
+  }
+  if (!current || typeof current !== 'object') {
+    throw new DeviceControlFrameError('INVALID_STATE', 'Admitted frame state is invalid');
+  }
+  const currentIdentity = normalizedIdentity(current.identity);
+  const currentState = normalizedState(current.state);
+  if (admitted.duplicate === true) {
+    return Object.freeze({
+      state: Object.freeze({ identity: currentIdentity, state: currentState }),
+      applied: false,
+    });
+  }
+  if (sameIdentity(currentIdentity, identity)) {
+    return Object.freeze({
+      state: Object.freeze({ identity: currentIdentity, state: currentState }),
+      applied: false,
+    });
+  }
+  if (!base || !sameIdentity(base, currentIdentity)) {
+    throw new DeviceControlFrameError(
+      'BASE_MISMATCH',
+      'Delta base does not match the last applied target frame'
+    );
+  }
+  return Object.freeze({
+    state: Object.freeze({
+      identity,
+      state: await reduceDeviceControlFrame(currentState, admitted.frame),
+    }),
+    applied: true,
+  });
 }
 
 export function projectDeviceControl(

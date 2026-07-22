@@ -7,6 +7,9 @@ import {
   buildDeviceActionInventory,
   type DeviceActionCatalogRuntime,
 } from '../services/DeviceActionCatalogRuntime';
+import type {
+  DeviceTargetReadinessPort,
+} from '../services/DeviceTargetReadinessRegistry';
 
 const DEVICE_REALM = 'overlaykit-device';
 const VISIBILITY_SCOPE = 'component.visibility:write' as const;
@@ -50,6 +53,15 @@ function respondAuthorizationForbidden(res: Response): void {
         message: 'Device authority does not grant this action',
       },
     });
+}
+
+function respondTargetNotReady(res: Response): void {
+  res.status(409).json({
+    error: {
+      code: 'not_ready',
+      message: 'Device target lacks current applied state evidence',
+    },
+  });
 }
 
 function bearerToken(req: Request, res: Response): string | null {
@@ -175,7 +187,8 @@ export function createDeviceControlRouter(
   storage: Storage,
   production: ProductionService,
   runtime: DeviceCredentialRuntime,
-  actionCatalog?: DeviceActionCatalogRuntime
+  actionCatalog?: DeviceActionCatalogRuntime,
+  readiness?: DeviceTargetReadinessPort,
 ): Router {
   const router = Router();
 
@@ -255,6 +268,10 @@ export function createDeviceControlRouter(
           target,
           controlId: `${req.params.componentId}.visibility`,
         });
+        if (readiness && !readiness.isReady(authority, target)) {
+          respondTargetNotReady(res);
+          return;
+        }
 
         const show = await storage.getShow(req.params.showId);
         if (!show) {

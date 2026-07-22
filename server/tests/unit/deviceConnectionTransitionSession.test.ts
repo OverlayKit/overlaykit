@@ -4,6 +4,7 @@ import {
 } from '../../src/services/DeviceConnectionTransitionSession';
 import type {
   DeviceConnectionTransitionInput,
+  DeviceTransitionCheckpointTargetEvidence,
   DeviceTransitionLedgerPort,
   DeviceTransitionRecord,
   DeviceTransitionReadyTargetEvidence,
@@ -38,6 +39,21 @@ function readyTarget(
   };
 }
 
+function checkpointTarget(
+  overrides: Partial<DeviceTransitionCheckpointTargetEvidence> = {},
+): DeviceTransitionCheckpointTargetEvidence {
+  return {
+    target: 'preview',
+    targetRevision: 2,
+    catalogGeneration: 3,
+    issuerKeyId: 'server-key-1',
+    sequence: 5,
+    sha256: 'b'.repeat(64),
+    appliedAt: 1_005,
+    ...overrides,
+  };
+}
+
 function fakeRecord(input: DeviceConnectionTransitionInput, sequence: number): DeviceTransitionRecord {
   return {
     schemaVersion: 'overlaykit-device-transition/v1',
@@ -52,6 +68,12 @@ function fakeRecord(input: DeviceConnectionTransitionInput, sequence: number): D
       ? { authority: input.authority, targets: input.targets }
       : input.kind === 'device.connection.ready'
         ? { targets: input.targets }
+        : input.kind === 'device.connection.checkpoint'
+          ? {
+              audienceCredentialId: input.audienceCredentialId,
+              reason: input.reason,
+              targets: input.targets,
+            }
         : { reason: input.reason },
     signature: null,
     recordHash: String(sequence).padStart(64, 'a'),
@@ -135,6 +157,68 @@ describe('DeviceConnectionTransitionSession', () => {
       'device.connection.closed:closed',
     ]);
     expect(session.getPhase()).toBe('closed');
+  });
+
+  it('persists one bounded checkpoint without changing the ready phase', () => {
+    let sequence = 0;
+    const append = vi.fn((input: DeviceConnectionTransitionInput) => {
+      sequence += 1;
+      return fakeRecord(input, sequence);
+    });
+    const session = new DeviceConnectionTransitionSession({
+      ledger: ledger(append),
+      connectionId: 'connection-1',
+      authority: authority(),
+      targets: ['preview'],
+      now: () => 1_006,
+      onFatal: vi.fn(),
+    });
+    session.startNotReady();
+    session.commitReady(1_004, [readyTarget()]);
+    session.checkpoint(1_006, 'transport.closed', [checkpointTarget()]);
+
+    expect(session.getPhase()).toBe('ready');
+    expect(append.mock.calls.at(-1)?.[0]).toEqual({
+      kind: 'device.connection.checkpoint',
+      connectionId: 'connection-1',
+      occurredAt: 1_006,
+      audienceCredentialId: 'device-1.g1',
+      reason: 'transport.closed',
+      targets: [checkpointTarget()],
+    });
+    expect(() => session.checkpoint(
+      1_007,
+      'transport.closed',
+      [checkpointTarget()],
+    )).toThrow('already exists');
+  });
+
+  it('reports checkpoint uncertainty as host-fatal and preserves the thrown evidence', () => {
+    let sequence = 0;
+    const failure = new Error('checkpoint audit unavailable');
+    const onFatal = vi.fn();
+    const session = new DeviceConnectionTransitionSession({
+      ledger: ledger((input) => {
+        if (input.kind === 'device.connection.checkpoint') throw failure;
+        sequence += 1;
+        return fakeRecord(input, sequence);
+      }),
+      connectionId: 'connection-1',
+      authority: authority(),
+      targets: ['preview'],
+      now: () => 1_006,
+      onFatal,
+    });
+    session.startNotReady();
+    session.commitReady(1_004, [readyTarget()]);
+
+    expect(() => session.checkpoint(
+      1_006,
+      'transport.closed',
+      [checkpointTarget()],
+    )).toThrow(failure);
+    expect(onFatal).toHaveBeenCalledOnce();
+    expect(onFatal).toHaveBeenCalledWith(failure);
   });
 
   it('closes safety state and reports host fatal once when negative audit fails', () => {

@@ -21,7 +21,10 @@ function applied(overrides: Record<string, unknown> = {}): Record<string, unknow
   return {
     schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
     type: DEVICE_BOOTSTRAP_ACK_TYPE,
+    mode: 'bootstrap',
     target: 'preview',
+    issuerKeyId: 'server-key-1',
+    sequence: 7,
     sha256: SHA256,
     status: 'applied',
     ...overrides,
@@ -38,7 +41,10 @@ describe('device bootstrap acknowledgement contract', () => {
     expect(parsed).toEqual({
       schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
       type: DEVICE_BOOTSTRAP_ACK_TYPE,
+      mode: 'bootstrap',
       target: 'preview',
+      issuerKeyId: 'server-key-1',
+      sequence: 7,
       sha256: SHA256,
       status: 'applied',
     });
@@ -53,7 +59,10 @@ describe('device bootstrap acknowledgement contract', () => {
       })).toEqual({
         schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
         type: DEVICE_BOOTSTRAP_ACK_TYPE,
+        mode: 'bootstrap',
         target: 'program',
+        issuerKeyId: 'server-key-1',
+        sequence: 7,
         sha256: SHA256,
         status: 'error',
         errorCode,
@@ -87,14 +96,17 @@ describe('device bootstrap acknowledgement contract', () => {
       applied({ sha256: 'A'.repeat(64) }),
       applied({ sha256: `${'a'.repeat(63)}g` }),
       applied({ target: 'both' }),
-      applied({ schemaVersion: 'overlaykit-device-bootstrap-ack/v2' }),
-      applied({ type: 'device.bootstrap.ready' }),
+      applied({ issuerKeyId: '' }),
+      applied({ sequence: 0 }),
+      applied({ mode: 'unknown' }),
+      applied({ schemaVersion: 'overlaykit-device-state-ack/v2' }),
+      applied({ type: 'device.bootstrap.ack' }),
       applied({ status: 'unknown' }),
     ];
 
     for (const value of invalid) {
       expect(() => parseDeviceBootstrapAck(value)).toThrowError(
-        expect.objectContaining({ code: 'INVALID_DEVICE_BOOTSTRAP_ACK' }),
+        expect.objectContaining({ code: 'INVALID_DEVICE_STATE_ACK' }),
       );
     }
   });

@@ -23,6 +23,7 @@ import {
   deviceControlCatalogHash,
   deviceControlFramePayloadBytes,
   projectDeviceControl,
+  reduceAdmittedDeviceControlFrame,
   reduceDeviceControlFrame,
   type DeviceControlFrame,
   type DeviceControlFrameAuthorityContext,
@@ -104,6 +105,9 @@ function unsignedEnvelope(
     issuerKeyId: 'server-key-1',
     audienceCredentialId: 'device-1.g1',
     sequence: 1,
+    baseIssuerKeyId: null,
+    baseSequence: null,
+    baseSha256: null,
     frame,
     ...overrides,
   };
@@ -666,12 +670,110 @@ describe('device control frames', () => {
     });
   });
 
+  it('chains deltas to the exact applied base and admits exact retransmissions idempotently', async () => {
+    const keys = generateKeyPairSync('ed25519');
+    const bootstrap = await buildDeviceControlBootstrapFrame(
+      input(
+        [action('alpha', 'Alpha')],
+        [observation('alpha', 'inactive', 1, 1_000)],
+        1,
+        1_000,
+      ),
+    );
+    const admittedBootstrap = await admit(
+      signedPayload(bootstrap, keys.privateKey),
+      authority(),
+      verifier(keys.publicKey),
+    );
+    const initial = await reduceAdmittedDeviceControlFrame(null, admittedBootstrap);
+    const delta = await buildDeviceControlDeltaFrame(
+      initial.state.state,
+      input(
+        [action('alpha', 'Alpha')],
+        [observation('alpha', 'active', 2, 2_000)],
+        2,
+        2_000,
+      ),
+    );
+    const signedDelta = signedPayload(delta, keys.privateKey, {
+      sequence: 3,
+      baseIssuerKeyId: initial.state.identity.issuerKeyId,
+      baseSequence: initial.state.identity.sequence,
+      baseSha256: initial.state.identity.sha256,
+    });
+    const admittedDelta = await admit(
+      signedDelta,
+      authority({ lastAcceptedSequence: 2 }),
+      verifier(keys.publicKey),
+    );
+    const advanced = await reduceAdmittedDeviceControlFrame(initial.state, admittedDelta);
+
+    expect(admittedDelta.base).toEqual(initial.state.identity);
+    expect(advanced.applied).toBe(true);
+    expect(advanced.state.state.controls[0].value).toBe('active');
+
+    const duplicate = await admit(
+      signedDelta,
+      authority({
+        lastAcceptedSequence: 4,
+        acceptedFrameIdentities: [admittedDelta.identity],
+      }),
+      verifier(keys.publicKey),
+    );
+    const repeated = await reduceAdmittedDeviceControlFrame(advanced.state, duplicate);
+    expect(duplicate.duplicate).toBe(true);
+    expect(duplicate.acceptedSequence).toBe(4);
+    expect(repeated.applied).toBe(false);
+    expect(repeated.state).toEqual(advanced.state);
+
+    const confirmation = await buildDeviceControlDeltaFrame(
+      advanced.state.state,
+      input(
+        [action('alpha', 'Alpha')],
+        [observation('alpha', 'active', 3, 3_000)],
+        3,
+        3_000,
+      ),
+    );
+    const admittedConfirmation = await admit(
+      signedPayload(confirmation, keys.privateKey, {
+        sequence: 5,
+        baseIssuerKeyId: advanced.state.identity.issuerKeyId,
+        baseSequence: advanced.state.identity.sequence,
+        baseSha256: advanced.state.identity.sha256,
+      }),
+      authority({ lastAcceptedSequence: 4 }),
+      verifier(keys.publicKey),
+    );
+    const newer = await reduceAdmittedDeviceControlFrame(
+      advanced.state,
+      admittedConfirmation,
+    );
+    const oldRepeated = await reduceAdmittedDeviceControlFrame(newer.state, duplicate);
+    expect(oldRepeated.applied).toBe(false);
+    expect(oldRepeated.state).toEqual(newer.state);
+
+    const wrongBase = await admit(
+      signedPayload(delta, keys.privateKey, {
+        sequence: 6,
+        baseIssuerKeyId: initial.state.identity.issuerKeyId,
+        baseSequence: initial.state.identity.sequence,
+        baseSha256: 'f'.repeat(64),
+      }),
+      authority({ lastAcceptedSequence: 5 }),
+      verifier(keys.publicKey),
+    );
+    await expect(
+      reduceAdmittedDeviceControlFrame(newer.state, wrongBase),
+    ).rejects.toMatchObject({ code: 'BASE_MISMATCH' });
+  });
+
   it('uses explicit schema versions for frames and envelopes', async () => {
     const frame = await buildDeviceControlBootstrapFrame(input([], [], 0, 1_000));
     expect(frame.schemaVersion).toBe('overlaykit-device-control-frame/v2');
     expect(frame.catalogGeneration).toBe(1);
     expect(unsignedEnvelope(frame).schemaVersion).toBe(
-      'overlaykit-device-control-frame-envelope/v2'
+      'overlaykit-device-control-frame-envelope/v3'
     );
     expect(DEVICE_CONTROL_FRAME_VERSION).toBe(frame.schemaVersion);
     expect(DEVICE_CONTROL_FRAME_ENVELOPE_VERSION).toBe(unsignedEnvelope(frame).schemaVersion);

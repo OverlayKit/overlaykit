@@ -18,6 +18,7 @@ export const DEVICE_TRANSITION_KINDS = [
   'host.stopped',
   'device.connection.not_ready',
   'device.connection.ready',
+  'device.connection.checkpoint',
   'device.connection.quiescing',
   'device.connection.closed',
 ] as const;
@@ -47,6 +48,16 @@ export interface DeviceTransitionReadyTargetEvidence {
   readonly appliedAt: number;
 }
 
+export interface DeviceTransitionCheckpointTargetEvidence {
+  readonly target: ProductionBus;
+  readonly targetRevision: number;
+  readonly catalogGeneration: number;
+  readonly issuerKeyId: string;
+  readonly sequence: number;
+  readonly sha256: string;
+  readonly appliedAt: number;
+}
+
 interface HostStartedEvidence {
   readonly previousHostEpochId: string | null;
 }
@@ -65,6 +76,11 @@ type DeviceTransitionEvidence =
     }
   | {
       readonly targets: ReadonlyArray<DeviceTransitionReadyTargetEvidence>;
+    }
+  | {
+      readonly audienceCredentialId: string;
+      readonly reason: string;
+      readonly targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>;
     }
   | {
       readonly reason: string;
@@ -100,6 +116,14 @@ export type DeviceConnectionTransitionInput =
       readonly connectionId: string;
       readonly occurredAt: number;
       readonly targets: ReadonlyArray<DeviceTransitionReadyTargetEvidence>;
+    }
+  | {
+      readonly kind: 'device.connection.checkpoint';
+      readonly connectionId: string;
+      readonly occurredAt: number;
+      readonly audienceCredentialId: string;
+      readonly reason: string;
+      readonly targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>;
     }
   | {
       readonly kind: 'device.connection.quiescing' | 'device.connection.closed';
@@ -332,6 +356,45 @@ function normalizeReadyTargets(
   return Object.freeze(targetNames.map((target) => normalized.find((item) => item.target === target)!));
 }
 
+function normalizeCheckpointTargets(
+  targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>,
+): ReadonlyArray<DeviceTransitionCheckpointTargetEvidence> {
+  if (!Array.isArray(targets) || targets.length === 0) {
+    throw new DeviceTransitionLedgerError(
+      'DEVICE_TRANSITION_INVALID',
+      'Checkpoint evidence requires targets',
+    );
+  }
+  const normalized = targets.map((evidence) => {
+    if (
+      !evidence
+      || typeof evidence !== 'object'
+      || (evidence.target !== 'preview' && evidence.target !== 'program')
+    ) {
+      throw new DeviceTransitionLedgerError(
+        'DEVICE_TRANSITION_INVALID',
+        'Checkpoint target evidence is invalid',
+      );
+    }
+    return Object.freeze({
+      target: evidence.target,
+      targetRevision: requiredInteger(evidence.targetRevision, 'Target revision', true),
+      catalogGeneration: requiredInteger(
+        evidence.catalogGeneration,
+        'Catalog generation',
+      ),
+      issuerKeyId: requiredIdentifier(evidence.issuerKeyId, 'Issuer key identifier'),
+      sequence: requiredInteger(evidence.sequence, 'Snapshot sequence'),
+      sha256: requiredHash(evidence.sha256, 'Snapshot SHA-256'),
+      appliedAt: requiredInteger(evidence.appliedAt, 'Snapshot applied time', true),
+    });
+  });
+  const targetNames = normalizeTargets(normalized.map(({ target }) => target));
+  return Object.freeze(
+    targetNames.map((target) => normalized.find((item) => item.target === target)!),
+  );
+}
+
 function exactKeys(value: Record<string, unknown>, keys: ReadonlyArray<string>): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
@@ -384,6 +447,20 @@ function normalizeEvidence(kind: DeviceTransitionKind, value: unknown): DeviceTr
         return Object.freeze({
           targets: normalizeReadyTargets(
             value.targets as DeviceTransitionReadyTargetEvidence[],
+          ),
+        });
+      }
+      break;
+    case 'device.connection.checkpoint':
+      if (exactKeys(value, ['audienceCredentialId', 'reason', 'targets'])) {
+        return Object.freeze({
+          audienceCredentialId: requiredIdentifier(
+            value.audienceCredentialId,
+            'Checkpoint audience',
+          ),
+          reason: requiredReason(value.reason),
+          targets: normalizeCheckpointTargets(
+            value.targets as DeviceTransitionCheckpointTargetEvidence[],
           ),
         });
       }
@@ -441,6 +518,7 @@ function phaseAfter(
 ): DeviceConnectionAuditPhase | undefined {
   if (kind === 'device.connection.not_ready' && current === undefined) return 'not_ready';
   if (kind === 'device.connection.ready' && current === 'not_ready') return 'ready';
+  if (kind === 'device.connection.checkpoint' && current === 'ready') return 'ready';
   if (kind === 'device.connection.quiescing' && current === 'ready') return 'quiescing';
   if (kind === 'device.connection.closed' && (current === 'not_ready' || current === 'quiescing')) {
     return 'closed';
@@ -491,6 +569,8 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
   private readonly connectionHashes = new Map<string, string>();
   private readonly connectionPhases = new Map<string, DeviceConnectionAuditPhase>();
   private readonly connectionTargets = new Map<string, ReadonlyArray<ProductionBus>>();
+  private readonly connectionAudiences = new Map<string, string>();
+  private readonly checkpointedConnections = new Set<string>();
   private records: DeviceTransitionRecord[] = [];
 
   constructor(options: SqliteDeviceTransitionLedgerOptions) {
@@ -596,6 +676,39 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
         connectionId,
         readyTargets.map(({ target }) => target),
       );
+    } else if (input.kind === 'device.connection.checkpoint') {
+      if (this.checkpointedConnections.has(connectionId)) {
+        throw new DeviceTransitionLedgerError(
+          'DEVICE_TRANSITION_INVALID',
+          'Device connection checkpoint already exists',
+        );
+      }
+      const targets = normalizeCheckpointTargets(input.targets);
+      const audienceCredentialId = requiredIdentifier(
+        input.audienceCredentialId,
+        'Checkpoint audience',
+      );
+      if (this.connectionAudiences.get(connectionId) !== audienceCredentialId) {
+        throw new DeviceTransitionLedgerError(
+          'DEVICE_TRANSITION_INVALID',
+          'Checkpoint audience does not match connection authority',
+        );
+      }
+      if (targets.some(({ appliedAt }) => appliedAt > occurredAt)) {
+        throw new DeviceTransitionLedgerError(
+          'DEVICE_TRANSITION_INVALID',
+          'Checkpoint evidence cannot postdate its transition',
+        );
+      }
+      this.assertExactConnectionTargets(
+        connectionId,
+        targets.map(({ target }) => target),
+      );
+      evidence = Object.freeze({
+        audienceCredentialId,
+        reason: requiredReason(input.reason),
+        targets,
+      });
     } else {
       evidence = Object.freeze({ reason: requiredReason(input.reason) });
     }
@@ -714,10 +827,20 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
         phaseAfter(this.connectionPhases.get(connectionId), kind)!,
       );
       if (kind === 'device.connection.not_ready') {
+        const notReadyEvidence = evidence as {
+          authority: DeviceTransitionAuthorityEvidence;
+          targets: ReadonlyArray<ProductionBus>;
+        };
         this.connectionTargets.set(
           connectionId,
-          (evidence as { targets: ReadonlyArray<ProductionBus> }).targets,
+          notReadyEvidence.targets,
         );
+        this.connectionAudiences.set(
+          connectionId,
+          notReadyEvidence.authority.audienceCredentialId,
+        );
+      } else if (kind === 'device.connection.checkpoint') {
+        this.checkpointedConnections.add(connectionId);
       }
     }
     return record;
@@ -750,6 +873,8 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
       const connectionHashes = new Map<string, string>();
       const connectionPhases = new Map<string, DeviceConnectionAuditPhase>();
       const connectionTargets = new Map<string, ReadonlyArray<ProductionBus>>();
+      const connectionAudiences = new Map<string, string>();
+      const checkpointedConnections = new Set<string>();
       const records: DeviceTransitionRecord[] = [];
       rows.forEach((row, index) => {
         const expectedSequence = index + 1;
@@ -869,6 +994,33 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
                 'Persisted readiness targets do not match connection authority',
               );
             }
+          } else if (kind === 'device.connection.checkpoint') {
+            if (checkpointedConnections.has(connectionId)) {
+              throw new DeviceTransitionLedgerError(
+                'INVALID_DEVICE_TRANSITION_LEDGER',
+                'Persisted device connection has duplicate checkpoints',
+              );
+            }
+            const checkpoint = document.evidence as {
+              audienceCredentialId: string;
+              reason: string;
+              targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>;
+            };
+            const expected = connectionTargets.get(connectionId);
+            const actual = checkpoint.targets.map(({ target }) => target);
+            if (
+              connectionAudiences.get(connectionId) !== checkpoint.audienceCredentialId
+              || !expected
+              || expected.length !== actual.length
+              || expected.some((target, index) => target !== actual[index])
+              || checkpoint.targets.some(({ appliedAt }) => appliedAt > document.occurredAt)
+            ) {
+              throw new DeviceTransitionLedgerError(
+                'INVALID_DEVICE_TRANSITION_LEDGER',
+                'Persisted checkpoint does not match connection evidence',
+              );
+            }
+            checkpointedConnections.add(connectionId);
           }
           connectionHashes.set(connectionId, row.record_hash);
           connectionPhases.set(
@@ -876,9 +1028,17 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
             phaseAfter(connectionPhases.get(connectionId), kind)!,
           );
           if (kind === 'device.connection.not_ready') {
+            const notReadyEvidence = document.evidence as {
+              authority: DeviceTransitionAuthorityEvidence;
+              targets: ReadonlyArray<ProductionBus>;
+            };
             connectionTargets.set(
               connectionId,
-              (document.evidence as { targets: ReadonlyArray<ProductionBus> }).targets,
+              notReadyEvidence.targets,
+            );
+            connectionAudiences.set(
+              connectionId,
+              notReadyEvidence.authority.audienceCredentialId,
             );
           }
         }
@@ -890,10 +1050,18 @@ export class SqliteDeviceTransitionLedger implements DeviceTransitionLedgerPort 
       this.connectionHashes.clear();
       this.connectionPhases.clear();
       this.connectionTargets.clear();
+      this.connectionAudiences.clear();
+      this.checkpointedConnections.clear();
       for (const [connectionId, hash] of connectionHashes) this.connectionHashes.set(connectionId, hash);
       for (const [connectionId, phase] of connectionPhases) this.connectionPhases.set(connectionId, phase);
       for (const [connectionId, targets] of connectionTargets) {
         this.connectionTargets.set(connectionId, targets);
+      }
+      for (const [connectionId, audience] of connectionAudiences) {
+        this.connectionAudiences.set(connectionId, audience);
+      }
+      for (const connectionId of checkpointedConnections) {
+        this.checkpointedConnections.add(connectionId);
       }
     } catch (error) {
       this.failed = true;

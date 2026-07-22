@@ -323,9 +323,12 @@ const admittedBootstrap = await frameProtocol.admitDeviceControlFrame(
     verifyBytes(null, bytes, keys.publicKey, Buffer.from(signature, 'base64url'))
 );
 await bootstrap.acknowledge({
-  schemaVersion: 'overlaykit-device-bootstrap-ack/v1',
-  type: 'device.bootstrap.ack',
+  schemaVersion: 'overlaykit-device-state-ack/v1',
+  type: 'device.state.ack',
+  mode: 'bootstrap',
   target: bootstrapEmission.target,
+  issuerKeyId: bootstrapEmission.issuerKeyId,
+  sequence: bootstrapEmission.sequence,
   sha256: bootstrapEmission.sha256,
   status: 'applied',
 });

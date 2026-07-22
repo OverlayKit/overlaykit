@@ -5,7 +5,9 @@ import type {
 } from '@overlaykit/protocol/control-action-catalog' with { 'resolution-mode': 'import' };
 import type {
   DeviceControlFrame,
+  DeviceControlFrameIdentity,
   DeviceControlFrameInput,
+  DeviceControlFrameState,
   UnsignedDeviceControlFrameEnvelope,
 } from '@overlaykit/protocol/device-control-frame' with { 'resolution-mode': 'import' };
 import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential' with {
@@ -37,6 +39,7 @@ type VisibilityFeedbackProtocolModule = typeof import(
 const MAX_IDENTIFIER_LENGTH = 200;
 const MAX_SIGNATURE_LENGTH = 4_096;
 const DEFAULT_SNAPSHOT_FRESHNESS_MS = 3_000;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 export interface DeviceBootstrapProductionPort {
   getState(showId: string): ProductionState;
@@ -72,12 +75,30 @@ export interface IssuedDeviceBootstrapSnapshot {
   readonly bytes: Uint8Array;
   readonly signature: string;
   readonly freshness: DeviceBootstrapFreshnessToken;
+  readonly state: DeviceControlFrameState;
+}
+
+export interface ConfirmedDeviceControlFrameBase {
+  readonly identity: DeviceControlFrameIdentity;
+  readonly state: DeviceControlFrameState;
+}
+
+export interface IssuedDeviceControlDelta extends IssuedDeviceBootstrapSnapshot {
+  readonly base: ConfirmedDeviceControlFrameBase;
 }
 
 interface DeviceBootstrapFrameProtocolPort {
   readonly DEVICE_CONTROL_FRAME_ENVELOPE_VERSION: DeviceControlFrameProtocolModule['DEVICE_CONTROL_FRAME_ENVELOPE_VERSION'];
   buildDeviceControlBootstrapFrame(input: DeviceControlFrameInput): Promise<DeviceControlFrame>;
+  buildDeviceControlDeltaFrame(
+    current: DeviceControlFrameState,
+    input: DeviceControlFrameInput
+  ): Promise<DeviceControlFrame>;
   deviceControlFramePayloadBytes(envelope: UnsignedDeviceControlFrameEnvelope): Uint8Array;
+  reduceDeviceControlFrame(
+    current: DeviceControlFrameState | null,
+    input: DeviceControlFrame
+  ): Promise<DeviceControlFrameState>;
 }
 
 interface DeviceBootstrapVisibilityProtocolPort {
@@ -113,7 +134,8 @@ export type DeviceBootstrapSnapshotIssuerErrorCode =
   | 'INVALID_DEVICE_BOOTSTRAP_ISSUER'
   | 'DEVICE_BOOTSTRAP_TARGET_FORBIDDEN'
   | 'DEVICE_BOOTSTRAP_CLOCK_INVALID'
-  | 'DEVICE_BOOTSTRAP_SIGNING_FAILED';
+  | 'DEVICE_BOOTSTRAP_SIGNING_FAILED'
+  | 'DEVICE_CONTROL_ISSUER_ROTATED';
 
 export class DeviceBootstrapSnapshotIssuerError extends Error {
   constructor(
@@ -236,7 +258,9 @@ export class DeviceBootstrapSnapshotIssuer {
       typeof options.signing.current !== 'function' ||
       !options.frameProtocol ||
       typeof options.frameProtocol.buildDeviceControlBootstrapFrame !== 'function' ||
+      typeof options.frameProtocol.buildDeviceControlDeltaFrame !== 'function' ||
       typeof options.frameProtocol.deviceControlFramePayloadBytes !== 'function' ||
+      typeof options.frameProtocol.reduceDeviceControlFrame !== 'function' ||
       !options.visibilityProtocol ||
       typeof options.visibilityProtocol.projectServerVisibilityFeedback !== 'function'
     ) {
@@ -266,6 +290,10 @@ export class DeviceBootstrapSnapshotIssuer {
 
   observeCurrentProductionState(): CatalogGenerationToken {
     return this.observeProductionState(this.captureProductionState());
+  }
+
+  currentIssuerKeyId(): string {
+    return this.captureSigner().issuerKeyId;
   }
 
   async create(target: ProductionBus): Promise<IssuedDeviceBootstrapSnapshot> {
@@ -299,6 +327,151 @@ export class DeviceBootstrapSnapshotIssuer {
     );
   }
 
+  async createDelta(base: ConfirmedDeviceControlFrameBase): Promise<IssuedDeviceControlDelta> {
+    if (
+      !base ||
+      typeof base !== 'object' ||
+      !base.identity ||
+      !validIdentifier(base.identity.issuerKeyId) ||
+      !Number.isSafeInteger(base.identity.sequence) ||
+      base.identity.sequence < 1 ||
+      !SHA256_PATTERN.test(base.identity.sha256) ||
+      !base.state ||
+      base.state.showId !== this.authority.showId ||
+      !this.authority.targets.includes(base.state.target)
+    ) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'INVALID_DEVICE_BOOTSTRAP_ISSUER',
+        'Confirmed device control base is invalid'
+      );
+    }
+    let recapture = true;
+    while (recapture) {
+      recapture = false;
+      try {
+        return await this.createDeltaAttempt(base);
+      } catch (error) {
+        if (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'STALE_CATALOG_GENERATION'
+        ) {
+          recapture = true;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new DeviceBootstrapSnapshotIssuerError(
+      'INVALID_DEVICE_BOOTSTRAP_ISSUER',
+      'Device delta recapture ended without a frame'
+    );
+  }
+
+  private async createDeltaAttempt(
+    base: ConfirmedDeviceControlFrameBase
+  ): Promise<IssuedDeviceControlDelta> {
+    const signer = this.captureSigner();
+    if (signer.issuerKeyId !== base.identity.issuerKeyId) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'DEVICE_CONTROL_ISSUER_ROTATED',
+        'Device control issuer changed after the confirmed base'
+      );
+    }
+    const state = this.captureProductionState();
+    const confirmedAt = normalizedNow(this.now);
+    const target = base.state.target;
+    const targetSnapshot = state[target];
+    if (targetSnapshot.updatedAt !== null && confirmedAt < targetSnapshot.updatedAt) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'DEVICE_BOOTSTRAP_CLOCK_INVALID',
+        'Delta confirmation time predates its production snapshot'
+      );
+    }
+    const catalog = this.authorizedCatalog(state);
+    const catalogToken = this.options.catalogGenerations.observe(catalogHash(catalog));
+    await this.options.catalogGenerations.confirm(catalogToken);
+    const projection = this.options.visibilityProtocol.projectServerVisibilityFeedback(
+      targetSnapshot,
+      catalog,
+      confirmedAt
+    );
+    const frame = await this.options.frameProtocol.buildDeviceControlDeltaFrame(base.state, {
+      showId: this.authority.showId,
+      target,
+      revision: targetSnapshot.revision,
+      catalogGeneration: catalogToken.generation,
+      confirmedAt,
+      catalog,
+      observations: projection.observations,
+    });
+    const frameState = await this.options.frameProtocol.reduceDeviceControlFrame(base.state, frame);
+    const reserved = await this.options.sequences.reserve(
+      signer.issuerKeyId,
+      this.authority.audienceCredentialId,
+      1
+    );
+    const sequence = reserved[0];
+    if (
+      reserved.length !== 1 ||
+      !Number.isSafeInteger(sequence) ||
+      sequence < 1 ||
+      sequence <= base.identity.sequence
+    ) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'INVALID_DEVICE_BOOTSTRAP_ISSUER',
+        'Sequence authority returned an invalid delta reservation'
+      );
+    }
+    const envelope: UnsignedDeviceControlFrameEnvelope = {
+      schemaVersion: this.options.frameProtocol.DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,
+      issuerKeyId: signer.issuerKeyId,
+      audienceCredentialId: this.authority.audienceCredentialId,
+      sequence,
+      baseIssuerKeyId: base.identity.issuerKeyId,
+      baseSequence: base.identity.sequence,
+      baseSha256: base.identity.sha256,
+      frame,
+    };
+    const payloadBytes = this.options.frameProtocol.deviceControlFramePayloadBytes(envelope);
+    const signingBytes = payloadBytes.slice();
+    let signature: string;
+    try {
+      signature = await signer.sign(signingBytes);
+    } catch (error) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'DEVICE_BOOTSTRAP_SIGNING_FAILED',
+        'Device delta signer failed',
+        error
+      );
+    }
+    if (!validSignature(signature) || !sameBytes(signingBytes, payloadBytes)) {
+      throw new DeviceBootstrapSnapshotIssuerError(
+        'DEVICE_BOOTSTRAP_SIGNING_FAILED',
+        'Device delta signer returned invalid evidence'
+      );
+    }
+    return Object.freeze({
+      issuerKeyId: signer.issuerKeyId,
+      sequence,
+      bytes: payloadBytes.slice(),
+      signature,
+      freshness: Object.freeze({
+        target,
+        targetRevision: targetSnapshot.revision,
+        confirmedAt,
+        issuerKeyId: signer.issuerKeyId,
+        catalog: catalogToken,
+      }),
+      state: frameState,
+      base: Object.freeze({
+        identity: Object.freeze({ ...base.identity }),
+        state: base.state,
+      }),
+    });
+  }
+
   private async createAttempt(target: ProductionBus): Promise<IssuedDeviceBootstrapSnapshot> {
     const signer = this.captureSigner();
     const state = this.captureProductionState();
@@ -328,6 +501,7 @@ export class DeviceBootstrapSnapshotIssuer {
       catalog,
       observations: projection.observations,
     });
+    const frameState = await this.options.frameProtocol.reduceDeviceControlFrame(null, frame);
 
     const reserved = await this.options.sequences.reserve(
       signer.issuerKeyId,
@@ -346,6 +520,9 @@ export class DeviceBootstrapSnapshotIssuer {
       issuerKeyId: signer.issuerKeyId,
       audienceCredentialId: this.authority.audienceCredentialId,
       sequence,
+      baseIssuerKeyId: null,
+      baseSequence: null,
+      baseSha256: null,
       frame,
     };
     const payloadBytes = this.options.frameProtocol.deviceControlFramePayloadBytes(envelope);
@@ -379,6 +556,7 @@ export class DeviceBootstrapSnapshotIssuer {
         issuerKeyId: signer.issuerKeyId,
         catalog: catalogToken,
       }),
+      state: frameState,
     });
   }
 

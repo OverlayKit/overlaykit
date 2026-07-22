@@ -39,6 +39,7 @@ Synchronous `require()` is not part of the package contract.
 - `@overlaykit/protocol/control-visibility-feedback`
 - `@overlaykit/protocol/device-control-frame`
 - `@overlaykit/protocol/device-bootstrap`
+- `@overlaykit/protocol/device-state-sync`
 - `@overlaykit/protocol/device-credential`
 
 ## License and Attribution

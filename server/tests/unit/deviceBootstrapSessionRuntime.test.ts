@@ -1,8 +1,15 @@
-import { generateKeyPairSync, sign } from 'crypto';
+import { generateKeyPairSync, sign, verify } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
 import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential';
+import {
+  admitDeviceControlFrame,
+  reduceAdmittedDeviceControlFrame,
+  reduceDeviceControlFrame,
+  type AdmittedDeviceControlFrameState,
+  type DeviceControlFrameIdentity,
+} from '@overlaykit/protocol/device-control-frame';
 import {
   DEVICE_BOOTSTRAP_ACK_TYPE,
   DEVICE_BOOTSTRAP_ACK_VERSION,
@@ -10,6 +17,12 @@ import {
   type DeviceBootstrapSnapshotMessage,
   type DeviceReadyMessage,
 } from '@overlaykit/protocol/device-bootstrap';
+import {
+  DEVICE_STATE_ACK_TYPE,
+  DEVICE_STATE_ACK_VERSION,
+  parseDeviceStateDeltaMessage,
+  type DeviceStateDeltaMessage,
+} from '@overlaykit/protocol/device-state-sync';
 import type {
   ProductionBus,
   ProductionSnapshot,
@@ -23,6 +36,7 @@ import {
   type DeviceBootstrapObservableProduction,
 } from '../../src/services/DeviceBootstrapSessionRuntime';
 import { DeviceConnectionTransitionSession } from '../../src/services/DeviceConnectionTransitionSession';
+import { DeviceTargetReadinessRegistry } from '../../src/services/DeviceTargetReadinessRegistry';
 import type {
   CatalogGenerationAuthority,
   CatalogGenerationStoreState,
@@ -185,7 +199,11 @@ async function waitFor(assertion: () => boolean, message: string): Promise<void>
   throw new Error(message);
 }
 
-async function context(withElements = false) {
+async function context(
+  withElements = false,
+  withExistingReadiness = false,
+  rejectReady = false,
+) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'overlaykit-bootstrap-session-'));
   const store = new SqliteDeviceCredentialStore({
     databasePath: path.join(directory, 'authority.sqlite'),
@@ -215,7 +233,11 @@ async function context(withElements = false) {
     production.state.program.elements = [element('lower-third')];
   }
   const catalog = new MemoryCatalogGenerations();
-  const { privateKey } = generateKeyPairSync('ed25519');
+  const keys = generateKeyPairSync('ed25519');
+  const readiness = new DeviceTargetReadinessRegistry();
+  const priorReadiness = withExistingReadiness
+    ? readiness.register(authority())
+    : null;
   const factory = new DeviceBootstrapSessionFactory({
     production,
     actionCatalog: await createDeviceActionCatalogRuntime(),
@@ -223,12 +245,14 @@ async function context(withElements = false) {
     signing: {
       current: () => ({
         issuerKeyId: 'server-key-1',
-        sign: (bytes) => sign(null, bytes, privateKey).toString('base64'),
+        sign: (bytes) => sign(null, bytes, keys.privateKey).toString('base64'),
       }),
     },
     createCatalogGenerations: () => catalog,
+    readiness,
   });
   const snapshots: DeviceBootstrapSnapshotMessage[] = [];
+  const deltas: DeviceStateDeltaMessage[] = [];
   const ready: DeviceReadyMessage[] = [];
   const closes: string[] = [];
   const session = await factory.create({
@@ -236,11 +260,32 @@ async function context(withElements = false) {
     transitions,
     transport: {
       sendSnapshot(message) { snapshots.push(message); },
-      sendReady(message) { ready.push(message); },
-      close(reason) { closes.push(reason); },
+      sendDelta(message) { deltas.push(message); },
+      sendReady(message) {
+        if (rejectReady) throw new Error('Ready transport rejected write');
+        ready.push(message);
+      },
+      close(reason) {
+        closes.push(reason);
+        transitions.close(reason);
+      },
     },
   });
-  return { store, ledger, transitions, production, catalog, session, snapshots, ready, closes };
+  return {
+    store,
+    ledger,
+    transitions,
+    production,
+    catalog,
+    keys,
+    readiness,
+    priorReadiness,
+    session,
+    snapshots,
+    deltas,
+    ready,
+    closes,
+  };
 }
 
 afterEach(() => {
@@ -259,7 +304,10 @@ describe('DeviceBootstrapSessionRuntime', () => {
       await current.session.receive({
         schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
         type: DEVICE_BOOTSTRAP_ACK_TYPE,
+        mode: 'bootstrap',
         target: message.target,
+        issuerKeyId: message.issuerKeyId,
+        sequence: message.sequence,
         sha256: message.sha256,
         status: 'applied',
       });
@@ -284,12 +332,13 @@ describe('DeviceBootstrapSessionRuntime', () => {
       type: 'device.command',
       recordHash: current.ledger.getState().globalHash,
     });
-    expect(current.closes).toEqual(['bootstrap.protocol_violation']);
+    expect(current.closes).toEqual(['delta.protocol_violation']);
     expect(current.transitions.getPhase()).toBe('closed');
     expect(current.ledger.readRecords().map(({ kind }) => kind)).toEqual([
       'host.started',
       'device.connection.not_ready',
       'device.connection.ready',
+      'device.connection.checkpoint',
       'device.connection.quiescing',
       'device.connection.closed',
     ]);
@@ -322,5 +371,212 @@ describe('DeviceBootstrapSessionRuntime', () => {
     shared.transitions.close('test.completed');
     await shared.session.dispose();
     shared.ledger.stopHostEpoch();
+  });
+
+  it('mounts exact post-ready delta bases and fans shared catalog changes to both targets', async () => {
+    const current = await context(true);
+    await current.session.start();
+    await waitFor(() => current.snapshots.length === 2, 'Initial snapshots were not sent');
+
+    const applied = new Map<ProductionBus, AdmittedDeviceControlFrameState>();
+    const accepted: DeviceControlFrameIdentity[] = [];
+    let lastAcceptedSequence = 0;
+    for (const message of current.snapshots) {
+      const parsed = await parseDeviceBootstrapSnapshotMessage(message);
+      const admitted = await admitDeviceControlFrame(
+        parsed.payloadBytes,
+        message.signature,
+        {
+          ...authority(),
+          issuerKeyId: message.issuerKeyId,
+          lastAcceptedSequence,
+          acceptedFrameIdentities: accepted,
+        },
+        (bytes, signatureValue) => verify(
+          null,
+          bytes,
+          current.keys.publicKey,
+          Buffer.from(signatureValue, 'base64'),
+        ),
+      );
+      expect(admitted.identity).toEqual({
+        issuerKeyId: message.issuerKeyId,
+        sequence: message.sequence,
+        sha256: message.sha256,
+      });
+      const frameState = await reduceDeviceControlFrame(null, admitted.frame);
+      applied.set(message.target, {
+        identity: admitted.identity,
+        state: frameState,
+      });
+      accepted.push(admitted.identity);
+      lastAcceptedSequence = admitted.acceptedSequence;
+      await current.session.receive({
+        schemaVersion: DEVICE_STATE_ACK_VERSION,
+        type: DEVICE_STATE_ACK_TYPE,
+        mode: 'bootstrap',
+        target: message.target,
+        issuerKeyId: message.issuerKeyId,
+        sequence: message.sequence,
+        sha256: message.sha256,
+        status: 'applied',
+      });
+    }
+    await waitFor(() => current.ready.length === 1, 'Ready notification was not sent');
+
+    const admitDelta = async (message: DeviceStateDeltaMessage) => {
+      const parsed = await parseDeviceStateDeltaMessage(message);
+      const admitted = await admitDeviceControlFrame(
+        parsed.payloadBytes,
+        message.signature,
+        {
+          ...authority(),
+          issuerKeyId: message.issuerKeyId,
+          lastAcceptedSequence,
+          acceptedFrameIdentities: accepted,
+        },
+        (bytes, signatureValue) => verify(
+          null,
+          bytes,
+          current.keys.publicKey,
+          Buffer.from(signatureValue, 'base64'),
+        ),
+      );
+      const base = applied.get(message.target);
+      if (!base) throw new Error('Delta target has no applied bootstrap base');
+      expect(admitted.base).toEqual(base.identity);
+      const reduced = await reduceAdmittedDeviceControlFrame(base, admitted);
+      applied.set(message.target, reduced.state);
+      accepted.push(admitted.identity);
+      lastAcceptedSequence = admitted.acceptedSequence;
+      return admitted;
+    };
+    const acknowledgeDelta = (message: DeviceStateDeltaMessage) => current.session.receive({
+      schemaVersion: DEVICE_STATE_ACK_VERSION,
+      type: DEVICE_STATE_ACK_TYPE,
+      mode: 'delta',
+      target: message.target,
+      issuerKeyId: message.issuerKeyId,
+      sequence: message.sequence,
+      sha256: message.sha256,
+      status: 'applied',
+    });
+
+    current.production.change('preview');
+    await waitFor(() => current.deltas.length === 1, 'Local delta was not sent');
+    const local = await admitDelta(current.deltas[0]);
+    expect(local.frame).toMatchObject({
+      mode: 'delta',
+      target: 'preview',
+      revision: 1,
+      addedActions: [],
+      removedControlIds: [],
+      observations: [],
+    });
+    await acknowledgeDelta(current.deltas[0]);
+    await waitFor(
+      () => current.session.isTargetReady('preview'),
+      'Local delta did not restore Preview readiness',
+    );
+    expect(current.session.isTargetReady('program')).toBe(true);
+
+    current.production.change('preview', []);
+    await waitFor(
+      () => current.deltas.length === 3,
+      'Shared catalog change did not fan out to both targets',
+    );
+    expect(current.deltas.slice(1).map(({ target }) => target)).toEqual([
+      'preview',
+      'program',
+    ]);
+    expect(current.session.isTargetReady('preview')).toBe(false);
+    expect(current.session.isTargetReady('program')).toBe(false);
+    for (const message of current.deltas.slice(1)) {
+      await admitDelta(message);
+      await acknowledgeDelta(message);
+    }
+    await waitFor(
+      () => current.session.isTargetReady('preview')
+        && current.session.isTargetReady('program'),
+      'Shared catalog acknowledgements did not restore both targets',
+    );
+
+    await current.session.dispose('transport.closed', true);
+    current.transitions.close('test.completed');
+    expect(current.ledger.readRecords().map(({ kind }) => kind)).toEqual([
+      'host.started',
+      'device.connection.not_ready',
+      'device.connection.ready',
+      'device.connection.checkpoint',
+      'device.connection.quiescing',
+      'device.connection.closed',
+    ]);
+    current.ledger.stopHostEpoch();
+  });
+
+  it('suspends replaced connection readiness until the new bootstrap is applied', async () => {
+    const current = await context(false, true);
+    expect(current.readiness.isReady(authority(), 'preview')).toBe(false);
+    current.priorReadiness?.set('preview', true);
+    expect(current.readiness.isReady(authority(), 'preview')).toBe(false);
+
+    await current.session.start();
+    await waitFor(() => current.snapshots.length === 2, 'Replacement snapshots were not sent');
+    for (const message of current.snapshots) {
+      await current.session.receive({
+        schemaVersion: DEVICE_STATE_ACK_VERSION,
+        type: DEVICE_STATE_ACK_TYPE,
+        mode: 'bootstrap',
+        target: message.target,
+        issuerKeyId: message.issuerKeyId,
+        sequence: message.sequence,
+        sha256: message.sha256,
+        status: 'applied',
+      });
+    }
+    await waitFor(() => current.ready.length === 1, 'Replacement did not become ready');
+    expect(current.readiness.isReady(authority(), 'preview')).toBe(true);
+    expect(current.readiness.isReady(authority(), 'program')).toBe(true);
+
+    current.priorReadiness?.close();
+    expect(current.readiness.isReady(authority(), 'preview')).toBe(true);
+    await current.session.dispose('transport.closed', true);
+    current.transitions.close('test.completed');
+    current.ledger.stopHostEpoch();
+  });
+
+  it('does not project target readiness when the ready notification fails', async () => {
+    const current = await context(false, false, true);
+    await current.session.start();
+    await waitFor(() => current.snapshots.length === 2, 'Initial snapshots were not sent');
+    for (const message of current.snapshots) {
+      await current.session.receive({
+        schemaVersion: DEVICE_STATE_ACK_VERSION,
+        type: DEVICE_STATE_ACK_TYPE,
+        mode: 'bootstrap',
+        target: message.target,
+        issuerKeyId: message.issuerKeyId,
+        sequence: message.sequence,
+        sha256: message.sha256,
+        status: 'applied',
+      });
+    }
+    await waitFor(() => current.closes.length === 1, 'Failed ready notification did not close');
+
+    expect(current.ready).toEqual([]);
+    expect(current.session.isReady()).toBe(false);
+    expect(current.readiness.isReady(authority(), 'preview')).toBe(false);
+    expect(current.readiness.isReady(authority(), 'program')).toBe(false);
+    expect(current.closes).toEqual(['bootstrap.internal_error']);
+    expect(current.ledger.readRecords().map(({ kind }) => kind)).toEqual([
+      'host.started',
+      'device.connection.not_ready',
+      'device.connection.ready',
+      'device.connection.quiescing',
+      'device.connection.closed',
+    ]);
+
+    await current.session.dispose();
+    current.ledger.stopHostEpoch();
   });
 });

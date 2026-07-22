@@ -14,6 +14,7 @@ import {
   createDeviceActionCatalogRuntime,
   type DeviceActionCatalogRuntime,
 } from '../../src/services/DeviceActionCatalogRuntime';
+import { DeviceTargetReadinessRegistry } from '../../src/services/DeviceTargetReadinessRegistry';
 import { ProductionService } from '../../src/services/ProductionService';
 import type {
   ActionRecord,
@@ -221,6 +222,57 @@ describe('device bearer production control boundary', () => {
     expect(response.body.data.state.preview.elements[0].styles.display).toBe('none');
     expect(response.body.data.state.program.elements[0].styles.display).toBeUndefined();
     expect(authenticateSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unconfirmed target before consuming its operation identifier', async () => {
+    const issued = await issue();
+    const readiness = new DeviceTargetReadinessRegistry();
+    const gatedApp = createApp({
+      auth,
+      dataStorage: storage,
+      production,
+      deviceCredentials: runtime,
+      deviceActionCatalog: actionCatalog,
+      deviceTargetReadiness: readiness,
+    });
+    const pendingCommand = command('pending-preview');
+
+    await request(gatedApp)
+      .post(endpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .send(pendingCommand)
+      .expect(409, {
+        error: {
+          code: 'not_ready',
+          message: 'Device target lacks current applied state evidence',
+        },
+      });
+    expect(production.getState('show-1').preview.revision).toBe(1);
+
+    const authority = await runtime.lifecycle.authenticate(issued.token);
+    if (!authority) throw new Error('Issued device authority was not authenticated');
+    const lease = readiness.register(authority);
+    lease.set('preview', false);
+    await request(gatedApp)
+      .post(endpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .send(pendingCommand)
+      .expect(409);
+
+    lease.set('preview', true);
+    const accepted = await request(gatedApp)
+      .post(endpoint())
+      .set('Authorization', `Bearer ${issued.token}`)
+      .send(pendingCommand)
+      .expect(200);
+    expect(accepted.body.data.command).toMatchObject({
+      operationId: 'pending-preview',
+      globalSequence: 1,
+      status: 'applied',
+      replayed: false,
+    });
+    expect(production.getState('show-1').preview.revision).toBe(2);
+    lease.close();
   });
 
   it('derives direct Program capability from freshly authorized route authority', async () => {
