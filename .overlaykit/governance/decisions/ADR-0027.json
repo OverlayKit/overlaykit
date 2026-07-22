@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0027",
+  "title": "Device credential authority requires exclusive observable SQLite ownership",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": "ADR-0010",
+  "governs": [
+    "device-credential-persistence",
+    "device-credential-lifecycle-observation",
+    "device-websocket-routing",
+    "device-server-shutdown"
+  ],
+  "context": "ADR-0010 established a strict atomic JSON credential store but accepted it only for one process, one host, and one store instance because another instance could retain stale memory and lose updates. ADR-0026 then required continuously evidenced effective connection authority but left its concrete observation source and production gateway mounting unanswered. Discovery for SDD-023 required one logical credential authority on Linux, macOS, and Windows, startup failure rather than degraded device control when a second owner exists, atomic bearer and generation rotation for every permission change, irreversible revocation, and post-commit authority publication to every affected listener before the Owner receives success. It also required one WebSocket listener with explicit ownership of /ws for browsers and OBS and /device for non-browser hardware, no path fallback, immediate admission closure during shutdown, drainage of only already-admitted work, and forced transport closure within twelve seconds. Slice 1 replaced executable JSON authority with a Node 24 node:sqlite store using one long-lived exclusive connection, added strict transactional one-time JSON migration, serialized lifecycle observation, mounted the concrete authority source and device gateway, and introduced an explicit upgrade router and shutdown order. Refutation exercised second-process contention, graceful and SIGKILL recovery, migration commit and archive faults, malformed and conflicting legacy input, compare-and-swap writes, publication order, permission rotation, old-token invalidation, revocation, listener failure, exact expiration, admission races, unknown routes, startup faults, operation drainage, and forced closure. Full checks and builds passed locally, and GitHub Actions Constitution run 68 passed governance observation plus focused authority tests on Ubuntu, macOS, and Windows with Node 24. The human authority accepted H-023 only within this local-file, single-host, process-crash boundary; no abrupt-power or physical-media durability was inferred.",
+  "decision": "The self-hosted server credential authority is one Node 24 SQLite database opened through node:sqlite and held by one long-lived runtime connection. Initialization configures DELETE journaling, FULL synchronization, zero busy timeout, and EXCLUSIVE locking, then acquires the exclusive database lock before the server may expose device control. A contender that cannot acquire that authority must abort composition; it may not start with cached, JSON, read-only, or degraded credential authority. Closing the runtime releases ownership, and operating-system release after abrupt process death permits a successor to recover the committed database. The prior JSON document is migration input only, never an executable concurrent store. On first initialization it must parse completely, import in one transaction, record a SHA-256 migration marker, commit before archival, and archive only the exact committed input. Commit failure leaves JSON untouched for retry; archive failure may resume archival without reimport; malformed, incomplete, changed, or conflicting JSON fails startup closed. Credential issue, permission rotation, expiration, and revocation share one serialized lifecycle lane. Store create and generation compare-and-swap replacement are transactional. Every rotation creates a new bearer and generation while applying its complete permission set atomically; durable transaction commit is the logical instant prior authority becomes invalid, although physical power-loss durability is not claimed. The lifecycle publishes an immutable effective authority, or null for revoked or expired authority, to all current listeners for that credential after commit and before resolving the Owner mutation. One listener failure cannot roll back committed truth; it causes null to be offered to every listener for only that credential. Expiration is scheduled from effective authority and re-resolved before null publication. The runtime exposes store reads but no public write surface outside the lifecycle. One production upgrade router owns all WebSocket paths: /ws delegates only to browser and OBS transport, /device delegates only to the non-browser device gateway, and every unknown or malformed path is rejected without fallback. Startup must complete credential and action-catalog composition before returning a runtime. Shutdown synchronously stops all new upgrades, retires device authority, rejects queued and new work, permits only already-admitted operations to settle, closes credential authority, and forcibly terminates remaining transports at the twelve-second bound. These guarantees apply to the tested local filesystem and cooperating OverlayKit runtime on Node 24; network filesystems, hostile out-of-band database access, cross-process listener delivery, power loss, proxy transport, device command framing, hardware, rendering, OBS, and operator perception require separate evidence.",
+  "consequences": [
+    "Node 24 becomes the minimum server and protocol runtime because node:sqlite is part of the accepted authority implementation.",
+    "Two OverlayKit runtimes cannot intentionally serve the same local credential database at once; the second aborts before exposing device control.",
+    "The legacy JSON file can seed SQLite exactly once but can no longer remain a live credential authority beside it.",
+    "Every permission edit rotates bearer and generation atomically, so an old token cannot survive a successful authority change.",
+    "Owner mutation success is not observable before affected in-process authority listeners receive post-commit evidence or credential-local null invalidation.",
+    "A listener fault cannot undo persisted authority and cannot invalidate unrelated credential audiences.",
+    "Browser and hardware upgrades have one explicit path owner and cannot fall through into one another.",
+    "Shutdown removes admission authority before draining work and bounds non-cooperative transport lifetime to twelve seconds after shutdown begins.",
+    "SIGKILL recovery evidence supports process-crash lock release but does not prove abrupt-power, filesystem, controller-cache, or physical-media durability.",
+    "The accepted evidence does not prove network-filesystem locking, cross-process listener notification, Caddy or TLS behavior, bootstrap acknowledgement, WebSocket command or delta execution, Companion integration, hardware state, rendered pixels, OBS output, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-credential-authority-is-exclusive-sqlite",
+      "statement": "A self-hosted OverlayKit server must hold one long-lived exclusive Node 24 SQLite connection as the only executable credential authority and must not expose device control when that ownership cannot be acquired."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-sqlite-state-validates-before-use",
+      "statement": "Every SQLite credential row and structured authority field must satisfy the complete credential lifecycle contract before the record is exposed or mutated; malformed persisted authority fails closed."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-sqlite-mutations-use-generation-cas",
+      "statement": "Credential create and replacement must commit transactionally, and replacement may succeed only when the persisted generation equals the caller's expected generation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-sqlite-never-stores-bearer",
+      "statement": "SQLite credential authority may persist only validated sealed secret material and must never persist a raw OverlayKit device bearer."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-legacy-json-is-migration-input-only",
+      "statement": "Legacy credential JSON may be parsed and imported only as one complete transactional migration whose exact committed input is recorded before archival; it may never remain a parallel executable authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-permission-change-rotates-atomically",
+      "statement": "Every successful permission change must atomically persist a new complete authority generation and bearer, making the prior token invalid at the transaction commit boundary."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-commit-precedes-owner-success",
+      "statement": "Issue, rotation, revocation, and effective expiration must publish immutable post-commit authority or null to current affected listeners before the corresponding Owner mutation may report success."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-listener-failure-is-audience-local",
+      "statement": "A post-commit listener failure cannot roll back persisted truth and must fail only that credential audience closed by offering null to all of its current listeners."
+    },
+    {
+      "kind": "rule",
+      "id": "device-websocket-paths-have-one-owner",
+      "statement": "The production WebSocket listener must route /ws only to browser and OBS transport, /device only to non-browser device transport, and reject every other path without handler fallback."
+    },
+    {
+      "kind": "rule",
+      "id": "device-shutdown-closes-admission-before-drain",
+      "statement": "Server shutdown must synchronously stop new upgrades and device admission before retiring authority, draining only admitted operations, closing credential storage, and forcibly terminating remaining transports within twelve seconds."
+    },
+    {
+      "kind": "rule",
+      "id": "device-sqlite-authority-claims-are-bounded",
+      "statement": "Passing SQLite authority evidence may not be represented as abrupt-power or physical-media durability, network-filesystem coordination, hostile database access prevention, cross-process listener delivery, proxy or TLS verification, bootstrap or command authority, Companion integration, hardware state, renderer or OBS observation, or operator perception."
+    }
+  ]
+}
