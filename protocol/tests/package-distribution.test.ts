@@ -34,16 +34,24 @@ interface PackResult {
   files: PackedFile[];
 }
 
+async function runNpm(args: string[], cwd: string) {
+  const npmCliPath = process.env.npm_execpath;
+  if (!npmCliPath) {
+    throw new Error('npm_execpath is required to verify the published package');
+  }
+
+  return execFileAsync(process.execPath, [npmCliPath, ...args], { cwd });
+}
+
 let temporaryDirectory = '';
 let consumerDirectory = '';
 let packed: PackResult;
 
 beforeAll(async () => {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'overlaykit-protocol-package-'));
-  const { stdout } = await execFileAsync(
-    'npm',
+  const { stdout } = await runNpm(
     ['pack', '--json', '--silent', '--pack-destination', temporaryDirectory],
-    { cwd: protocolRoot }
+    protocolRoot
   );
   [packed] = JSON.parse(stdout) as PackResult[];
   await writeFile(
@@ -51,8 +59,7 @@ beforeAll(async () => {
     JSON.stringify({ private: true }),
     'utf8'
   );
-  await execFileAsync(
-    'npm',
+  await runNpm(
     [
       'install',
       '--silent',
@@ -61,7 +68,7 @@ beforeAll(async () => {
       '--no-fund',
       path.join(temporaryDirectory, packed.filename),
     ],
-    { cwd: temporaryDirectory }
+    temporaryDirectory
   );
   consumerDirectory = temporaryDirectory;
 }, 30_000);
