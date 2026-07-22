@@ -31,6 +31,13 @@ export interface DeviceCredentialIssueInput {
   readonly expiresAt: number;
 }
 
+export interface DeviceCredentialRotationInput {
+  readonly targets?: ReadonlyArray<ProductionBus>;
+  readonly controlIds?: ReadonlyArray<string>;
+  readonly scopes?: ReadonlyArray<DeviceCredentialScope>;
+  readonly expiresAt?: number;
+}
+
 export interface StoredDeviceCredential {
   readonly credentialId: string;
   readonly label: string;
@@ -136,6 +143,14 @@ function authorityFrom(record: StoredDeviceCredential): DeviceCredentialAuthorit
   };
 }
 
+export function effectiveDeviceCredentialAuthority(
+  record: StoredDeviceCredential | null,
+  now: number,
+): DeviceCredentialAuthority | null {
+  if (!record || record.revokedAt !== null || record.expiresAt <= now) return null;
+  return authorityFrom(record);
+}
+
 function requiredIdentifier(value: unknown, field: string): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized || normalized.length > MAX_IDENTIFIER_LENGTH) {
@@ -211,6 +226,23 @@ function normalizedIssue(input: DeviceCredentialIssueInput, now: number): Device
     controlIds: normalizedControlIds(input?.controlIds),
     scopes: normalizedScopes(input?.scopes),
     expiresAt: normalizedExpiration(input?.expiresAt, now),
+  };
+}
+
+function normalizedRotation(
+  input: DeviceCredentialRotationInput,
+  current: StoredDeviceCredential,
+  now: number,
+): Pick<StoredDeviceCredential, 'targets' | 'controlIds' | 'scopes' | 'expiresAt'> {
+  return {
+    targets: input.targets === undefined ? [...current.targets] : normalizedTargets(input.targets),
+    controlIds: input.controlIds === undefined
+      ? [...current.controlIds]
+      : normalizedControlIds(input.controlIds),
+    scopes: input.scopes === undefined ? [...current.scopes] : normalizedScopes(input.scopes),
+    expiresAt: input.expiresAt === undefined
+      ? normalizedExpiration(current.expiresAt, now)
+      : normalizedExpiration(input.expiresAt, now),
   };
 }
 
@@ -297,7 +329,11 @@ export class DeviceCredentialLifecycle {
     return { credential: publicCredential(record), token };
   }
 
-  async rotate(owner: DeviceCredentialOwner, credentialId: string): Promise<IssuedDeviceCredential> {
+  async rotate(
+    owner: DeviceCredentialOwner,
+    credentialId: string,
+    input: DeviceCredentialRotationInput = {},
+  ): Promise<IssuedDeviceCredential> {
     ownerPrincipal(owner);
     const normalizedId = tokenPart(
       credentialId,
@@ -312,9 +348,11 @@ export class DeviceCredentialLifecycle {
     if (current.expiresAt <= now) {
       throw new DeviceCredentialError('DEVICE_CREDENTIAL_EXPIRED', 'Expired credentials cannot rotate');
     }
+    const authority = normalizedRotation(input ?? {}, current, now);
     const token = await this.newToken(normalizedId);
     const next: StoredDeviceCredential = {
       ...current,
+      ...authority,
       generation: current.generation + 1,
       sealedSecret: await this.sealedSecret(token),
       updatedAt: now,
@@ -357,8 +395,20 @@ export class DeviceCredentialLifecycle {
     } catch {
       matches = false;
     }
-    if (!matches || record.revokedAt !== null || record.expiresAt <= this.options.now()) return null;
-    return authorityFrom(record);
+    if (!matches) return null;
+    return effectiveDeviceCredentialAuthority(record, this.options.now());
+  }
+
+  async resolveAuthority(credentialId: string): Promise<DeviceCredentialAuthority | null> {
+    const normalizedId = tokenPart(
+      credentialId,
+      'Credential identifier',
+      MAX_CREDENTIAL_ID_LENGTH,
+    );
+    return effectiveDeviceCredentialAuthority(
+      await this.store.get(normalizedId),
+      this.options.now(),
+    );
   }
 
   async authorize(

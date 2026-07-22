@@ -15,6 +15,8 @@ Managed hosting, account-based features, and hosted game experiences live outsid
 
 ## Quickstart
 
+Node.js 24 or newer is required.
+
 ```bash
 git clone https://github.com/OverlayKit/overlaykit.git
 cd overlaykit
@@ -26,6 +28,8 @@ Open Studio and create the local owner account:
 
 - Studio: http://localhost:5173
 - API health: http://localhost:3000/health
+- Browser/OBS WebSocket: ws://localhost:8080/ws
+- Hardware WebSocket: ws://localhost:8080/device (requires an Owner-issued device bearer)
 
 Create a Show and save a Scene. In **Production**, load that Scene into Preview, inspect it, and press **Take** to promote the complete snapshot to Program. Runtime operations do not modify the saved Scene.
 

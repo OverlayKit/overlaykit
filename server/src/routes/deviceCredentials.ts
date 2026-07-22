@@ -117,7 +117,12 @@ export function createDeviceCredentialsRouter(
           req.params.showId,
           res,
         ))) return;
-        const issued = await runtime.lifecycle.rotate(ownerFrom(req), req.params.credentialId);
+        const issued = await runtime.lifecycle.rotate(ownerFrom(req), req.params.credentialId, {
+          targets: req.body?.targets,
+          controlIds: req.body?.controlIds,
+          scopes: req.body?.scopes,
+          expiresAt: req.body?.expiresAt,
+        });
         noStore(res);
         res.status(201).json({ data: issued });
       } catch (error) {

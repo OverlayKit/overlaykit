@@ -794,4 +794,20 @@ describe('DeviceWebSocketGateway', () => {
     expect(authenticate).not.toHaveBeenCalled();
     expect(coordinator.connect).not.toHaveBeenCalled();
   });
+
+  it('closes admission and delegates authority retirement during shutdown', async () => {
+    const coordinator = Object.assign(pendingCoordinator(), {
+      shutdown: vi.fn(async () => undefined),
+    });
+    const gateway = new DeviceWebSocketGateway({
+      credentials: { authenticate: vi.fn(async () => authority()) },
+      coordinator,
+      authorityMonitor: authorityMonitorHarness().monitor,
+    });
+
+    await gateway.shutdown();
+    await gateway.shutdown();
+
+    expect(coordinator.shutdown).toHaveBeenCalledTimes(1);
+  });
 });

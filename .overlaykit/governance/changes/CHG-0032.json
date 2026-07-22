@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0032",
+  "title": "Test an exclusive observable device credential authority",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0010",
+    "ADR-0011",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires one logical credential authority on Linux, macOS, and Windows; a second owner or unavailable exclusive store must abort server startup instead of exposing degraded device control.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every permission change to rotate bearer and generation atomically, makes revocation irreversible, and establishes durable commit as the instant old authority becomes invalid.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires post-commit invalidation to reach every listener for the affected credential before the owner response, while listener failure cannot roll back persisted truth and must fail only that credential closed.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires strict WebSocket routing where /ws is browser and OBS transport, /device is non-browser hardware transport, and unknown paths never fall back between handlers.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-023: A Node 24 host using node:sqlite with one long-lived exclusive connection can provide cross-platform single-owner persistence, crash-released exclusivity, one-time JSON migration, serialized lifecycle observation, strict WebSocket composition, and fail-closed startup and shutdown without introducing a second authority.",
+      "evidence": "SDD-023 hypothesis approved for implementation by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This approved experiment does not yet demonstrate cross-platform behavior, abrupt-power durability, Caddy or TLS behavior, device bootstrap, command execution, deltas, Companion integration, hardware state, renderer output, OBS output, or operator perception.",
+      "evidence": "SDD-023 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Exactly one runtime can own the SQLite credential authority, failed contenders cannot read or write authority, and ownership can be recovered after graceful or abrupt process death on every supported operating system.",
+      "verification": "Real-process exclusivity and crash-recovery tests on Ubuntu, macOS, and Windows with Node 24."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A complete valid legacy JSON store migrates transactionally once, archives only after commit, resumes safely after interruption, and malformed or incomplete migration aborts startup without dual authority.",
+      "verification": "Migration, commit-fault, archive-fault, resume, malformed-input, and authority-selection tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Issue, permission rotation, expiration, and revocation use one serialized lifecycle lane whose immutable post-commit observation is published before owner response and whose listener faults fail only affected authority closed.",
+      "verification": "Ordering, mutation, listener isolation, subscription race, exact expiration, and store-fault tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The production WebSocket listener routes /ws and /device explicitly, rejects unknown paths without fallback, and exposes no device authority when runtime composition fails.",
+      "verification": "Real HTTP upgrade routing, authentication, fallback-rejection, and startup-failure tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Shutdown stops new upgrades immediately, retires active device authority, drains only admitted operations, forcibly closes remaining transports within twelve seconds, and closes the exclusive store.",
+      "verification": "Shutdown ordering, admission race, operation drainage, forced-close, and ownership-release tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0032 records approved Discovery, H-023, measurable evidence, and unknowns without an ADR or implemented claim.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice replaces only credential JSON authority, lifecycle observation, device gateway composition, related contracts, tests, and CI runtime declarations.",
+      "evidence": "git diff for CHG-0032"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review attempts to refute H-023 with real-process, persistence-fault, migration-race, event-ordering, listener-fault, routing, startup, shutdown, and cross-platform tests.",
+      "evidence": "Focused server tests and GitHub Actions portability evidence"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, audit, and Node 24 portability checks pass before human review.",
+      "evidence": "Local validation and GitHub Actions evidence"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Any ADR, implemented status, bounded inference, and governance profile bump are created only after human authority reviews the evidence and explicitly accepts or refutes H-023.",
+      "evidence": "Pending Human Doctrine review"
+    }
+  ]
+}

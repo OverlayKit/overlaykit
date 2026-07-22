@@ -7,7 +7,7 @@ import {
   createDeviceCredentialRuntime,
   type DeviceCredentialRuntime,
 } from '../../src/auth/DeviceCredentialRuntime';
-import { FileDeviceCredentialStore } from '../../src/auth/FileDeviceCredentialStore';
+import { SqliteDeviceCredentialStore } from '../../src/auth/SqliteDeviceCredentialStore';
 import { createApp } from '../../src/index';
 import { ChannelManager } from '../../src/services/ChannelManager';
 import {
@@ -113,7 +113,9 @@ describe('device bearer production control boundary', () => {
     credentialCounter = 0;
     entropyByte = 0;
     runtime = await createDeviceCredentialRuntime({
-      store: new FileDeviceCredentialStore(path.join(directory, 'device-credentials.json')),
+      store: new SqliteDeviceCredentialStore({
+        databasePath: path.join(directory, 'device-credentials.sqlite'),
+      }),
       lifecycleOptions: createDeviceCredentialCryptoOptions({
         now: () => now,
         primitives: {
@@ -141,6 +143,7 @@ describe('device bearer production control boundary', () => {
   });
 
   afterEach(async () => {
+    await runtime.close();
     await rm(directory, { recursive: true, force: true });
   });
 

@@ -10,6 +10,7 @@ export const DEVICE_CONNECTION_CLOSE_REASONS = [
   'authority.changed',
   'authority.unavailable',
   'authority.rejected',
+  'server.shutdown',
 ] as const;
 
 export type DeviceConnectionCloseReason = (typeof DEVICE_CONNECTION_CLOSE_REASONS)[number];
@@ -195,6 +196,7 @@ export class DeviceConnectionAuthorityCoordinator {
   private readonly retiredGenerations = new Map<string, number>();
   private readonly revokedCredentials = new Set<string>();
   private readonly archivedShows = new Set<string>();
+  private accepting = true;
 
   constructor(options: DeviceConnectionAuthorityCoordinatorOptions = {}) {
     this.now = options.now ?? Date.now;
@@ -209,6 +211,16 @@ export class DeviceConnectionAuthorityCoordinator {
     authorityIsCurrentInput?: () => boolean
   ): Promise<DeviceConnectionLease> {
     const connection = normalizedConnection(connectionInput);
+    if (!this.accepting) {
+      return this.rejectIncoming(
+        connection,
+        new DeviceConnectionAuthorityError(
+          'DEVICE_AUTHORITY_BLOCKED',
+          'Device authority is shutting down'
+        ),
+        'server.shutdown'
+      );
+    }
     if (authorityIsCurrentInput !== undefined && typeof authorityIsCurrentInput !== 'function') {
       return this.rejectIncoming(
         connection,
@@ -248,6 +260,16 @@ export class DeviceConnectionAuthorityCoordinator {
       return this.rejectIncoming(connection, immediateBlock.error, immediateBlock.reason);
     }
     return this.enqueue(authority.credentialId, async () => {
+      if (!this.accepting) {
+        return this.rejectIncoming(
+          connection,
+          new DeviceConnectionAuthorityError(
+            'DEVICE_AUTHORITY_BLOCKED',
+            'Device authority is shutting down'
+          ),
+          'server.shutdown'
+        );
+      }
       if (!authorityIsCurrent()) {
         return this.rejectIncoming(
           connection,
@@ -422,6 +444,22 @@ export class DeviceConnectionAuthorityCoordinator {
     );
     const failure = outcomes.find((outcome) => !outcome.ok);
     if (failure && !failure.ok) throw failure.error;
+  }
+
+  async shutdown(): Promise<void> {
+    if (!this.accepting && this.slots.size === 0) return;
+    this.accepting = false;
+    const slots = [...this.slots.values()];
+    for (const slot of slots) slot.phase = 'quiescing';
+    const outcomes = await Promise.allSettled(
+      slots.map((slot) => this.enqueue(slot.authority.credentialId, async () => {
+        if (this.slots.get(slot.authority.credentialId) === slot) {
+          await this.closeSlot(slot, 'server.shutdown');
+        }
+      }))
+    );
+    const failure = outcomes.find((outcome) => outcome.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
   }
 
   private assertAuthorityIdentity(authority: DeviceConnectionAuthority): void {

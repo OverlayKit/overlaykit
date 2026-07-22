@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
 
 // Live design systems pushed over WebSocket by POST /api/design-systems are
 // appended to the theme picker so the Visual tab can apply them.
-const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080';
+const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/ws';
 let themeWs: WebSocket | null = null;
 let themeReconnect: ReturnType<typeof setTimeout> | null = null;
 let themeFeedClosed = false;

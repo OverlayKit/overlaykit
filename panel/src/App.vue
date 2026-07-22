@@ -4,7 +4,7 @@ import type { ControlValue, ProductionSnapshot, ProductionState } from '@overlay
 import { OperatorControls, StatusDot } from '@overlaykit/ui';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
 const params = new URLSearchParams(location.search);
 const showId = params.get('show') || '';
 const embedded = params.get('embedded') === 'true';

@@ -1,5 +1,5 @@
 import express from 'express';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
@@ -8,7 +8,7 @@ import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { createDeviceCredentialCryptoOptions } from '../../src/auth/DeviceCredentialCrypto';
 import { createDeviceCredentialRuntime } from '../../src/auth/DeviceCredentialRuntime';
-import { FileDeviceCredentialStore } from '../../src/auth/FileDeviceCredentialStore';
+import { SqliteDeviceCredentialStore } from '../../src/auth/SqliteDeviceCredentialStore';
 import { requireRole } from '../../src/auth/http';
 import { createApp } from '../../src/index';
 import { createDeviceCredentialsRouter } from '../../src/routes/deviceCredentials';
@@ -63,20 +63,22 @@ function show(id: string, archivedAt: number | null = null): ShowRecord {
 
 describe('Owner device credential HTTP lifecycle', () => {
   let directory = '';
+  const runtimes: Array<{ close(): Promise<void> }> = [];
 
   beforeEach(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), 'overlaykit-device-http-'));
   });
 
   afterEach(async () => {
+    await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
     await rm(directory, { recursive: true, force: true });
   });
 
   it('discloses each bearer once and preserves Show, generation, and revocation boundaries', async () => {
     let entropyByte = 0;
-    const filePath = path.join(directory, 'device-credentials.json');
+    const databasePath = path.join(directory, 'device-credentials.sqlite');
     const runtime = await createDeviceCredentialRuntime({
-      store: new FileDeviceCredentialStore(filePath),
+      store: new SqliteDeviceCredentialStore({ databasePath }),
       lifecycleOptions: createDeviceCredentialCryptoOptions({
         now: () => 1_000,
         primitives: {
@@ -85,6 +87,7 @@ describe('Owner device credential HTTP lifecycle', () => {
         },
       }),
     });
+    runtimes.push(runtime);
     const auth = new AuthService(new MemoryAuthStore());
     await auth.init();
     const storage = new TestStorage();
@@ -137,9 +140,9 @@ describe('Owner device credential HTTP lifecycle', () => {
     expect(issued.body.data.credential).not.toHaveProperty('sealedSecret');
     const firstToken = issued.body.data.token as string;
     expect(firstToken).toMatch(/^ok_device_device-1\./);
-    const persisted = await readFile(filePath, 'utf8');
-    expect(persisted).not.toContain(firstToken);
-    expect(persisted).toContain('okdv1$sha256$');
+    const persisted = await runtime.store.get('device-1');
+    expect(JSON.stringify(persisted)).not.toContain(firstToken);
+    expect(persisted?.sealedSecret).toMatch(/^okdv1\$sha256\$/);
 
     await agent
       .post('/api/shows/other-show/integrations/device-credentials/device-1/rotate')
@@ -150,10 +153,23 @@ describe('Owner device credential HTTP lifecycle', () => {
     const rotated = await agent
       .post('/api/shows/show-1/integrations/device-credentials/device-1/rotate')
       .set('Origin', ORIGIN)
+      .send({
+        targets: ['preview'],
+        controlIds: ['scoreboard.visibility'],
+        scopes: ['feedback:read'],
+        expiresAt: 20_000,
+      })
       .expect(201);
     const secondToken = rotated.body.data.token as string;
     expect(secondToken).not.toBe(firstToken);
-    expect(rotated.body.data.credential).toMatchObject({ generation: 2, showId: 'show-1' });
+    expect(rotated.body.data.credential).toMatchObject({
+      generation: 2,
+      showId: 'show-1',
+      targets: ['preview'],
+      controlIds: ['scoreboard.visibility'],
+      scopes: ['feedback:read'],
+      expiresAt: 20_000,
+    });
     expect(rotated.body.data.credential).not.toHaveProperty('sealedSecret');
     await expect(runtime.lifecycle.authenticate(firstToken)).resolves.toBeNull();
     await expect(runtime.lifecycle.authenticate(secondToken)).resolves.toMatchObject({ generation: 2 });
@@ -174,8 +190,11 @@ describe('Owner device credential HTTP lifecycle', () => {
 
   it('denies an authenticated non-Owner before touching the credential store', async () => {
     const runtime = await createDeviceCredentialRuntime({
-      store: new FileDeviceCredentialStore(path.join(directory, 'device-credentials.json')),
+      store: new SqliteDeviceCredentialStore({
+        databasePath: path.join(directory, 'device-credentials.sqlite'),
+      }),
     });
+    runtimes.push(runtime);
     const storage = new TestStorage();
     storage.shows.set('show-1', show('show-1'));
     const app = express();

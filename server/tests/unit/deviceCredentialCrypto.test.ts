@@ -168,8 +168,20 @@ describe('device credential production crypto', () => {
     expect(JSON.stringify(stored)).not.toContain(issued.token);
     await expect(lifecycle.authenticate(issued.token)).resolves.toMatchObject({ generation: 1 });
 
-    const rotated = await lifecycle.rotate(OWNER, issued.credential.credentialId);
+    const rotated = await lifecycle.rotate(OWNER, issued.credential.credentialId, {
+      targets: ['preview'],
+      controlIds: ['scoreboard.visibility'],
+      scopes: ['feedback:read', 'component.visibility:write'],
+      expiresAt: 20_000,
+    });
     expect(rotated.token).not.toBe(issued.token);
+    expect(rotated.credential).toMatchObject({
+      generation: 2,
+      targets: ['preview'],
+      controlIds: ['scoreboard.visibility'],
+      scopes: ['feedback:read', 'component.visibility:write'],
+      expiresAt: 20_000,
+    });
     await expect(lifecycle.authenticate(issued.token)).resolves.toBeNull();
     await expect(lifecycle.authenticate(rotated.token)).resolves.toMatchObject({ generation: 2 });
   });
