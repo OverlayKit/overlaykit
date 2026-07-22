@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0028",
+  "title": "Device readiness authority requires durable transition evidence",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-transition-audit",
+    "device-bootstrap-readiness",
+    "device-bootstrap-reissue",
+    "device-host-epoch-continuity"
+  ],
+  "context": "ADR-0026 required continuously evidenced effective authority for every admitted device connection, while ADR-0027 established one exclusive Node 24 SQLite credential authority and strict /device ownership. Neither decision proved that a later readiness grant could be reconstructed from durable evidence, that evidence could not become a second command authority, or that process death would leave an explicit continuity boundary. Discovery for SDD-024 required every transition to be justified by evidence, one global monotonic audit order plus a connection-local order, exact current authority and target snapshots before readiness, commit-before-effect for positive grants, effect-before-audit for negative safety transitions, scoped snapshot reissue, explicit host discontinuities, and privacy-bounded persistence. Slice 1 added an append-only transition ledger on the same exclusive SQLite connection as credential authority, mounted signed bootstrap snapshots and acknowledgements on the real device WebSocket session, committed readiness through a synchronous transition session, observed committed production changes, and made audit uncertainty host-fatal. Refutation exercised invalid transitions, independent dual-chain recomputation, commit faults, durable-head truncation, privacy probes, real-process SIGKILL recovery, concurrent connection ordering, stale and incomplete authority, real signed snapshots and acknowledgements, target-local and shared reissue, attempted ledger-witness command reuse, real WebSocket closure, and audit-failure admission shutdown. Full repository checks, builds, installed-package execution, licensing, and dependency audit passed locally. GitHub Actions Constitution run 71 passed validation and observation plus the focused suite on Ubuntu, macOS, and Windows for signed commit cc2e129b22b4873840ba3b430624b2780e8b4f93. The human authority accepted H-024 only within the tested same-process, single-host, local-file SQLite and process-crash boundary.",
+  "decision": "The Node 24 SQLite credential runtime owns one device transition ledger on the same long-lived exclusive database connection as credential authority. Starting the runtime must verify the complete canonical history and its separately committed durable head before opening a new host epoch. Every record has one positive global sequence, host epoch, transition kind, occurrence time, previous global hash, optional previous connection hash, bounded evidence, a null signature until a separate signing hypothesis is accepted, and a SHA-256 identity over its canonical document. SQLite prevents ordinary update or deletion through append-only triggers, while the durable head detects tail truncation by cooperating runtimes. The only accepted connection path is absent to not_ready, not_ready to ready or closed, ready to quiescing, and quiescing to closed. A connection enters not_ready only after its current credential authority and exact authorized target set have been appended. It enters ready only when every authorized target has a complete current signed snapshot, one shared catalog generation, confirmed transport send, exact applied acknowledgement, and current credential authority at one synchronous commit boundary. The readiness ledger append must succeed before in-memory readiness and the public device.ready notification become observable. The resulting witness identifies evidence but grants no admission, reconnection, command, or production authority and is excluded from the public ready message. Negative safety transitions first remove authority in memory and then append quiescing or closed evidence. Any append uncertainty permanently fails that ledger instance, closes device admission and transports, and makes the host terminate rather than continue without auditable evidence. A graceful shutdown closes all connection chains before appending host.stopped. A successor that verifies an unsealed prior host epoch appends host.discontinuity.detected and closes surviving chains as host.discontinuity without restoring their authority. Committed production observations invalidate bootstrap evidence causally: a target-local revision reissues only that target, while a shared catalog generation change reissues every authorized target; neither invalidation consumes a delivery retry. Persisted audit evidence is limited to identifiers, authority hashes and generations, authorized targets, snapshot hashes and sequences, catalog and target revisions, signer identifiers, transition reasons, and times. It must not contain raw or sealed bearers, scopes, labels, control definitions, editorial content, or snapshot bytes. These guarantees apply only to the cooperating OverlayKit runtime using the tested local SQLite file. Audit-record signing and key lifecycle, out-of-band hostile database access, abrupt-power physical durability, archives and retention, bootstrap key custody, commands and deltas, proxy transport, hardware, rendering, OBS, and operator perception require separate evidence.",
+  "consequences": [
+    "A SQLite credential runtime now opens and seals a host audit epoch even when signed bootstrap sessions are not programmatically enabled.",
+    "Audited signed bootstrap can be composed only with the SQLite transition ledger and an explicitly supplied external bootstrap signer; the default server does not invent signing authority.",
+    "Readiness latency includes one synchronous SQLite commit because authority cannot precede durable positive evidence.",
+    "Safety does not wait for audit I/O: authority disappears first, but audit failure makes the device subsystem and host fail closed.",
+    "Every accepted connection transition can be ordered globally and within its own connection chain by canonical SHA-256 predecessors.",
+    "A process crash is represented as a discontinuity on the next successful verified startup and never revives prior connection authority.",
+    "Snapshot changes reissue evidence according to their causal scope instead of resetting unrelated targets.",
+    "Ledger sequences, hashes, and witnesses remain evidence only and cannot substitute for current bearer authorization or command validation.",
+    "Audit rows intentionally omit operational secrets and editorial payloads, but identifiers and timing metadata remain sensitive operational data.",
+    "The accepted evidence does not prove cryptographic audit signatures, key generation or rotation, archival checkpoints, retention deletion, macro or command execution, abrupt-power durability, proxy behavior, Companion integration, hardware state, rendered pixels, OBS output, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-transition-ledger-shares-credential-sqlite-authority",
+      "statement": "The device transition ledger must use the same long-lived exclusive SQLite connection as credential authority and must never open or project a second executable authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-transition-history-validates-before-host-epoch",
+      "statement": "The complete canonical transition history and its separately committed durable head must validate before a runtime may append a new host epoch or expose audited device readiness."
+    },
+    {
+      "kind": "rule",
+      "id": "device-transition-records-form-dual-hash-chain",
+      "statement": "Every transition record must have one positive global sequence, the exact previous global hash, the exact previous connection hash when connection-scoped, bounded canonical evidence, and a SHA-256 record identity."
+    },
+    {
+      "kind": "rule",
+      "id": "device-readiness-is-commit-before-effect",
+      "statement": "A device connection may become ready only after current authority and complete exact-target bootstrap evidence are synchronously validated and durably appended; readiness projection and notification must follow that commit."
+    },
+    {
+      "kind": "rule",
+      "id": "device-safety-transitions-are-effect-before-audit",
+      "statement": "Quiescing and closure must remove device authority before their audit append, and append uncertainty must close device admission and transports and terminate the host rather than restore or retain authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-unsealed-host-epoch-becomes-discontinuity",
+      "statement": "After verifying an unsealed prior host epoch, the next successful startup must append an explicit discontinuity and close every surviving connection chain without restoring prior authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-bootstrap-reissue-follows-causal-scope",
+      "statement": "A committed target-local production revision must invalidate and reissue only that target, while a shared catalog generation change must invalidate and reissue every authorized target without consuming delivery retries."
+    },
+    {
+      "kind": "rule",
+      "id": "device-audit-witness-is-never-operation-authority",
+      "statement": "A ledger sequence, hash, record, or readiness witness must never authorize admission, reconnection, a command, or production mutation and must not be exposed by the public ready notification."
+    },
+    {
+      "kind": "rule",
+      "id": "device-audit-evidence-is-privacy-bounded",
+      "statement": "Transition evidence may persist bounded identifiers, hashes, generations, targets, revisions, signer identifiers, reasons, and times but must never persist raw or sealed bearers, scopes, labels, control definitions, editorial content, or complete snapshot bytes."
+    },
+    {
+      "kind": "rule",
+      "id": "device-transition-audit-claims-are-bounded",
+      "statement": "Passing transition-ledger and bootstrap evidence may not be represented as cryptographic audit signing, audit-key lifecycle, hostile out-of-band database resistance, abrupt-power or physical-media durability, archive or retention verification, bootstrap-key custody, command or delta execution, macro support, proxy or TLS verification, Companion integration, hardware state, renderer or OBS observation, or operator perception."
+    }
+  ]
+}

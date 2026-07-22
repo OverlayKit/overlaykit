@@ -284,6 +284,14 @@
       "id": "ADR-0027",
       "supersededBy": null,
       "title": "Device credential authority requires exclusive observable SQLite ownership"
+    },
+    {
+      "contentHash": "709e3b38da066c20ab67626c79f896af693ada1a22a1fc61a9dc4e0c0cc3bf81",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0028",
+      "supersededBy": null,
+      "title": "Device readiness authority requires durable transition evidence"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -418,10 +426,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "a7abdc1ffe0a3fe4147d61b6766a548286b963daa4b42bfa4c6468b13e7449e3",
-  "profileHash": "8dcbf1abe14b468455385fbb929608b249408cf8a4e779923499eb333e3b75ce",
+  "planHash": "b00acc4b819206029e1ecb7670faa847f9fc2c0b0d46a67ff92ab11f130e9b62",
+  "profileHash": "b77d68c891f4ff6bd2a4d5d51cde61d2efb6457eae01888119fd1dc8c8a51fc3",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.23.0",
+  "profileVersion": "2.24.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -536,6 +544,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0026",
       "statement": "The coordinator must recheck the monitor currency witness before queueing, within the serialized credential lane, and immediately before installing the exclusive connection slot."
+    },
+    {
+      "id": "device-audit-evidence-is-privacy-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "Transition evidence may persist bounded identifiers, hashes, generations, targets, revisions, signer identifiers, reasons, and times but must never persist raw or sealed bearers, scopes, labels, control definitions, editorial content, or complete snapshot bytes."
+    },
+    {
+      "id": "device-audit-witness-is-never-operation-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "A ledger sequence, hash, record, or readiness witness must never authorize admission, reconnection, a command, or production mutation and must not be exposed by the public ready notification."
     },
     {
       "id": "device-authority-barrier-blocks-before-drain",
@@ -686,6 +706,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0023",
       "statement": "A connection may become ready only after every credential-authorized target has both successful transport-send completion and an applied acknowledgement for its current snapshot hash."
+    },
+    {
+      "id": "device-bootstrap-reissue-follows-causal-scope",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "A committed target-local production revision must invalidate and reissue only that target, while a shared catalog generation change must invalidate and reissue every authorized target without consuming delivery retries."
     },
     {
       "id": "device-bootstrap-retries-are-target-local-and-bounded",
@@ -1024,10 +1050,22 @@
       "statement": "A valid device bearer resolves to device authority and never to a Studio user, role set, cookie, or interactive session."
     },
     {
+      "id": "device-readiness-is-commit-before-effect",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "A device connection may become ready only after current authority and complete exact-target bootstrap evidence are synchronously validated and durably appended; readiness projection and notification must follow that commit."
+    },
+    {
       "id": "device-rotation-changes-feedback-audience",
       "kind": "rule",
       "sourceDecision": "ADR-0009",
       "statement": "Rotation preserves credential identity, replaces its secret, increments generation, and binds feedback audience to credentialId.generation so prior generations fail closed."
+    },
+    {
+      "id": "device-safety-transitions-are-effect-before-audit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "Quiescing and closure must remove device authority before their audit append, and append uncertainty must close device admission and transports and terminate the host rather than restore or retain authority."
     },
     {
       "id": "device-secret-has-256-random-bits",
@@ -1100,6 +1138,36 @@
       "kind": "rule",
       "sourceDecision": "ADR-0027",
       "statement": "Passing SQLite authority evidence may not be represented as abrupt-power or physical-media durability, network-filesystem coordination, hostile database access prevention, cross-process listener delivery, proxy or TLS verification, bootstrap or command authority, Companion integration, hardware state, renderer or OBS observation, or operator perception."
+    },
+    {
+      "id": "device-transition-audit-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "Passing transition-ledger and bootstrap evidence may not be represented as cryptographic audit signing, audit-key lifecycle, hostile out-of-band database resistance, abrupt-power or physical-media durability, archive or retention verification, bootstrap-key custody, command or delta execution, macro support, proxy or TLS verification, Companion integration, hardware state, renderer or OBS observation, or operator perception."
+    },
+    {
+      "id": "device-transition-history-validates-before-host-epoch",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "The complete canonical transition history and its separately committed durable head must validate before a runtime may append a new host epoch or expose audited device readiness."
+    },
+    {
+      "id": "device-transition-ledger-shares-credential-sqlite-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "The device transition ledger must use the same long-lived exclusive SQLite connection as credential authority and must never open or project a second executable authority."
+    },
+    {
+      "id": "device-transition-records-form-dual-hash-chain",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "Every transition record must have one positive global sequence, the exact previous global hash, the exact previous connection hash when connection-scoped, bounded canonical evidence, and a SHA-256 record identity."
+    },
+    {
+      "id": "device-unsealed-host-epoch-becomes-discontinuity",
+      "kind": "rule",
+      "sourceDecision": "ADR-0028",
+      "statement": "After verifying an unsealed prior host epoch, the next successful startup must append an explicit discontinuity and close every surviving connection chain without restoring prior authority."
     },
     {
       "id": "device-verifier-is-not-a-password-verifier",

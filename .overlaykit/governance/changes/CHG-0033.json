@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0033",
   "title": "Test auditable device readiness transitions",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -24,7 +24,8 @@
     "ADR-0024",
     "ADR-0025",
     "ADR-0026",
-    "ADR-0027"
+    "ADR-0027",
+    "ADR-0028"
   ],
   "specifications": ["SPEC-0001"],
   "claims": [
@@ -65,9 +66,15 @@
       "blocking": false
     },
     {
+      "kind": "inference",
+      "statement": "Human review accepted H-024 only for the tested same-process, single-host, local-file SQLite transition ledger and mounted signed-bootstrap composition whose shared credential connection, canonical global and connection chains, strict state machine, commit-before-effect readiness, effect-before-audit safety, host-fatal audit uncertainty, durable-head truncation detection, process-crash discontinuity, exact-target acknowledgement, scoped reissue, privacy bounds, and rejection of ledger-witness command reuse were demonstrated by hostile tests, full repository checks, builds, installed-package execution, zero-vulnerability audit, governance verification, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 after SDD-024 refutation evidence and GitHub Actions Constitution run 71",
+      "blocking": false
+    },
+    {
       "kind": "unknown",
-      "statement": "This Slice does not establish audit signing, audit-key generation or custody, key rotation, archive checkpoints, retention deletion, macro execution, bootstrap signing-key generation or distribution, command or delta execution, Caddy or TLS behavior, abrupt-power physical-media durability, Companion integration, hardware state, rendered pixels, OBS output, or operator perception.",
-      "evidence": "SDD-024 approved Slice boundary",
+      "statement": "This accepted Slice does not prove cryptographic audit signing, audit-key generation or custody, key rotation, hostile out-of-band database resistance, archive checkpoints, retention deletion, macro execution, bootstrap signing-key generation or distribution, command or delta execution, Caddy, TLS, or proxy behavior, abrupt-power physical-media durability, Companion integration, hardware state, rendered pixels, OBS output, or operator perception.",
+      "evidence": "SDD-024 accepted Slice boundary",
       "blocking": false
     }
   ],
@@ -101,7 +108,7 @@
   "definitionOfDone": [
     {
       "id": "DOD-001",
-      "statement": "CHG-0033 records Discovery facts, H-024, measurable refutation criteria, the safety asymmetry, and unresolved guarantees without claiming that the hypothesis passed.",
+      "statement": "CHG-0033 records Discovery facts, H-024, measurable refutation criteria, the safety asymmetry, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
       "evidence": "npm run governance:check"
     },
     {
@@ -117,12 +124,12 @@
     {
       "id": "DOD-004",
       "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, installed-protocol execution, and Linux, macOS, and Windows portability evidence pass for the Slice.",
-      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, package-consumer test, and GitHub Actions Constitution matrix"
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, package-consumer test, and GitHub Actions Constitution run 71"
     },
     {
       "id": "DOD-005",
-      "statement": "Any bounded inference, implemented status, profile activation, and ADR-0028 are created only after the human authority reviews the refutation evidence and explicitly accepts H-024.",
-      "evidence": "Future Human Doctrine evidence review"
+      "statement": "ADR-0028, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-024.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21 and ADR-0028"
     }
   ]
 }
