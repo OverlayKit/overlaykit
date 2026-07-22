@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0036",
   "title": "Test post-ready signed device state synchronization",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -24,7 +24,8 @@
     "ADR-0026",
     "ADR-0028",
     "ADR-0029",
-    "ADR-0030"
+    "ADR-0030",
+    "ADR-0031"
   ],
   "specifications": ["SPEC-0001"],
   "claims": [
@@ -101,6 +102,12 @@
       "blocking": false
     },
     {
+      "kind": "inference",
+      "statement": "Human review accepted H-027 only for the tested single-host cooperating OverlayKit runtime with one authenticated non-browser device connection, one current signing issuer, authorized Preview and Program targets, exact bootstrap bases, per-target confirmed state and retry authority, one globally serialized issuer-audience sequence and send lane, canonical signed deltas and no-change confirmations, exact applied acknowledgements, target-local readiness and freshness, fail-closed transport and issuer changes, and bounded non-resumable checkpoint evidence demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, governance verification, valid commit signatures, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-027 refutation evidence and GitHub Actions Constitution run 29958370450",
+      "blocking": false
+    },
+    {
       "kind": "unknown",
       "statement": "This Slice does not establish device-originated WebSocket command framing or execution, renderer or OBS output truth, hardware state, operator perception, multi-host coordination, synchronized clocks, signer distribution or rotation deployment, hostile-network liveness, Caddy or TLS behavior, physical power-loss durability, checkpoint-based resumption, macros, cues, batches, or external temporal effects.",
       "evidence": "SDD-027 approved Slice boundary",
@@ -142,7 +149,7 @@
   "definitionOfDone": [
     {
       "id": "DOD-001",
-      "statement": "CHG-0036 records Discovery facts, H-027, measurable refutation criteria, and unresolved guarantees without claiming that the hypothesis passed.",
+      "statement": "CHG-0036 records Discovery facts, H-027, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
       "evidence": "npm run governance:check"
     },
     {
@@ -158,12 +165,12 @@
     {
       "id": "DOD-004",
       "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
-      "evidence": "Future local and GitHub Actions evidence"
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 29958370450"
     },
     {
       "id": "DOD-005",
-      "statement": "Any bounded inference, implemented status, profile activation, and ADR-0031 are created only after the human authority reviews the refutation evidence and explicitly accepts H-027.",
-      "evidence": "Future Human Doctrine evidence review"
+      "statement": "ADR-0031, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-027.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0031"
     }
   ]
 }

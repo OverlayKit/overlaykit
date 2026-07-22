@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0031",
+  "title": "Post-ready device state requires exact signed evidence",
+  "status": "accepted",
+  "date": "2026-07-22",
+  "supersedes": null,
+  "governs": [
+    "device-post-ready-state-synchronization",
+    "device-state-delta-authority",
+    "device-state-acknowledgement",
+    "device-target-readiness",
+    "device-state-freshness",
+    "device-state-send-order",
+    "device-connection-checkpoint"
+  ],
+  "context": "ADR-0023 established an exact signed bootstrap before a device connection becomes ready, but it did not prove how state truth remains current after readiness. Without one post-ready authority, transport acceptance, a stale acknowledgement, device belief, or a command outcome could be mistaken for evidence that Preview or Program state was applied. Discovery for SDD-027 required each target to advance only from its exact last applied signed frame, one globally serialized issuer-audience sequence and physical send lane, target-local pending frames and retry budgets, one-second no-change confirmations, three-second freshness and acknowledgement bounds, deterministic invalidation when production changes, fail-closed issuer rotation and base mismatch, command admission gated by current target evidence, and a bounded diagnostic checkpoint that never restores authority. Slice 1 added the versioned signed delta and unified acknowledgement contracts, a per-target post-ready coordinator, readiness gating, gateway lifecycle routing, bounded backpressure behavior, and SQLite checkpoint evidence. Refutation exercised concurrent Preview and Program changes, sequence and send barriers, immutable retry bytes, stale, future, duplicate, malformed, cross-target, error, and invalidated acknowledgements, truth changes during pending sends, retry exhaustion, send failure, backpressure overflow, catalog fan-out, freshness expiry, issuer rotation, connection replacement, gateway and cleanup races, graceful close, abrupt restart, privacy inspection, and adapter mutation attempts. Full repository checks passed 479 workspace tests plus seven licensing verifier cases; focused authority and package-consumer evidence passed locally, and GitHub Actions Constitution run 29958370450 passed signed identity, quality, build, observation, and the complete Ubuntu, macOS, and Windows portability matrix for PR 35 at signed head 1683809655fb9ba077045103e49198f51faf278e. Earlier Windows failures first exposed parallel SQLite timing noise and then a POSIX-only npm invocation in the evidence harness; both were corrected without widening the five-second test timeout before the final run passed. The human authority accepted H-027 only within the tested single-host, one authenticated connection, current issuer, authorized Preview and Program, cooperating runtime, and bounded failure model.",
+  "decision": "After the exact bootstrap frame for every authorized target is acknowledged as applied and the ready message is sent successfully, OverlayKit mounts one post-ready synchronization coordinator for that authenticated device connection. The coordinator owns one confirmed signed base, at most one pending frame, one freshness lease, and one retry budget independently for each target, while one issuerKeyId plus audienceCredentialId lane serializes every positive sequence reservation and physical send across all targets. A sequence is consumed forever once reserved, including when its frame is invalidated. Every state delta, including an unchanged confirmation, carries canonical signed payload bytes, its resulting issuerKeyId, sequence, and SHA-256, and the exact issuerKeyId, sequence, and SHA-256 of the target's last confirmed base. Bootstrap and delta acknowledgements use one closed versioned contract binding mode, target, issuerKeyId, sequence, SHA-256, status, and an error code only for error status. Sending or accepting bytes, command delivery, command outcome, transport metadata, and device belief never advance state truth. Only an exact applied acknowledgement for a current issued frame advances the target base and freshness. An exact acknowledgement for a previously applied resulting identity is idempotent; a stale acknowledgement for an invalidated frame is ignored; malformed, unauthorized, never-issued, cross-target, future, or non-duplicate base-mismatched evidence closes fail-closed and requires complete bootstrap. When authoritative production or shared catalog truth changes, any affected pending frame is invalidated immediately without consuming a retry, its sequence remains spent, and a fresh frame is emitted from the last confirmed base to the latest current truth. When truth is unchanged, the coordinator emits a signed no-change confirmation one second after the prior applied acknowledgement through the same lane. A current frame that times out three seconds after successful transport acceptance or receives a current error acknowledgement consumes one target retry and is retransmitted as the exact same signed bytes; each target receives one initial send and at most three additional sends. Send rejection, unresolved send, or bounded backpressure failure closes the connection as a transport failure without consuming a target retry or queueing retransmission. Exhaustion by any target closes the whole connection and requires bootstrap. While a target has pending synchronization or lacks sufficiently recent applied signed evidence, only that target rejects commands as not_ready without consuming operation identity and its controls project unknown after three seconds without newer applied evidence; unaffected targets retain their own evidence-backed state. Issuer rotation suspends admission and closes with issuer_rotated so no confirmed base crosses signing authority. Gateway routing must demultiplex lifecycle acknowledgements before command messages and must reject binary, unknown, or phase-invalid frames. Periodic confirmations are not durably journaled. Graceful close may append only one bounded diagnostic checkpoint for the connection, audience, close reason and time, and each target's last applied identity, production revision, catalog generation, and acknowledgement time; it stores no bearer, signature, editorial payload, rendered content, or frame bytes and never authorizes resumption. Abrupt host discontinuity and every new connection require a complete current bootstrap. These guarantees apply only to the cooperating OverlayKit runtime and tested boundary. Device-originated WebSocket command execution, renderer or OBS truth, hardware state, operator perception, multi-host coordination, synchronized clocks, signer deployment and custody, hostile-network liveness, Caddy or TLS behavior, physical power-loss durability, checkpoint resumption, macros, cues, batches, and external temporal effects require separate evidence.",
+  "consequences": [
+    "Post-ready traffic includes one signed no-change confirmation per authorized target each second so freshness is renewed by evidence rather than inferred from an open connection.",
+    "A target is intentionally unavailable for new commands while its synchronization frame is pending or its evidence is stale; production liveness is subordinate to supported state truth.",
+    "Preview and Program can retain independent confirmed bases, freshness, and retries, but their sequences and physical sends share one global lane so byte order cannot diverge from reserved order.",
+    "A truth change abandons the pending sequence permanently and reissues from the last confirmed base, increasing sequence use in exchange for never treating an obsolete frame as current.",
+    "A current timeout or error can send the same signed bytes four times total, while transport failure closes immediately because the host lacks evidence that a retry budget began.",
+    "Retry exhaustion, issuer rotation, protocol violation, or non-duplicate base mismatch closes the complete connection and forces every target through a fresh bootstrap.",
+    "Graceful checkpoints support bounded audit and diagnosis only; they cannot reduce bootstrap work or restore connection authority after restart.",
+    "The accepted evidence does not authorize device-originated WebSocket commands, physical-output claims, macros, multi-host execution, or any guarantee outside the explicit Slice boundary."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "post-ready-state-begins-from-exact-bootstrap-base",
+      "statement": "Post-ready synchronization may begin only after every authorized target's exact bootstrap frame is acknowledged as applied and the ready message is sent successfully."
+    },
+    {
+      "kind": "rule",
+      "id": "device-state-truth-advances-only-on-exact-applied-ack",
+      "statement": "Only an exact current applied acknowledgement bound to mode, target, issuerKeyId, sequence, and SHA-256 may advance a target's confirmed state and freshness; transport, commands, and device belief are not state evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-delta-base-is-target-local-and-send-order-is-global",
+      "statement": "Each target must derive from its own exact confirmed base while all issuer-audience sequence reservations and physical sends remain globally serialized and every reserved sequence remains consumed forever."
+    },
+    {
+      "kind": "rule",
+      "id": "device-delta-retry-reuses-exact-bounded-bytes",
+      "statement": "A current timeout or error may retransmit only the exact same signed bytes, with one initial send and no more than three additional sends per target, and retry accounting begins only after successful transport acceptance."
+    },
+    {
+      "kind": "rule",
+      "id": "device-truth-change-invalidates-pending-without-retry",
+      "statement": "New authoritative truth must invalidate every affected pending frame immediately, spend its sequence without consuming retry, ignore its later acknowledgement as stale, and reissue latest truth from the last confirmed base."
+    },
+    {
+      "kind": "rule",
+      "id": "device-target-readiness-requires-current-applied-evidence",
+      "statement": "A pending or stale target must reject only its own commands as not_ready without consuming operation identity and must project unknown after three seconds without newer applied signed evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-no-change-confirmation-renews-evidence",
+      "statement": "Unchanged production must emit a signed target-local confirmation one second after the prior applied acknowledgement through the same delta and acknowledgement authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-transport-failure-closes-without-retry",
+      "statement": "Send rejection, unresolved send, or bounded backpressure failure must close the connection without consuming target retry or queueing a retransmission whose prior acceptance is unknown."
+    },
+    {
+      "kind": "rule",
+      "id": "device-issuer-change-requires-complete-bootstrap",
+      "statement": "Issuer-key rotation must suspend command admission, close the connection with issuer_rotated, and forbid carrying a confirmed base across signing authorities."
+    },
+    {
+      "kind": "rule",
+      "id": "device-graceful-checkpoint-is-diagnostic-only",
+      "statement": "A graceful checkpoint must remain bounded and free of bearer, signature, payload, rendered content, and frame bytes, and neither graceful nor abrupt restart may restore device connection authority."
+    },
+    {
+      "kind": "rule",
+      "id": "device-post-ready-claims-are-bounded",
+      "statement": "Passing post-ready synchronization evidence may not be represented as device-originated command, renderer, OBS, hardware, operator-perception, multi-host, clock-synchronization, signer-deployment, hostile-network, proxy, physical-power, checkpoint-resumption, macro, cue, batch, or external-effect evidence."
+    }
+  ]
+}
