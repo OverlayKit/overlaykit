@@ -1,6 +1,12 @@
 import { ElementNode } from '../types/element';
 import { logger } from './logger';
 
+const PRESERVED_TEMPLATE_ATTRIBUTES = new Set([
+    'data-content-template',
+    'data-style-templates',
+    'data-attr-templates',
+]);
+
 /**
  * Check if a string contains interpolation placeholders
  */
@@ -64,6 +70,7 @@ export function preserveTemplatesInElement(element: ElementNode): ElementNode {
         let hasAttrTemplates = false;
 
         for (const [key, value] of Object.entries(element.attributes)) {
+            if (PRESERVED_TEMPLATE_ATTRIBUTES.has(key)) continue;
             if (typeof value === 'string' && hasInterpolation(value)) {
                 logger.debug('Preserving attribute template', { key, value });
                 attrTemplates[key] = value;

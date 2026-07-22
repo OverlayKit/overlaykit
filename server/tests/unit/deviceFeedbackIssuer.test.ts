@@ -59,7 +59,7 @@ function authority(overrides: Partial<DeviceCredentialAuthority> = {}): DeviceCr
 }
 
 function production(): ProductionService {
-  const service = new ProductionService(new ChannelManager());
+  const service = new ProductionService(new ChannelManager(), { allowEphemeral: true });
   service.loadPreview('show-1', {
     id: 'scene-1',
     name: 'Feedback scene',

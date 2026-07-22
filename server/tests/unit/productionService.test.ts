@@ -67,7 +67,7 @@ describe('ProductionService', () => {
 
   beforeEach(() => {
     channels = new ChannelManager();
-    production = new ProductionService(channels);
+    production = new ProductionService(channels, { allowEphemeral: true });
   });
 
   it('loads Preview without changing Program or the source Scene', () => {

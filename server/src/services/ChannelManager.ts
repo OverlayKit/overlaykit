@@ -226,6 +226,11 @@ export class ChannelManager {
     channel.activeScene = scene;
   }
 
+  public clearActiveScene(channelId: string): void {
+    const channel = this.channels.get(channelId);
+    if (channel) channel.activeScene = undefined;
+  }
+
   /**
    * Get the active scene for a channel
    */

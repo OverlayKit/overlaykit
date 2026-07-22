@@ -31,7 +31,34 @@ export function createProductionRouter(storage: Storage, production: ProductionS
 
   router.get('/shows/:showId/production', async (req: Request, res: Response) => {
     if (!await showExists(req, res)) return;
-    res.json({ data: production.getState(req.params.showId) });
+    try {
+      res.json({ data: production.getState(req.params.showId) });
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  });
+
+  router.get('/shows/:showId/production/quarantines', async (req: Request, res: Response) => {
+    if (!await showExists(req, res)) return;
+    try {
+      res.json({ data: production.listQuarantines(req.params.showId) });
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  });
+
+  router.get('/shows/:showId/production/:target', async (req: Request, res: Response) => {
+    if (!await showExists(req, res)) return;
+    try {
+      res.json({
+        data: production.getSnapshot(
+          req.params.showId,
+          req.params.target as 'preview' | 'program',
+        ),
+      });
+    } catch (error) {
+      respondWithError(res, error);
+    }
   });
 
   router.post('/shows/:showId/production/preview', async (req: Request, res: Response) => {
@@ -105,6 +132,25 @@ export function createProductionRouter(storage: Storage, production: ProductionS
           operationId,
           values,
         ),
+      });
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  });
+
+  router.post('/shows/:showId/production/:target/recovery', async (req: Request, res: Response) => {
+    if (!await showExists(req, res)) return;
+    try {
+      res.json({
+        data: production.recoverTarget({
+          showId: req.params.showId,
+          target: req.params.target as 'preview' | 'program',
+          mode: req.body?.mode,
+          operationId: req.body?.operationId,
+          roles: req.authSession!.user.roles,
+          scene: req.body?.scene,
+          variables: req.body?.variables,
+        }),
       });
     } catch (error) {
       respondWithError(res, error);

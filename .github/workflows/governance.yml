@@ -199,3 +199,5 @@ jobs:
           server/tests/unit/deviceConnectionTransitionSession.test.ts
           server/tests/unit/deviceBootstrapSessionRuntime.test.ts
           server/tests/unit/deviceWebSocketGateway.test.ts
+          server/tests/unit/durableProductionService.test.ts
+          server/tests/unit/sqliteProductionStateStore.test.ts

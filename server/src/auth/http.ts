@@ -84,6 +84,21 @@ export function requireRole(role: StudioRole) {
   };
 }
 
+export function requireAnyRole(roles: ReadonlyArray<StudioRole>) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.authSession?.user.roles.some((role) => roles.includes(role))) {
+      res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: `${roles.join(' or ')} role required`,
+        },
+      });
+      return;
+    }
+    next();
+  };
+}
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function enforceBrowserOrigin(allowedOrigins: string[]) {
