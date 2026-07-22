@@ -44,6 +44,17 @@ import {
 } from './services/DeviceActionCatalogRuntime';
 import { DeviceConnectionAuthorityCoordinator } from './services/DeviceConnectionAuthorityCoordinator';
 import { DeviceConnectionAuthorityMonitor } from './services/DeviceConnectionAuthorityMonitor';
+import {
+  DeviceBootstrapSessionFactory,
+} from './services/DeviceBootstrapSessionRuntime';
+import type { DeviceBootstrapSigningAuthority } from './services/DeviceBootstrapSnapshotIssuer';
+import {
+  FileFeedbackSequenceStore,
+  type ManagedFeedbackSequenceStore,
+} from './services/FileFeedbackSequenceStore';
+import type { ProductionState as ProtocolProductionState } from '@overlaykit/protocol/production' with {
+  'resolution-mode': 'import',
+};
 
 export interface AppDependencies {
   auth?: AuthService;
@@ -56,6 +67,9 @@ export interface AppDependencies {
 export interface ServerRuntimeDependencies extends AppDependencies {
   createDeviceCredentials?: () => Promise<DeviceCredentialRuntime>;
   createDeviceActionCatalog?: () => Promise<DeviceActionCatalogRuntime>;
+  deviceBootstrapSigning?: DeviceBootstrapSigningAuthority;
+  deviceBootstrapSequences?: ManagedFeedbackSequenceStore;
+  onDeviceFatal?: (error: unknown) => void;
 }
 
 export interface ServerRuntime {
@@ -68,6 +82,8 @@ export interface ServerRuntime {
   deviceAuthorityCoordinator: DeviceConnectionAuthorityCoordinator;
   deviceAuthorityMonitor: DeviceConnectionAuthorityMonitor;
   deviceGateway: DeviceWebSocketGateway;
+  deviceBootstrapSessions: DeviceBootstrapSessionFactory | null;
+  deviceBootstrapSequences: ManagedFeedbackSequenceStore | null;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
@@ -184,10 +200,59 @@ export async function createServerRuntime(
       error: error instanceof Error ? error.message : String(error),
     }),
   });
+  let deviceBootstrapSessions: DeviceBootstrapSessionFactory | null = null;
+  let deviceBootstrapSequences: ManagedFeedbackSequenceStore | null = null;
+  try {
+    if (dependencies.deviceBootstrapSigning) {
+      if (!deviceCredentials.transitionLedger) {
+        throw new Error('Audited device bootstrap requires the SQLite transition ledger');
+      }
+      deviceBootstrapSequences = dependencies.deviceBootstrapSequences
+        ?? new FileFeedbackSequenceStore();
+      await deviceBootstrapSequences.init();
+      const deviceBootstrapProduction = {
+        getState: (showId: string) => (
+          production.getState(showId) as unknown as ProtocolProductionState
+        ),
+        subscribe: (
+          showId: string,
+          observer: (observation: {
+            readonly showId: string;
+            readonly target: 'preview' | 'program';
+            readonly state: ProtocolProductionState;
+          }) => void,
+        ) => production.subscribe(showId, (observation) => observer({
+          ...observation,
+          // Protocol projectors validate the complete server tree at the boundary.
+          state: observation.state as unknown as ProtocolProductionState,
+        })),
+      };
+      deviceBootstrapSessions = new DeviceBootstrapSessionFactory({
+        production: deviceBootstrapProduction,
+        actionCatalog: deviceActionCatalog,
+        sequences: deviceBootstrapSequences,
+        signing: dependencies.deviceBootstrapSigning,
+        onBackgroundError: (error) => logger.error('Device bootstrap session failed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      });
+    }
+  } catch (error) {
+    await deviceBootstrapSequences?.close().catch(() => undefined);
+    if (ownsDeviceCredentials) await deviceCredentials.close().catch(() => undefined);
+    throw error;
+  }
   const deviceGateway = new DeviceWebSocketGateway({
     credentials: deviceCredentials.lifecycle,
     coordinator: deviceAuthorityCoordinator,
     authorityMonitor: deviceAuthorityMonitor,
+    ...(deviceBootstrapSessions && deviceCredentials.transitionLedger
+      ? {
+          bootstrapSessions: deviceBootstrapSessions,
+          transitionLedger: deviceCredentials.transitionLedger,
+        }
+      : {}),
+    onFatal: dependencies.onDeviceFatal,
   });
 
   return {
@@ -206,6 +271,8 @@ export async function createServerRuntime(
     deviceAuthorityCoordinator,
     deviceAuthorityMonitor,
     deviceGateway,
+    deviceBootstrapSessions,
+    deviceBootstrapSequences,
   };
 }
 
@@ -214,7 +281,10 @@ async function startServer(): Promise<void> {
     validateConfig();
     setLogLevel(config.logLevel);
     logger.info('Starting OverlayKit OSS server', { config });
-    const runtime = await createServerRuntime();
+    let reportDeviceFatal: ((error: unknown) => void) | null = null;
+    const runtime = await createServerRuntime({
+      onDeviceFatal: (error) => reportDeviceFatal?.(error),
+    });
 
     const restServer = createServer(runtime.app);
     const wsServer = createServer();
@@ -256,6 +326,7 @@ async function startServer(): Promise<void> {
       forceClose.unref();
       try {
         await runtime.deviceGateway.shutdown();
+        await runtime.deviceBootstrapSequences?.close();
         await runtime.deviceCredentials.close();
         await closingServers;
         clearTimeout(forceClose);
@@ -268,6 +339,12 @@ async function startServer(): Promise<void> {
         runtime.deviceGateway.terminate();
         process.exit(1);
       }
+    };
+    reportDeviceFatal = (error) => {
+      logger.error('Device audit authority failed; shutting down host', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void shutdown('DEVICE_FATAL');
     };
     process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
     process.on('SIGINT', () => { void shutdown('SIGINT'); });

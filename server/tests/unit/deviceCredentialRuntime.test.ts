@@ -1,3 +1,7 @@
+import { generateKeyPairSync, sign } from 'crypto';
+import { promises as fs } from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   StoredDeviceCredential,
@@ -9,6 +13,8 @@ import {
   type InitializableDeviceCredentialStore,
 } from '../../src/auth/DeviceCredentialRuntime';
 import type { DeviceActionCatalogRuntime } from '../../src/services/DeviceActionCatalogRuntime';
+import { createDeviceActionCatalogRuntime } from '../../src/services/DeviceActionCatalogRuntime';
+import type { ManagedFeedbackSequenceStore } from '../../src/services/FileFeedbackSequenceStore';
 import { createServerRuntime } from '../../src/index';
 import type { Storage } from '../../src/storage';
 
@@ -120,5 +126,73 @@ describe('device credential server composition', () => {
     })).rejects.toThrow('catalog projector unavailable');
     expect(init).toHaveBeenCalledTimes(1);
     expect(createDeviceActionCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('mounts audited bootstrap only with one SQLite ledger and an explicit signer', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'overlaykit-runtime-bootstrap-'));
+    const deviceCredentials = await createDeviceCredentialRuntime({
+      databasePath: path.join(directory, 'authority.sqlite'),
+    });
+    const auth = new AuthService(new MemoryAuthStore());
+    const dataStorage = { init: vi.fn(async () => undefined) } as unknown as Storage;
+    const { privateKey } = generateKeyPairSync('ed25519');
+    let sequence = 0;
+    const sequences: ManagedFeedbackSequenceStore = {
+      init: vi.fn(async () => undefined),
+      reserve: vi.fn(async (_issuer, _audience, count) => (
+        Array.from({ length: count }, () => {
+          sequence += 1;
+          return sequence;
+        })
+      )),
+      close: vi.fn(async () => undefined),
+      getState: () => ({
+        phase: 'ready',
+        durability: 'process_restart_resilient',
+        authorityHeld: true,
+      }),
+    };
+    const runtime = await createServerRuntime({
+      auth,
+      dataStorage,
+      deviceCredentials,
+      deviceActionCatalog: await createDeviceActionCatalogRuntime(),
+      deviceBootstrapSequences: sequences,
+      deviceBootstrapSigning: {
+        current: () => ({
+          issuerKeyId: 'server-key-1',
+          sign: (bytes) => sign(null, bytes, privateKey).toString('base64'),
+        }),
+      },
+    });
+
+    expect(deviceCredentials.transitionLedger).not.toBeNull();
+    expect(runtime.deviceBootstrapSessions).not.toBeNull();
+    expect(runtime.deviceBootstrapSequences).toBe(sequences);
+    expect(sequences.init).toHaveBeenCalledTimes(1);
+    await runtime.deviceGateway.shutdown();
+    await sequences.close();
+    await deviceCredentials.close();
+  });
+
+  it('refuses audited bootstrap when an injected credential store has no shared ledger', async () => {
+    const protocol = await import('@overlaykit/protocol/device-credential');
+    const deviceCredentials = await createDeviceCredentialRuntime({
+      store: new RecordingStore(),
+      loadProtocol: async () => protocol,
+    });
+    const auth = new AuthService(new MemoryAuthStore());
+    const dataStorage = { init: vi.fn(async () => undefined) } as unknown as Storage;
+
+    await expect(createServerRuntime({
+      auth,
+      dataStorage,
+      deviceCredentials,
+      deviceActionCatalog: await createDeviceActionCatalogRuntime(),
+      deviceBootstrapSigning: {
+        current: () => ({ issuerKeyId: 'server-key-1', sign: () => 'signature' }),
+      },
+    })).rejects.toThrow('requires the SQLite transition ledger');
+    await deviceCredentials.close();
   });
 });

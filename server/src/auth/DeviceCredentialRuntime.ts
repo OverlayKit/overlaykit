@@ -13,6 +13,7 @@ import { createDeviceCredentialCryptoOptions } from './DeviceCredentialCrypto';
 import { ObservableDeviceCredentialLifecycle } from './ObservableDeviceCredentialLifecycle';
 import { SqliteDeviceCredentialStore } from './SqliteDeviceCredentialStore';
 import type { DeviceAuthorityObservationSource } from '../services/DeviceConnectionAuthorityMonitor';
+import type { DeviceTransitionLedgerPort } from '../services/SqliteDeviceTransitionLedger';
 
 type DeviceCredentialProtocolModule = typeof import(
   '@overlaykit/protocol/device-credential',
@@ -47,6 +48,7 @@ export interface DeviceCredentialRuntime {
   readonly lifecycle: DeviceCredentialLifecyclePort;
   readonly authoritySource: DeviceAuthorityObservationSource;
   readonly store: Pick<InitializableDeviceCredentialStore, 'get'>;
+  readonly transitionLedger: DeviceTransitionLedgerPort | null;
   close(): Promise<void>;
 }
 
@@ -55,6 +57,7 @@ export interface DeviceCredentialRuntimeOptions {
   readonly legacyFilePath?: string;
   readonly store?: InitializableDeviceCredentialStore;
   readonly lifecycleOptions?: DeviceCredentialLifecycleOptions;
+  readonly transitionLedger?: DeviceTransitionLedgerPort;
   readonly loadProtocol?: () => Promise<DeviceCredentialProtocolModule>;
 }
 
@@ -81,10 +84,32 @@ export async function createDeviceCredentialRuntime(
     store,
     now: lifecycleOptions.now,
   });
+  let transitionLedger = options.transitionLedger ?? null;
+  if (!transitionLedger && store instanceof SqliteDeviceCredentialStore) {
+    try {
+      transitionLedger = store.createTransitionLedger();
+      transitionLedger.startHostEpoch();
+    } catch (error) {
+      await store.close?.();
+      throw error;
+    }
+  }
   return {
     lifecycle,
     authoritySource: lifecycle,
     store,
-    close: () => lifecycle.close(),
+    transitionLedger,
+    close: async () => {
+      let ledgerError: unknown;
+      if (transitionLedger?.getState().activeHostEpochId) {
+        try {
+          transitionLedger.stopHostEpoch();
+        } catch (error) {
+          ledgerError = error;
+        }
+      }
+      await lifecycle.close();
+      if (ledgerError) throw ledgerError;
+    },
   };
 }

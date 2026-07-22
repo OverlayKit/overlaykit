@@ -19,12 +19,21 @@ import {
   type DeviceAuthorityMonitorLease,
 } from '../services/DeviceConnectionAuthorityMonitor';
 import { logger } from '../utils/logger';
+import {
+  DeviceConnectionTransitionSession,
+} from '../services/DeviceConnectionTransitionSession';
+import type {
+  DeviceBootstrapSession,
+  DeviceBootstrapSessionFactoryPort,
+} from '../services/DeviceBootstrapSessionRuntime';
+import type { DeviceTransitionLedgerPort } from '../services/SqliteDeviceTransitionLedger';
 
 export const DEVICE_WEBSOCKET_PATH = '/device';
 export const DEVICE_WEBSOCKET_PROTOCOLS = ['overlaykit.device.v1'] as const;
 
 const DEVICE_REALM = 'overlaykit-device';
 export const DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS = 12_000;
+export const DEVICE_MAX_INBOUND_MESSAGE_BYTES = 16_384;
 const BEARER_CREDENTIAL = /^Bearer ([A-Za-z0-9._~+/-]+=*)$/i;
 const DEVICE_PROTOCOL = /^overlaykit\.device\.v([1-9][0-9]*)$/;
 const NOT_READY_MESSAGE = JSON.stringify({
@@ -40,6 +49,7 @@ interface DeviceConnectionCoordinatorPort {
     authorityIsCurrent?: () => boolean
   ): Promise<DeviceConnectionLease>;
   retire(lease: DeviceConnectionLease, reason: DeviceConnectionCloseReason): Promise<void>;
+  isEffective?(lease: DeviceConnectionLease): boolean;
   shutdown?(): Promise<void>;
 }
 
@@ -56,6 +66,9 @@ export interface DeviceWebSocketGatewayOptions {
   readonly supportedProtocols?: ReadonlyArray<string>;
   readonly generateConnectionId?: () => string;
   readonly closeTimeoutMs?: number;
+  readonly transitionLedger?: DeviceTransitionLedgerPort;
+  readonly bootstrapSessions?: DeviceBootstrapSessionFactoryPort;
+  readonly onFatal?: (error: unknown) => void;
 }
 
 interface HttpRejection {
@@ -245,6 +258,18 @@ function deviceConnection(
   });
 }
 
+function sendJson(ws: WebSocket, value: unknown): Promise<void> {
+  if (ws.readyState !== WebSocket.OPEN) {
+    return Promise.reject(new Error('Device WebSocket is not open'));
+  }
+  return new Promise((resolve, reject) => {
+    ws.send(JSON.stringify(value), (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
 export class DeviceWebSocketGateway {
   readonly path: string;
   readonly supportedProtocols: ReadonlyArray<string>;
@@ -253,9 +278,15 @@ export class DeviceWebSocketGateway {
   private readonly authorityMonitor: DeviceConnectionAuthorityMonitorPort;
   private readonly generateConnectionId: () => string;
   private readonly closeTimeoutMs: number;
+  private readonly transitionLedger: DeviceTransitionLedgerPort | null;
+  private readonly bootstrapSessions: DeviceBootstrapSessionFactoryPort | null;
+  private readonly onFatal: (error: unknown) => void;
   private readonly selectedProtocols = new WeakMap<IncomingMessage, string>();
   private readonly wss: WebSocketServer;
+  private readonly pendingDisposals = new Set<Promise<void>>();
   private accepting = true;
+  private fatal = false;
+  private shutdownPromise: Promise<void> | null = null;
 
   constructor(options: DeviceWebSocketGatewayOptions) {
     this.path = options.path ?? DEVICE_WEBSOCKET_PATH;
@@ -277,6 +308,17 @@ export class DeviceWebSocketGateway {
     }
     this.generateConnectionId = options.generateConnectionId ?? randomUUID;
     this.closeTimeoutMs = options.closeTimeoutMs ?? DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS;
+    this.transitionLedger = options.transitionLedger ?? null;
+    this.bootstrapSessions = options.bootstrapSessions ?? null;
+    this.onFatal = options.onFatal ?? ((error) => logger.error('Device host failed', {
+      error: error instanceof Error ? error.message : String(error),
+    }));
+    if (
+      (this.transitionLedger === null) !== (this.bootstrapSessions === null)
+      || typeof this.onFatal !== 'function'
+    ) {
+      throw new Error('Audited device bootstrap dependencies must be composed together');
+    }
     if (
       !Number.isSafeInteger(this.closeTimeoutMs) ||
       this.closeTimeoutMs <= 0 ||
@@ -286,6 +328,7 @@ export class DeviceWebSocketGateway {
     }
     this.wss = new WebSocketServer({
       noServer: true,
+      maxPayload: DEVICE_MAX_INBOUND_MESSAGE_BYTES,
       handleProtocols: (_protocols, request) => this.selectedProtocols.get(request) ?? false,
     });
   }
@@ -305,9 +348,14 @@ export class DeviceWebSocketGateway {
     for (const client of this.wss.clients) client.terminate();
   }
 
-  async shutdown(): Promise<void> {
-    if (!this.accepting) return;
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise;
     this.accepting = false;
+    this.shutdownPromise = this.performShutdown();
+    return this.shutdownPromise;
+  }
+
+  private async performShutdown(): Promise<void> {
     const shutdown = Promise.allSettled([
       this.coordinator.shutdown?.() ?? Promise.resolve(),
       ...[...this.wss.clients].map((client) => closeTransport(client, this.closeTimeoutMs)),
@@ -319,6 +367,7 @@ export class DeviceWebSocketGateway {
         timeout = setTimeout(resolve, this.closeTimeoutMs);
       }),
     ]);
+    await Promise.allSettled([...this.pendingDisposals]);
     if (timeout) clearTimeout(timeout);
     this.terminate();
   }
@@ -439,12 +488,11 @@ export class DeviceWebSocketGateway {
       return;
     }
 
-    const authority = captureAuthority(monitorAdmission.authority);
     this.selectedProtocols.set(request, selectedProtocol);
     try {
       this.wss.handleUpgrade(request, socket, head, (ws) => {
         this.selectedProtocols.delete(request);
-        this.accept(ws, authority, monitorAdmission);
+        this.accept(ws, monitorAdmission.authority, monitorAdmission);
       });
     } catch (error) {
       try {
@@ -462,14 +510,17 @@ export class DeviceWebSocketGateway {
 
   private accept(
     ws: WebSocket,
-    authority: DeviceConnectionAuthority,
+    credentialAuthority: DeviceCredentialAuthority,
     monitorAdmission: DeviceAuthorityMonitorAdmission
   ): void {
+    const authority = captureAuthority(credentialAuthority);
     const connectionId = this.generateConnectionId();
     const connection = deviceConnection(ws, connectionId, this.closeTimeoutMs);
     let coordinatorLease: DeviceConnectionLease | null = null;
     let monitorLease: DeviceAuthorityMonitorLease | null = null;
     let invalidatedReason: DeviceConnectionCloseReason | null = null;
+    let transitionSession: DeviceConnectionTransitionSession | null = null;
+    let bootstrapSession: DeviceBootstrapSession | null = null;
 
     const invalidate = (reason: DeviceAuthorityInvalidationReason): void => {
       invalidatedReason = reason;
@@ -488,6 +539,7 @@ export class DeviceWebSocketGateway {
           });
         }
       }
+      transitionSession?.quiesce(reason);
       void Promise.resolve(connection.close(reason)).catch(() => undefined);
     };
 
@@ -502,8 +554,25 @@ export class DeviceWebSocketGateway {
       return;
     }
 
-    ws.on('message', () => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(NOT_READY_MESSAGE);
+    ws.on('message', (data, isBinary) => {
+      if (!bootstrapSession) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(NOT_READY_MESSAGE);
+        return;
+      }
+      let value: unknown = null;
+      if (!isBinary) {
+        try {
+          value = JSON.parse(data.toString()) as unknown;
+        } catch {
+          value = null;
+        }
+      }
+      void bootstrapSession.receive(value).catch((error) => {
+        logger.warn('Device bootstrap message failed', {
+          connectionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
     ws.on('error', (error) => {
       logger.warn('Device WebSocket transport error', {
@@ -516,6 +585,17 @@ export class DeviceWebSocketGateway {
         monitorLease?.close();
       } catch {
         // Transport closure remains authoritative even if monitor cleanup fails.
+      }
+      transitionSession?.close(invalidatedReason ?? 'transport.closed');
+      if (bootstrapSession) {
+        const disposal = bootstrapSession.dispose().catch((error) => {
+          logger.warn('Device bootstrap disposal failed', {
+            connectionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        this.pendingDisposals.add(disposal);
+        void disposal.finally(() => this.pendingDisposals.delete(disposal));
       }
       if (coordinatorLease) {
         try {
@@ -547,7 +627,7 @@ export class DeviceWebSocketGateway {
       return;
     }
     void connectionAdmission.then(
-      (lease) => {
+      async (lease) => {
         coordinatorLease = lease;
         if (invalidatedReason || !monitorLease?.isCurrent()) {
           const reason = invalidatedReason ?? 'authority.changed';
@@ -559,7 +639,56 @@ export class DeviceWebSocketGateway {
           void Promise.resolve(connection.close(reason)).catch(() => undefined);
           return;
         }
-        logger.debug('Device WebSocket authority granted without readiness', { connectionId });
+        if (!this.transitionLedger || !this.bootstrapSessions) {
+          logger.debug('Device WebSocket authority granted without readiness', { connectionId });
+          return;
+        }
+        try {
+          transitionSession = new DeviceConnectionTransitionSession({
+            ledger: this.transitionLedger,
+            connectionId,
+            authority: {
+              ...authority,
+              authorityHash: monitorAdmission.authorityHash,
+            },
+            targets: credentialAuthority.targets,
+            authorityIsCurrent: () => (
+              monitorLease?.isCurrent() === true
+              && (this.coordinator.isEffective?.(lease) ?? true)
+            ),
+            onFatal: (error) => this.failHost(error),
+          });
+          transitionSession.startNotReady();
+          bootstrapSession = await this.bootstrapSessions.create({
+            authority: credentialAuthority,
+            transitions: transitionSession,
+            transport: {
+              sendSnapshot: (message) => sendJson(ws, message),
+              sendReady: (message) => sendJson(ws, message),
+              close: (reason) => {
+                transitionSession?.close(reason);
+                return connection.close('authority.rejected');
+              },
+            },
+          });
+          if (invalidatedReason || !monitorLease?.isCurrent() || ws.readyState !== WebSocket.OPEN) {
+            const reason = invalidatedReason ?? 'authority.changed';
+            transitionSession.quiesce(reason);
+            await Promise.resolve(this.coordinator.retire(lease, reason)).catch(() => undefined);
+            await Promise.resolve(connection.close(reason)).catch(() => undefined);
+            return;
+          }
+          await bootstrapSession.start();
+          logger.debug('Device WebSocket bootstrap started', { connectionId });
+        } catch (error) {
+          if (transitionSession?.getPhase() === 'new') this.failHost(error);
+          transitionSession?.close('bootstrap.internal_error');
+          logger.warn('Device WebSocket bootstrap composition failed', {
+            connectionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          await Promise.resolve(connection.close('authority.rejected')).catch(() => undefined);
+        }
       },
       async (error: unknown) => {
         try {
@@ -574,5 +703,17 @@ export class DeviceWebSocketGateway {
         await Promise.resolve(connection.close('authority.rejected')).catch(() => undefined);
       }
     );
+  }
+
+  private failHost(error: unknown): void {
+    if (this.fatal) return;
+    this.fatal = true;
+    this.accepting = false;
+    for (const client of this.wss.clients) client.terminate();
+    try {
+      this.onFatal(error);
+    } catch {
+      // Admission and transports are already closed independently of diagnostics.
+    }
   }
 }

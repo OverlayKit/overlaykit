@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0033",
+  "title": "Test auditable device readiness transitions",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0011",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026",
+    "ADR-0027"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every state transition to have evidence that justifies it and requires not_ready to ready to bind current connection authority, the exact authorized target set, complete current snapshots, confirmed sends, and applied acknowledgements for the exact SHA-256 values at the transition instant.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a mandatory append-only audit ledger with one global monotonic order, a global hash predecessor, a connection-local hash predecessor, and durable readiness witnesses that survive process restart without becoming reusable execution authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires target-local changes to invalidate and reissue only that target without charging a retry, shared catalog or signer changes to invalidate and reissue all targets without charging retries, and authority changes to close the connection.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery accepts asymmetric transition ordering: positive authority grants are commit-before-effect, while negative safety transitions remove authority immediately, attempt their audit append afterward, and close the connection and host if audit persistence cannot provide durable evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every host run to be auditable, an unsealed prior host run to become an explicit discontinuity at the next successful startup, and audit records to exclude bearers, secrets, labels, editorial content, and complete snapshot bytes by default.",
+      "evidence": "Human Doctrine Discovery on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-024: A serialized authority inside the same exclusive SQLite runtime can compose the accepted bootstrap issuer, readiness coordinator, and device gateway; commit a canonical dual-hash-chained witness as the exact logical readiness transition; remove authority safety-first; and retain audit evidence without permitting the ledger to authorize reconnections or commands.",
+      "evidence": "SDD-024 hypothesis and refutation experiment approved by Human Doctrine review on 2026-07-21",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish audit signing, audit-key generation or custody, key rotation, archive checkpoints, retention deletion, macro execution, bootstrap signing-key generation or distribution, command or delta execution, Caddy or TLS behavior, abrupt-power physical-media durability, Companion integration, hardware state, rendered pixels, OBS output, or operator perception.",
+      "evidence": "SDD-024 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A device connection can enter ready only through one synchronous current-evidence commit on the same exclusive SQLite connection, and no event-loop work can interleave between final currency validation, durable append, and the in-memory readiness projection.",
+      "verification": "Controlled-barrier readiness, invalidation-race, commit-fault, transport-close, and real WebSocket tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Every persisted transition has a unique positive global sequence, correct previous global and connection hashes, canonical SHA-256 record identity, and startup verification rejects malformed, deleted, reordered, or tampered history.",
+      "verification": "Independent chain recomputation, concurrent-connection, tamper, truncation, reorder, restart, and schema-fault tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Authority loss prevents new work immediately without waiting for persistence; successful audit follows the causal transition, while audit failure closes the transport and host and becomes an explicit discontinuity on the next successful startup.",
+      "verification": "Delayed and failed ledger adapters, queued-operation rejection, forced-close, host-fatal, graceful seal, and SIGKILL recovery tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The mounted bootstrap session sends complete signed snapshots for every authorized target, accepts only exact current acknowledgements, applies target-local and shared invalidation scopes, and emits ready notification only after durable readiness commit.",
+      "verification": "Protocol framing, retry, timeout, invalidation, replacement, duplicate and stale acknowledgement, and live WebSocket composition tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Persisted evidence contains only bounded authority, target, sequence, hash, status, reason, and time metadata; it contains no bearer, sealed secret, label, editorial content, snapshot bytes, or authority capable of admitting a later connection or command.",
+      "verification": "Database inspection, prohibited-value probes, restart-without-authority, reconnect, and command-admission tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0033 records Discovery facts, H-024, measurable refutation criteria, the safety asymmetry, and unresolved guarantees without claiming that the hypothesis passed.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only shared SQLite composition, append-only transition evidence, readiness transition authority, bootstrap gateway composition, required protocol framing, focused tests, and governance manifests.",
+      "evidence": "git diff for CHG-0033"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-024 through stale-evidence races, persistence faults, concurrent ordering, chain tampering, crash recovery, authority replacement, retry and invalidation behavior, privacy inspection, and authority-reuse attacks.",
+      "evidence": "Focused unit, integration, and real-process tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, installed-protocol execution, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, package-consumer test, and GitHub Actions Constitution matrix"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Any bounded inference, implemented status, profile activation, and ADR-0028 are created only after the human authority reviews the refutation evidence and explicitly accepts H-024.",
+      "evidence": "Future Human Doctrine evidence review"
+    }
+  ]
+}

@@ -9,8 +9,13 @@ import {
   DeviceCredentialStoreError,
   parseDeviceCredentialFileDocument,
 } from './LegacyDeviceCredentialFile';
+import {
+  initializeDeviceTransitionLedgerSchema,
+  SqliteDeviceTransitionLedger,
+  type SqliteDeviceTransitionLedgerOptions,
+} from '../services/SqliteDeviceTransitionLedger';
 
-const SQLITE_SCHEMA_VERSION = 1;
+const SQLITE_SCHEMA_VERSION = 2;
 const MIGRATION_STATE_KEY = 'legacy_json_migration';
 const MIGRATION_NONE = 'none';
 const MIGRATION_IMPORTED_PREFIX = 'imported:';
@@ -234,6 +239,15 @@ export class SqliteDeviceCredentialStore {
     });
   }
 
+  createTransitionLedger(
+    options: Omit<SqliteDeviceTransitionLedgerOptions, 'database'> = {},
+  ): SqliteDeviceTransitionLedger {
+    return new SqliteDeviceTransitionLedger({
+      ...options,
+      database: () => this.requiredDatabase(),
+    });
+  }
+
   close(): void {
     const database = this.database;
     this.database = null;
@@ -275,6 +289,7 @@ export class SqliteDeviceCredentialStore {
           revoked_at INTEGER
         ) STRICT;
       `);
+      initializeDeviceTransitionLedgerSchema(database);
       const userVersion = database.prepare('PRAGMA user_version').get() as
         | { user_version?: number }
         | undefined;
@@ -385,6 +400,16 @@ export class SqliteDeviceCredentialStore {
       );
     }
     return statement;
+  }
+
+  private requiredDatabase(): DatabaseSync {
+    if (!this.database) {
+      throw new DeviceCredentialStoreError(
+        'DEVICE_CREDENTIAL_STORE_IO',
+        'SQLite device credential authority is not initialized',
+      );
+    }
+    return this.database;
   }
 
   private writeTransaction<T>(phase: 'create' | 'replace', operation: () => T): T {
