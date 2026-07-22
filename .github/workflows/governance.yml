@@ -194,6 +194,8 @@ jobs:
       - name: Test exclusive auditable device authority
         run: >-
           npx vitest run
+          --maxWorkers=1
+          --no-file-parallelism
           protocol/tests/device-bootstrap.test.ts
           protocol/tests/device-control-frame.test.ts
           protocol/tests/device-state-sync.test.ts
