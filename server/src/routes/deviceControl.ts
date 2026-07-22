@@ -175,7 +175,7 @@ export function createDeviceControlRouter(
   storage: Storage,
   production: ProductionService,
   runtime: DeviceCredentialRuntime,
-  actionCatalog?: DeviceActionCatalogRuntime,
+  actionCatalog?: DeviceActionCatalogRuntime
 ): Router {
   const router = Router();
 
@@ -186,55 +186,49 @@ export function createDeviceControlRouter(
   });
 
   if (actionCatalog) {
-    router.get(
-      '/device/shows/:showId/actions',
-      async (req: Request, res: Response) => {
-        const token = bearerToken(req, res);
-        if (!token) return;
-        if (!validRouteIdentifier(req.params.showId, 200)) {
-          respondInvalidRequest(res, 'INVALID_DEVICE_AUTH_REQUEST', 'Route identifiers are invalid');
+    router.get('/device/shows/:showId/actions', async (req: Request, res: Response) => {
+      const token = bearerToken(req, res);
+      if (!token) return;
+      if (!validRouteIdentifier(req.params.showId, 200)) {
+        respondInvalidRequest(res, 'INVALID_DEVICE_AUTH_REQUEST', 'Route identifiers are invalid');
+        return;
+      }
+
+      try {
+        const authority = await runtime.lifecycle.authenticate(token);
+        if (!authority) {
+          respondAuthenticationRequired(res);
+          return;
+        }
+        if (authority.showId !== req.params.showId) {
+          respondAuthorizationForbidden(res);
           return;
         }
 
-        try {
-          const authority = await runtime.lifecycle.authenticate(token);
-          if (!authority) {
-            respondAuthenticationRequired(res);
-            return;
-          }
-          if (authority.showId !== req.params.showId) {
-            respondAuthorizationForbidden(res);
-            return;
-          }
-
-          const show = await storage.getShow(req.params.showId);
-          if (!show) {
-            res.status(404).json({ error: { code: 'SHOW_NOT_FOUND', message: 'Show not found' } });
-            return;
-          }
-          if (show.archivedAt !== null) {
-            res.status(409).json({
-              error: { code: 'SHOW_ARCHIVED', message: 'Archived Shows cannot be controlled' },
-            });
-            return;
-          }
-
-          const inventory = buildDeviceActionInventory(production, req.params.showId);
-          const catalog = actionCatalog.projectAuthorizedControlActionCatalog(
-            inventory,
-            authority,
-          );
-          res.json({ data: catalog });
-        } catch (error) {
-          const code = deviceCredentialCode(error);
-          if (code === 'INVALID_DEVICE_CREDENTIAL') {
-            respondAuthenticationRequired(res);
-            return;
-          }
-          respondCatalogError(res, error);
+        const show = await storage.getShow(req.params.showId);
+        if (!show) {
+          res.status(404).json({ error: { code: 'SHOW_NOT_FOUND', message: 'Show not found' } });
+          return;
         }
-      },
-    );
+        if (show.archivedAt !== null) {
+          res.status(409).json({
+            error: { code: 'SHOW_ARCHIVED', message: 'Archived Shows cannot be controlled' },
+          });
+          return;
+        }
+
+        const inventory = buildDeviceActionInventory(production, req.params.showId);
+        const catalog = actionCatalog.projectAuthorizedControlActionCatalog(inventory, authority);
+        res.json({ data: catalog });
+      } catch (error) {
+        const code = deviceCredentialCode(error);
+        if (code === 'INVALID_DEVICE_CREDENTIAL') {
+          respondAuthenticationRequired(res);
+          return;
+        }
+        respondCatalogError(res, error);
+      }
+    });
   }
 
   router.post(
@@ -255,7 +249,7 @@ export function createDeviceControlRouter(
       }
 
       try {
-        await runtime.lifecycle.authorize(token, {
+        const authority = await runtime.lifecycle.authorize(token, {
           showId: req.params.showId,
           scope: VISIBILITY_SCOPE,
           target,
@@ -274,7 +268,7 @@ export function createDeviceControlRouter(
           return;
         }
 
-        const result = production.executeVisibilityIntent(
+        const result = production.executeDeviceVisibilityCommand(
           {
             kind: 'component.visibility',
             showId: req.params.showId,
@@ -284,7 +278,7 @@ export function createDeviceControlRouter(
             operationId: body.operationId,
             expectedRevision: body.expectedRevision,
           },
-          { directProgram: target === 'program' }
+          { directProgram: target === 'program', deviceAuthority: authority }
         );
 
         res.json({ data: result });

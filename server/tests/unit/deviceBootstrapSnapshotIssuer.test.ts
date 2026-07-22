@@ -233,8 +233,8 @@ async function harness(
 ) {
   const events = options.events ?? [];
   const device = options.device ?? authority();
-  const production = options.production
-    ?? new ProductionService(new ChannelManager(), { allowEphemeral: true });
+  const production =
+    options.production ?? new ProductionService(new ChannelManager(), { allowEphemeral: true });
   const productionPort = { getState: vi.fn((showId: string) => production.getState(showId)) };
   const keys = generateKeyPairSync('ed25519');
   const signing = new MutableSigningAuthority(keys.privateKey, events);
@@ -415,7 +415,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
     expect(stale.sequence).toBe(1);
     expect(context.issuer.isCurrent(stale)).toBe(false);
 
-    now += 1;
+    now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const fresh = await context.issuer.create('preview');
     expect(fresh.sequence).toBe(2);
     context.signing.failNext = true;

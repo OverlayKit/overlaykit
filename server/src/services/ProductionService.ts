@@ -12,6 +12,7 @@ import type {
   ProductionCueStepReceipt,
   ProductionBus,
   ProductionControl,
+  ProductionCommandOutcome,
   ProductionSnapshot,
   ProductionState,
   TakeReceipt,
@@ -26,9 +27,12 @@ import {
   PRODUCTION_SNAPSHOT_DOCUMENT_VERSION,
   ProductionStateStoreError,
   productionSnapshotPayload,
+  type ProductionCommandRecord,
+  type ProductionDeviceCommandAuthority,
   type ProductionMutationKind,
   type ProductionStatePersistencePort,
   type ProductionTargetQuarantine,
+  type ProductionVisibilityCommandCommit,
   type StoredProductionSnapshot,
 } from './SqliteProductionStateStore';
 
@@ -53,6 +57,10 @@ interface InternalProductionState extends ProductionState {
 
 export interface ProductionIntentAuthorization {
   directProgram: boolean;
+}
+
+export interface ProductionDeviceIntentAuthorization extends ProductionIntentAuthorization {
+  readonly deviceAuthority: ProductionDeviceCommandAuthority;
 }
 
 export type ProductionRecoveryMode = 'restore' | 'reset';
@@ -317,6 +325,27 @@ function visibilityFingerprint(intent: ComponentVisibilityIntent): string {
     componentId: intent.componentId,
     visible: intent.visible,
     expectedRevision: intent.expectedRevision,
+  });
+}
+
+function commandOutcome(
+  record: ProductionCommandRecord,
+  replayed: boolean,
+  operationId: string
+): ProductionCommandOutcome {
+  return Object.freeze({
+    status: record.status,
+    resultCode: record.resultCode,
+    globalSequence: record.globalSequence,
+    operationId,
+    intentHash: record.intentHash,
+    authorityGeneration: record.authorityGeneration,
+    expectedRevision: record.expectedRevision,
+    previousRevision: record.previousRevision,
+    resultingRevision: record.resultingRevision,
+    resultingSnapshotHash: record.resultingSnapshotHash,
+    committedAt: record.committedAt,
+    replayed,
   });
 }
 
@@ -788,6 +817,180 @@ export class ProductionService {
     }
     this.publishCommittedSnapshot(candidate);
     return this.publicState(state);
+  }
+
+  executeDeviceVisibilityCommand(
+    intent: ComponentVisibilityIntent,
+    authorization: ProductionDeviceIntentAuthorization
+  ): ComponentVisibilityResult {
+    this.assertAuthorityUsable();
+    this.validateVisibilityIntent(intent);
+    if (!authorization?.deviceAuthority) {
+      throw new ProductionError(
+        'DEVICE_AUTHORITY_REQUIRED',
+        'A current device authority is required for durable command execution',
+        401
+      );
+    }
+    if (intent.target === 'program' && !authorization.directProgram) {
+      throw new ProductionError(
+        'DIRECT_PROGRAM_FORBIDDEN',
+        'Direct Program visibility requires explicit authorization',
+        403
+      );
+    }
+    this.assertTargetAvailable(intent.showId, intent.target);
+    const execute = this.persistence?.executeVisibilityCommand;
+    if (!execute || !this.persistence) {
+      throw new ProductionError(
+        'PRODUCTION_COMMAND_AUTHORITY_NOT_READY',
+        'Durable production command authority is unavailable',
+        503
+      );
+    }
+
+    const state = this.getOrCreate(intent.showId);
+    let commit: ProductionVisibilityCommandCommit;
+    try {
+      commit = execute.call(
+        this.persistence,
+        {
+          intent,
+          authority: authorization.deviceAuthority,
+        },
+        (current, committedAt) => {
+          this.assertTargetAvailable(intent.showId, intent.target);
+          if (!current) {
+            throw new ProductionError(
+              intent.target === 'preview' ? 'PREVIEW_EMPTY' : 'PROGRAM_EMPTY',
+              `Load a Scene into ${intent.target === 'preview' ? 'Preview' : 'Program'} before changing visibility`,
+              409
+            );
+          }
+          const durable = this.parseStoredSnapshot(current);
+          if (canonicalProductionJson(durable) !== canonicalProductionJson(state[intent.target])) {
+            const error = new Error(
+              'In-memory production truth diverged from the durable command source'
+            );
+            this.failAuthority(error);
+            throw new ProductionError(
+              'PRODUCTION_AUTHORITY_FAILED',
+              'Production authority diverged before command execution',
+              503
+            );
+          }
+          return {
+            ...durable,
+            revision: durable.revision + 1,
+            elements: elementsWithVisibility(durable.elements, intent.componentId, intent.visible),
+            updatedAt: committedAt,
+          };
+        }
+      );
+    } catch (error) {
+      if (error instanceof ProductionError) throw error;
+      if (error instanceof ProductionStateStoreError) {
+        if (error.code === 'PRODUCTION_COMMAND_CONFLICT') {
+          throw new ProductionError(
+            'OPERATION_ID_CONFLICT',
+            'operationId was already used for a different command',
+            409
+          );
+        }
+        if (error.code === 'PRODUCTION_COMMAND_AUTHORITY_STALE') {
+          throw new ProductionError(
+            'DEVICE_AUTHORITY_CHANGED',
+            'Device authority changed before durable command admission',
+            409
+          );
+        }
+        if (error.code === 'PRODUCTION_COMMAND_JOURNAL_FULL') {
+          throw new ProductionError(
+            'PRODUCTION_COMMAND_JOURNAL_FULL',
+            'Production command journal cannot admit another command',
+            507
+          );
+        }
+        if (error.code === 'PRODUCTION_COMMAND_SHOW_QUARANTINED') {
+          throw new ProductionError(
+            'PRODUCTION_COMMAND_SHOW_QUARANTINED',
+            'Production command journal is quarantined for this Show',
+            503
+          );
+        }
+        if (error.code === 'PRODUCTION_COMMAND_SNAPSHOT_TOO_LARGE') {
+          throw new ProductionError(
+            'PRODUCTION_SNAPSHOT_TOO_LARGE',
+            'Production snapshot exceeds the 10 MiB authority limit',
+            413
+          );
+        }
+      }
+      this.failAuthority(error);
+      throw new ProductionError(
+        'PRODUCTION_COMMAND_AUTHORITY_FAILED',
+        'Durable production command authority rejected the operation',
+        503,
+        {
+          cause: error instanceof ProductionStateStoreError ? error.code : 'UNKNOWN',
+        }
+      );
+    }
+
+    const outcome = commandOutcome(commit.command, commit.replayed, intent.operationId);
+    if (commit.command.status === 'rejected') {
+      throw new ProductionError(
+        'TARGET_REVISION_CONFLICT',
+        `${intent.target === 'preview' ? 'Preview' : 'Program'} changed before the visibility command was applied`,
+        409,
+        {
+          target: intent.target,
+          expectedRevision: commit.command.expectedRevision,
+          actualRevision: commit.command.previousRevision,
+          command: outcome,
+        }
+      );
+    }
+
+    if (!commit.replayed) {
+      if (!commit.snapshot || !commit.history) {
+        const error = new Error('Applied production command omitted committed snapshot evidence');
+        this.failAuthority(error);
+        throw new ProductionError(
+          'PRODUCTION_COMMAND_AUTHORITY_FAILED',
+          'Applied production command omitted durable state',
+          503
+        );
+      }
+      if (state[intent.target].revision !== commit.command.previousRevision) {
+        const error = new Error('Committed production command cannot advance in-memory revision');
+        this.failAuthority(error);
+        throw new ProductionError(
+          'PRODUCTION_AUTHORITY_FAILED',
+          'Production memory changed after durable command commit',
+          503
+        );
+      }
+      state[intent.target] = commit.snapshot;
+      this.publishCommittedSnapshot(commit.snapshot);
+    }
+    this.assertTargetAvailable(intent.showId, intent.target);
+    const receipt: ComponentVisibilityReceipt = {
+      kind: 'component.visibility',
+      showId: intent.showId,
+      target: intent.target,
+      componentId: intent.componentId,
+      visible: intent.visible,
+      resultingState: intent.visible ? 'active' : 'inactive',
+      operationId: intent.operationId,
+      targetRevision: commit.command.resultingRevision,
+      executedAt: commit.command.committedAt,
+    };
+    return {
+      receipt: clone(receipt),
+      state: this.publicState(state),
+      command: outcome,
+    };
   }
 
   executeVisibilityIntent(
@@ -1314,7 +1517,8 @@ export class ProductionService {
     if (
       !intent.componentId ||
       typeof intent.componentId !== 'string' ||
-      intent.componentId.length > 100
+      intent.componentId.length > 100 ||
+      intent.componentId !== intent.componentId.trim()
     ) {
       throw new ProductionError(
         'INVALID_COMPONENT_ID',
@@ -1325,7 +1529,7 @@ export class ProductionService {
     if (typeof intent.visible !== 'boolean') {
       throw new ProductionError('INVALID_VISIBILITY', 'visible must be boolean', 400);
     }
-    if (!Number.isInteger(intent.expectedRevision) || intent.expectedRevision < 0) {
+    if (!Number.isSafeInteger(intent.expectedRevision) || intent.expectedRevision < 0) {
       throw new ProductionError(
         'INVALID_TARGET_REVISION',
         'expectedRevision must be a non-negative integer',
