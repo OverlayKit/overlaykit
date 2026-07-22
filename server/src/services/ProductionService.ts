@@ -262,8 +262,17 @@ export function productionRouteKey(showId: string, bus: ProductionBus): string {
   return `production:${showId}:${bus}`;
 }
 
+export interface ProductionStateObservation {
+  readonly showId: string;
+  readonly target: ProductionBus;
+  readonly state: ProductionState;
+}
+
+export type ProductionStateObserver = (observation: ProductionStateObservation) => void;
+
 export class ProductionService {
   private readonly shows = new Map<string, InternalProductionState>();
+  private readonly observers = new Map<string, Set<ProductionStateObserver>>();
 
   constructor(private readonly channels: ChannelManager = channelManager) {}
 
@@ -275,6 +284,29 @@ export class ProductionService {
   getSnapshot(showId: string, bus: ProductionBus): ProductionSnapshot {
     const state = this.getOrCreate(showId);
     return clone(state[bus]);
+  }
+
+  subscribe(showId: string, observer: ProductionStateObserver): () => void {
+    if (!showId || typeof showId !== 'string' || typeof observer !== 'function') {
+      throw new ProductionError(
+        'INVALID_PRODUCTION_OBSERVER',
+        'A Show and production observer are required',
+        400,
+      );
+    }
+    let observers = this.observers.get(showId);
+    if (!observers) {
+      observers = new Set();
+      this.observers.set(showId, observers);
+    }
+    observers.add(observer);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      observers?.delete(observer);
+      if (observers?.size === 0) this.observers.delete(showId);
+    };
   }
 
   loadPreview(
@@ -692,6 +724,19 @@ export class ProductionService {
   }
 
   private publishSnapshot(snapshot: ProductionSnapshot): void {
+    const state = this.publicState(this.getOrCreate(snapshot.showId));
+    const observation = Object.freeze({
+      showId: snapshot.showId,
+      target: snapshot.bus,
+      state,
+    });
+    for (const observer of [...(this.observers.get(snapshot.showId) ?? [])]) {
+      try {
+        observer(observation);
+      } catch {
+        // Production truth is already committed; an observer owns its fail-closed response.
+      }
+    }
     const key = productionRouteKey(snapshot.showId, snapshot.bus);
     this.channels.replaceVariables(key, clone(snapshot.variables));
     this.channels.clearElements(key);

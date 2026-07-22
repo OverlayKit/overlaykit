@@ -5,6 +5,11 @@ import type { DeviceBootstrapAck } from '@overlaykit/protocol/device-bootstrap' 
 import type { ProductionBus } from '@overlaykit/protocol/production' with {
   'resolution-mode': 'import',
 };
+import type {
+  DeviceReadinessCommitWitness,
+  DeviceReadinessTransitionPort,
+} from './DeviceConnectionTransitionSession';
+import type { DeviceTransitionReadyTargetEvidence } from './SqliteDeviceTransitionLedger';
 
 type DeviceBootstrapProtocolModule = typeof import('@overlaykit/protocol/device-bootstrap', {
   with: { 'resolution-mode': 'import' },
@@ -32,6 +37,12 @@ export interface DeviceBootstrapSnapshot {
   readonly sequence: number;
   readonly bytes: Uint8Array;
   readonly signature: string;
+  readonly currency?: unknown;
+  readonly evidence?: {
+    readonly targetRevision: number;
+    readonly catalogGeneration: number;
+    readonly confirmedAt: number;
+  };
 }
 
 export interface DeviceBootstrapSnapshotFactory {
@@ -93,6 +104,9 @@ interface CurrentAttempt {
   readonly sha256: string;
   readonly snapshot: DeviceBootstrapSnapshot;
   sendConfirmed: boolean;
+  sentAt: number;
+  sendConfirmedAt: number | null;
+  appliedAt: number | null;
   timeoutHandle: unknown | null;
 }
 
@@ -113,6 +127,8 @@ interface DeviceBootstrapCoordinatorOptions {
   readonly now?: () => number;
   readonly scheduler?: DeviceBootstrapScheduler;
   readonly onBackgroundError?: (error: unknown) => void;
+  readonly transitions?: DeviceReadinessTransitionPort;
+  readonly onReady?: (witness: DeviceReadinessCommitWitness) => void | Promise<void>;
 }
 
 export interface DeviceBootstrapCoordinatorRuntimeOptions extends Omit<
@@ -213,6 +229,8 @@ export class DeviceBootstrapReadinessCoordinator {
   private readonly now: () => number;
   private readonly scheduler: DeviceBootstrapScheduler;
   private readonly onBackgroundError: (error: unknown) => void;
+  private readonly transitions: DeviceReadinessTransitionPort | null;
+  private readonly onReady: (witness: DeviceReadinessCommitWitness) => void | Promise<void>;
   private readonly issuedHashes = new Map<
     string,
     {
@@ -248,6 +266,11 @@ export class DeviceBootstrapReadinessCoordinator {
         (typeof options.scheduler.schedule !== 'function' ||
           typeof options.scheduler.cancel !== 'function')) ||
       (options.onBackgroundError !== undefined && typeof options.onBackgroundError !== 'function')
+      || (options.transitions !== undefined
+        && (!options.transitions
+          || typeof options.transitions.commitReady !== 'function'
+          || typeof options.transitions.close !== 'function'))
+      || (options.onReady !== undefined && typeof options.onReady !== 'function')
     ) {
       throw new DeviceBootstrapReadinessError(
         'INVALID_DEVICE_BOOTSTRAP_COORDINATOR',
@@ -264,6 +287,8 @@ export class DeviceBootstrapReadinessCoordinator {
     this.now = options.now ?? Date.now;
     this.scheduler = options.scheduler ?? defaultScheduler(this.now);
     this.onBackgroundError = options.onBackgroundError ?? (() => undefined);
+    this.transitions = options.transitions ?? null;
+    this.onReady = options.onReady ?? (() => undefined);
     normalizedNow(this.now);
     for (const target of this.targets) {
       this.states.set(target, {
@@ -382,8 +407,13 @@ export class DeviceBootstrapReadinessCoordinator {
         return;
       }
       state.appliedSha256 = acknowledgement.sha256;
+      state.current.appliedAt = normalizedNow(this.now);
       await this.grantReadinessIfComplete();
     });
+  }
+
+  abort(error: unknown): Promise<void> {
+    return this.enqueue(() => this.failInternal(error));
   }
 
   isReady(): boolean {
@@ -497,6 +527,9 @@ export class DeviceBootstrapReadinessCoordinator {
       sha256,
       snapshot,
       sendConfirmed: false,
+      sentAt: normalizedNow(this.now),
+      sendConfirmedAt: null,
+      appliedAt: null,
       timeoutHandle: null,
     };
     const committed = await this.enqueue(() => {
@@ -544,6 +577,7 @@ export class DeviceBootstrapReadinessCoordinator {
         return;
       }
       attempt.sendConfirmed = true;
+      attempt.sendConfirmedAt = normalizedNow(this.now);
       if (state.appliedSha256 === sha256) {
         await this.grantReadinessIfComplete();
         return;
@@ -626,7 +660,50 @@ export class DeviceBootstrapReadinessCoordinator {
       await this.failInternal(error);
       return;
     }
+    const occurredAt = normalizedNow(this.now);
+    const targets = this.targets.map((target): DeviceTransitionReadyTargetEvidence => {
+      const attempt = this.states.get(target)!.current!;
+      const evidence = attempt.snapshot.evidence;
+      return Object.freeze({
+        target,
+        targetRevision: evidence?.targetRevision ?? 0,
+        catalogGeneration: evidence?.catalogGeneration ?? 1,
+        issuerKeyId: attempt.snapshot.issuerKeyId,
+        sequence: attempt.sequence,
+        sha256: attempt.sha256,
+        confirmedAt: evidence?.confirmedAt ?? attempt.sentAt,
+        sentAt: attempt.sentAt,
+        sendConfirmedAt: attempt.sendConfirmedAt!,
+        appliedAt: attempt.appliedAt!,
+      });
+    });
+    let witness: DeviceReadinessCommitWitness;
+    try {
+      witness = this.transitions?.commitReady(occurredAt, targets) ?? Object.freeze({
+        connectionId: 'unmounted-readiness',
+        globalSequence: 1,
+        recordHash: '0'.repeat(64),
+      });
+      if (
+        !witness
+        || typeof witness !== 'object'
+        || !Number.isSafeInteger(witness.globalSequence)
+        || witness.globalSequence < 1
+        || typeof witness.recordHash !== 'string'
+        || !SHA256_PATTERN.test(witness.recordHash)
+      ) {
+        throw new Error('Readiness transition authority returned invalid evidence');
+      }
+    } catch (error) {
+      await this.failInternal(error);
+      return;
+    }
     this.phase = 'ready';
+    try {
+      await this.onReady(witness);
+    } catch (error) {
+      await this.failInternal(error);
+    }
   }
 
   private async expireDeadline(): Promise<void> {
@@ -647,6 +724,11 @@ export class DeviceBootstrapReadinessCoordinator {
     this.closeReason = reason;
     this.pendingTargets.clear();
     this.pumpScheduled = false;
+    try {
+      this.transitions?.close(reason);
+    } catch (error) {
+      this.reportBackgroundError(error);
+    }
     try {
       this.cancelDeadline();
     } catch (error) {

@@ -3,6 +3,10 @@ import { createServer, type Server } from 'http';
 import { connect as connectSocket, type Socket } from 'net';
 import type { AddressInfo } from 'net';
 import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential';
+import {
+  DEVICE_BOOTSTRAP_ACK_TYPE,
+  DEVICE_BOOTSTRAP_ACK_VERSION,
+} from '@overlaykit/protocol/device-bootstrap';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket, type ClientOptions } from 'ws';
 import {
@@ -21,6 +25,14 @@ import type {
   DeviceAuthorityMonitorAdmission,
 } from '../../src/services/DeviceConnectionAuthorityMonitor';
 import { DeviceAuthorityMonitorError } from '../../src/services/DeviceConnectionAuthorityMonitor';
+import type {
+  DeviceBootstrapSessionFactoryPort,
+} from '../../src/services/DeviceBootstrapSessionRuntime';
+import type {
+  DeviceConnectionTransitionInput,
+  DeviceTransitionLedgerPort,
+  DeviceTransitionRecord,
+} from '../../src/services/SqliteDeviceTransitionLedger';
 
 interface Deferred<T> {
   readonly promise: Promise<T>;
@@ -259,6 +271,60 @@ function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
   });
 }
 
+async function waitFor(assertion: () => boolean, message: string): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (assertion()) return;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error(message);
+}
+
+function memoryTransitionLedger(inputs: DeviceConnectionTransitionInput[]): DeviceTransitionLedgerPort {
+  let sequence = 0;
+  let previousGlobalHash: string | null = null;
+  const connectionHashes = new Map<string, string>();
+  const records: DeviceTransitionRecord[] = [];
+  return {
+    startHostEpoch: () => [],
+    append(input) {
+      inputs.push(input);
+      sequence += 1;
+      const recordHash = String(sequence).padStart(64, 'a');
+      const evidence = input.kind === 'device.connection.not_ready'
+        ? { authority: input.authority, targets: input.targets }
+        : input.kind === 'device.connection.ready'
+          ? { targets: input.targets }
+          : { reason: input.reason };
+      const record: DeviceTransitionRecord = {
+        schemaVersion: 'overlaykit-device-transition/v1',
+        globalSequence: sequence,
+        hostEpochId: 'host-1',
+        connectionId: input.connectionId,
+        kind: input.kind,
+        occurredAt: input.occurredAt,
+        previousGlobalHash,
+        previousConnectionHash: connectionHashes.get(input.connectionId) ?? null,
+        evidence,
+        signature: null,
+        recordHash,
+      };
+      records.push(record);
+      previousGlobalHash = recordHash;
+      connectionHashes.set(input.connectionId, recordHash);
+      return record;
+    },
+    stopHostEpoch: () => { throw new Error('not used'); },
+    getState: () => ({
+      activeHostEpochId: 'host-1',
+      globalSequence: sequence,
+      globalHash: previousGlobalHash,
+      failed: false,
+      connectionPhases: {},
+    }),
+    readRecords: () => records,
+  };
+}
+
 const harnesses: GatewayHarness[] = [];
 
 afterEach(async () => {
@@ -460,6 +526,206 @@ describe('DeviceWebSocketGateway', () => {
     expect(await second).toMatchObject({ code: 'not_ready' });
     expect(coordinator.connect).toHaveBeenCalledTimes(1);
     ws.close();
+  });
+
+  it('routes a real WebSocket acknowledgement through audited readiness and closure', async () => {
+    const auditedAuthority: DeviceCredentialAuthority = {
+      ...authority(),
+      targets: ['preview'],
+    };
+    const authenticate = vi.fn(async () => auditedAuthority);
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    const transitions: DeviceConnectionTransitionInput[] = [];
+    const transitionLedger = memoryTransitionLedger(transitions);
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      create: vi.fn(async ({ transitions: sessionTransitions, transport }) => {
+        let ready = false;
+        const sha256 = 'b'.repeat(64);
+        return {
+          async start() {
+            await transport.sendSnapshot({
+              schemaVersion: 'overlaykit-device-bootstrap-snapshot/v1',
+              type: 'device.bootstrap.snapshot',
+              target: 'preview',
+              issuerKeyId: 'server-key-1',
+              sequence: 1,
+              sha256,
+              payloadBase64: btoa('snapshot'),
+              signature: 'signature',
+            });
+          },
+          async receive(value) {
+            const acknowledgement = value as Record<string, unknown>;
+            if (
+              acknowledgement.type !== 'device.bootstrap.ack'
+              || acknowledgement.sha256 !== sha256
+            ) throw new Error('unexpected acknowledgement');
+            sessionTransitions.commitReady(Date.now(), [{
+              target: 'preview',
+              targetRevision: 1,
+              catalogGeneration: 1,
+              issuerKeyId: 'server-key-1',
+              sequence: 1,
+              sha256,
+              confirmedAt: 1,
+              sentAt: 2,
+              sendConfirmedAt: 3,
+              appliedAt: 4,
+            }]);
+            ready = true;
+            await transport.sendReady({
+              schemaVersion: 'overlaykit-device-ready/v1',
+              type: 'device.ready',
+            });
+          },
+          async dispose() {},
+          isReady: () => ready,
+        };
+      }),
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate },
+      coordinator,
+      authorityMonitor: authorityMonitor.monitor,
+      transitionLedger,
+      bootstrapSessions,
+      generateConnectionId: () => 'connection-audited',
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [, capturedConnection, capturedAuthority] = coordinator.connect.mock.calls[0];
+    coordinator.admission.resolve({
+      connectionId: capturedConnection.id,
+      authority: coordinator.connect.mock.calls[0][0],
+    });
+    expect(capturedAuthority?.()).toBe(true);
+
+    const snapshot = await nextMessage(ws);
+    expect(snapshot).toMatchObject({
+      type: 'device.bootstrap.snapshot',
+      target: 'preview',
+      sha256: 'b'.repeat(64),
+    });
+    const ready = nextMessage(ws);
+    ws.send(JSON.stringify({
+      schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
+      type: DEVICE_BOOTSTRAP_ACK_TYPE,
+      target: 'preview',
+      sha256: snapshot.sha256,
+      status: 'applied',
+    }));
+    expect(await ready).toEqual({
+      schemaVersion: 'overlaykit-device-ready/v1',
+      type: 'device.ready',
+    });
+    expect(transitions.map(({ kind }) => kind)).toEqual([
+      'device.connection.not_ready',
+      'device.connection.ready',
+    ]);
+
+    ws.close();
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    await waitFor(
+      () => transitions.some(({ kind }) => kind === 'device.connection.closed'),
+      'Audited close transition was not recorded',
+    );
+    expect(transitions.map(({ kind }) => kind)).toEqual([
+      'device.connection.not_ready',
+      'device.connection.ready',
+      'device.connection.quiescing',
+      'device.connection.closed',
+    ]);
+  });
+
+  it('closes device admission and reports host fatal when readiness audit becomes uncertain', async () => {
+    const auditedAuthority: DeviceCredentialAuthority = {
+      ...authority(),
+      targets: ['preview'],
+    };
+    const authenticate = vi.fn(async () => auditedAuthority);
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    let appends = 0;
+    const baseLedger = memoryTransitionLedger([]);
+    const transitionLedger: DeviceTransitionLedgerPort = {
+      ...baseLedger,
+      append(input) {
+        appends += 1;
+        if (input.kind !== 'device.connection.not_ready') throw new Error('audit unavailable');
+        return baseLedger.append(input);
+      },
+    };
+    const onFatal = vi.fn();
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      async create({ transitions: sessionTransitions, transport }) {
+        return {
+          async start() {
+            await transport.sendSnapshot({
+              schemaVersion: 'overlaykit-device-bootstrap-snapshot/v1',
+              type: 'device.bootstrap.snapshot',
+              target: 'preview',
+              issuerKeyId: 'server-key-1',
+              sequence: 1,
+              sha256: 'c'.repeat(64),
+              payloadBase64: btoa('snapshot'),
+              signature: 'signature',
+            });
+          },
+          async receive() {
+            try {
+              sessionTransitions.commitReady(Date.now(), [{
+                target: 'preview',
+                targetRevision: 1,
+                catalogGeneration: 1,
+                issuerKeyId: 'server-key-1',
+                sequence: 1,
+                sha256: 'c'.repeat(64),
+                confirmedAt: 1,
+                sentAt: 2,
+                sendConfirmedAt: 3,
+                appliedAt: 4,
+              }]);
+            } catch {
+              await transport.close('bootstrap.internal_error');
+            }
+          },
+          async dispose() {},
+          isReady: () => false,
+        };
+      },
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate },
+      coordinator,
+      authorityMonitor: authorityMonitor.monitor,
+      transitionLedger,
+      bootstrapSessions,
+      onFatal,
+      generateConnectionId: () => 'connection-fatal',
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [capturedAuthority, capturedConnection] = coordinator.connect.mock.calls[0];
+    coordinator.admission.resolve({
+      connectionId: capturedConnection.id,
+      authority: capturedAuthority,
+    });
+    await nextMessage(ws);
+    const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    ws.send(JSON.stringify({ type: 'device.bootstrap.ack' }));
+    await closed;
+
+    expect(onFatal).toHaveBeenCalledTimes(1);
+    expect(appends).toBeGreaterThanOrEqual(2);
+    const rejected = await rawUpgrade(harness.port, DEVICE_WEBSOCKET_PATH, [
+      ['Authorization', `Bearer ${TOKEN}`],
+    ]);
+    expect(rejected.status).toBe(503);
   });
 
   it('fails closed when credential authority is unavailable or coordinator admission rejects', async () => {
