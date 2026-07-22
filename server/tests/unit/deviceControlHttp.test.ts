@@ -130,7 +130,7 @@ describe('device bearer production control boundary', () => {
     storage.shows.set('show-2', show('show-2'));
     auth = new AuthService(new MemoryAuthStore());
     await auth.init();
-    production = new ProductionService(new ChannelManager());
+    production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     production.take('show-1', 1, 'initial-take');
     app = createApp({

@@ -292,6 +292,14 @@
       "id": "ADR-0028",
       "supersededBy": null,
       "title": "Device readiness authority requires durable transition evidence"
+    },
+    {
+      "contentHash": "bcf656417f3b30b2e05f59077513bc7e87e99e9ae9b7ae0942d4b2815cc271e4",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0029",
+      "supersededBy": null,
+      "title": "Live production truth requires durable commit-before-publication authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -426,10 +434,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "b00acc4b819206029e1ecb7670faa847f9fc2c0b0d46a67ff92ab11f130e9b62",
-  "profileHash": "b77d68c891f4ff6bd2a4d5d51cde61d2efb6457eae01888119fd1dc8c8a51fc3",
+  "planHash": "0a90a266ee796c832d0fe7e160f1dff5cf6645b1665548b79fb1cbf796446f32",
+  "profileHash": "1db4fe59624a4e9ccfcea689914e3de102992bf08c6075e25afecbeb27987632",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.24.0",
+  "profileVersion": "2.25.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1384,6 +1392,60 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "The default production workflow prepares Preview and promotes it to Program through an explicit Take command."
+    },
+    {
+      "id": "production-authority-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Passing durable-production evidence may not be represented as durable command journaling or fencing, multi-user authorization, archive retention, temporal-effect recovery, encryption, backup, hostile database resistance, multi-host coordination, abrupt-power physical durability, proxy or TLS verification, hardware state, rendered pixels, OBS output, or operator perception."
+    },
+    {
+      "id": "production-canonical-json-is-exact",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Persisted production identity must use the tested canonical JSON representation that preserves all JSON object keys, orders keys by code unit, and rejects values that are not valid complete JSON data."
+    },
+    {
+      "id": "production-history-is-bounded-evidence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Production history may retain canonical hashes, revisions, mutation metadata, rejected-state references, and chain evidence but must not retain replaced complete editorial payloads."
+    },
+    {
+      "id": "production-mutations-commit-before-publication",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Every accepted production mutation must fully validate and durably commit its complete resulting snapshot and strictly advancing revision before memory or any observer can publish it."
+    },
+    {
+      "id": "production-publication-failure-is-authority-fatal",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "A publication failure after commit must fail that production authority and must never roll memory back or represent the committed mutation as uncommitted."
+    },
+    {
+      "id": "production-quarantine-requires-proven-boundary",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Persisted corruption may quarantine only an exactly provable Show and target; non-delimitable integrity failure must abort startup, and every projection requiring an unavailable target must fail closed."
+    },
+    {
+      "id": "production-recovery-is-authorized-successor-revision",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Quarantine recovery must create a fully validated durable successor revision that binds the rejected snapshot hash; Owners may restore or reset, Producers may restore, and devices may not recover production state."
+    },
+    {
+      "id": "production-state-restores-before-exposure",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Complete current production snapshots, revisions, canonical identities, history chains, and durable heads must validate and restore before any production route, subscription, projection, or action catalog can expose production truth."
+    },
+    {
+      "id": "production-state-shares-exclusive-sqlite-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0029",
+      "statement": "Production state must use the existing long-lived exclusive SQLite authority connection and must not create a second executable production authority."
     },
     {
       "id": "production-target-is-explicit",

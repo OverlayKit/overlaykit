@@ -233,7 +233,8 @@ async function harness(
 ) {
   const events = options.events ?? [];
   const device = options.device ?? authority();
-  const production = options.production ?? new ProductionService(new ChannelManager());
+  const production = options.production
+    ?? new ProductionService(new ChannelManager(), { allowEphemeral: true });
   const productionPort = { getState: vi.fn((showId: string) => production.getState(showId)) };
   const keys = generateKeyPairSync('ed25519');
   const signing = new MutableSigningAuthority(keys.privateKey, events);
@@ -266,7 +267,7 @@ async function harness(
 
 describe('DeviceBootstrapSnapshotIssuer', () => {
   it('builds one-cut canonical signed payloads, including an empty authorized target', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const events: string[] = [];
@@ -312,7 +313,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
       ['zulu.visibility', 'active'],
     ]);
 
-    now += 1;
+    now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const program = await context.issuer.create('program');
     const admittedProgram = await admitDeviceControlFrame(
       program.bytes,
@@ -332,7 +333,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('isolates target revisions while a catalog generation invalidates both targets', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const context = await harness({ production, now: () => now });
@@ -372,7 +373,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('invalidates both targets on key rotation and uses the new issuer sequence lane', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const context = await harness({ production, now: () => now });
@@ -399,7 +400,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('burns a reserved sequence when state changes during signing or signing fails', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const context = await harness({ production, now: () => now });
@@ -428,7 +429,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('coalesces a catalog change during persistence before reserving a sequence', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const context = await harness({ production, now: () => now });
@@ -448,7 +449,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('does not reserve or sign until catalog persistence recovers', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     const now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
     const context = await harness({ production, now: () => now });
@@ -466,7 +467,7 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
   });
 
   it('expires old capture evidence and fails closed when the clock predates state', async () => {
-    const production = new ProductionService(new ChannelManager());
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
     production.loadPreview('show-1', scene());
     const updatedAt = production.getSnapshot('show-1', 'preview').updatedAt as number;
     let now = updatedAt + 1;

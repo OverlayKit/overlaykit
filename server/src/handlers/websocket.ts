@@ -8,6 +8,7 @@ import type { AuthService } from '../auth/AuthService';
 import { parseCookies, SESSION_COOKIE } from '../auth/http';
 import type { WebSocketAccess } from '../auth/types';
 import {
+  ProductionError,
   productionRouteKey,
   productionService,
   type ProductionBus,
@@ -48,6 +49,10 @@ export function setupWebSocketHandler(
         const message: unknown = JSON.parse(data.toString());
         handleClientMessage(ws, message as ClientMessage, subscriptions, access, production);
       } catch (error) {
+        if (error instanceof ProductionError) {
+          sendErrorMessage(ws, error.code, error.message);
+          return;
+        }
         logger.warn('Failed to parse WebSocket message', { error: String(error) });
         sendErrorMessage(ws, 'PARSE_ERROR', 'Invalid JSON message');
       }
@@ -207,13 +212,14 @@ function handleProductionSubscribe(
     sendErrorMessage(ws, 'ALREADY_SUBSCRIBED', `Already subscribed to ${bus}`);
     return;
   }
+  const snapshot = production.getSnapshot(showId, bus);
   channelManager.subscribe(key, ws);
   subscriptions.add(key);
   ws.send(JSON.stringify({
     type: 'production.subscription.confirmed',
     showId,
     bus,
-    snapshot: production.getSnapshot(showId, bus),
+    snapshot,
   }));
 }
 

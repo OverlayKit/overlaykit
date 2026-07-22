@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
 import { generateKeyPairSync, sign as signBytes, verify as verifyBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -24,6 +26,9 @@ const channelManagerPath = fileURLToPath(
 );
 const productionServicePath = fileURLToPath(
   new URL('../dist/services/ProductionService.js', import.meta.url)
+);
+const sqliteCredentialStorePath = fileURLToPath(
+  new URL('../dist/auth/SqliteDeviceCredentialStore.js', import.meta.url)
 );
 const compiled = await readFile(runtimePath, 'utf8');
 const compiledCatalog = await readFile(catalogRuntimePath, 'utf8');
@@ -115,6 +120,7 @@ const { createDeviceBootstrapReadinessCoordinator } = require(bootstrapRuntimePa
 const { createDeviceBootstrapSnapshotIssuer } = require(bootstrapIssuerRuntimePath);
 const { ChannelManager } = require(channelManagerPath);
 const { ProductionService } = require(productionServicePath);
+const { SqliteDeviceCredentialStore } = require(sqliteCredentialStorePath);
 const records = new Map();
 let initCalls = 0;
 const store = {
@@ -165,7 +171,7 @@ const catalog = catalogRuntime.projectAuthorizedControlActionCatalog(
   },
   authority
 );
-const production = new ProductionService(new ChannelManager());
+const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
 production.loadPreview('build-show', {
   id: 'build-scene',
   name: 'Build scene',
@@ -346,6 +352,42 @@ if (
   );
 }
 
+const durableDirectory = await mkdtemp(join(tmpdir(), 'overlaykit-build-production-'));
+const durableDatabase = join(durableDirectory, 'authority.sqlite');
+let durableStore;
+let successorStore;
+try {
+  durableStore = new SqliteDeviceCredentialStore({ databasePath: durableDatabase });
+  await durableStore.init();
+  const durableProduction = new ProductionService(new ChannelManager());
+  durableProduction.mountPersistence(durableStore.createProductionStateStore());
+  durableProduction.loadPreview('durable-build-show', {
+    id: 'durable-build-scene',
+    name: 'Durable build scene',
+    elements: [{ id: 'title', tag: 'div', content: 'Committed', styles: {} }],
+  });
+  durableStore.close();
+  durableStore = undefined;
+
+  successorStore = new SqliteDeviceCredentialStore({ databasePath: durableDatabase });
+  await successorStore.init();
+  const successorProduction = new ProductionService(new ChannelManager());
+  const successorPersistence = successorStore.createProductionStateStore();
+  successorProduction.mountPersistence(successorPersistence);
+  const restored = successorProduction.getSnapshot('durable-build-show', 'preview');
+  if (
+    restored.revision !== 1 ||
+    restored.scene?.id !== 'durable-build-scene' ||
+    successorPersistence.readHistory().length !== 1
+  ) {
+    throw new Error('Compiled durable production authority did not restore committed truth');
+  }
+} finally {
+  durableStore?.close();
+  successorStore?.close();
+  await rm(durableDirectory, { recursive: true, force: true });
+}
+
 process.stdout.write(
-  '[verify-device-runtime] native ESM authority, catalog, feedback, and bootstrap readiness verified\n'
+  '[verify-device-runtime] native ESM authority, durable production, catalog, feedback, and bootstrap readiness verified\n'
 );

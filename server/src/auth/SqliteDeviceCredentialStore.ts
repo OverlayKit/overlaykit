@@ -14,8 +14,13 @@ import {
   SqliteDeviceTransitionLedger,
   type SqliteDeviceTransitionLedgerOptions,
 } from '../services/SqliteDeviceTransitionLedger';
+import {
+  initializeProductionStateSchema,
+  SqliteProductionStateStore,
+  type SqliteProductionStateStoreOptions,
+} from '../services/SqliteProductionStateStore';
 
-const SQLITE_SCHEMA_VERSION = 2;
+const SQLITE_SCHEMA_VERSION = 3;
 const MIGRATION_STATE_KEY = 'legacy_json_migration';
 const MIGRATION_NONE = 'none';
 const MIGRATION_IMPORTED_PREFIX = 'imported:';
@@ -166,6 +171,7 @@ export class SqliteDeviceCredentialStore {
   private selectStatement: StatementSync | null = null;
   private insertStatement: StatementSync | null = null;
   private replaceStatement: StatementSync | null = null;
+  private productionStateStore: SqliteProductionStateStore | null = null;
 
   constructor(options: SqliteDeviceCredentialStoreOptions = {}) {
     this.databasePath = path.resolve(options.databasePath ?? defaultDatabasePath());
@@ -188,6 +194,7 @@ export class SqliteDeviceCredentialStore {
       database = this.openDatabase(this.databasePath);
       this.configure(database);
       this.initializeSchema(database, legacyRaw);
+      this.assertIntegrity(database);
       this.database = database;
       this.prepareStatements(database);
       if (legacyRaw !== null) await this.archiveCommittedLegacy(database, legacyRaw);
@@ -248,12 +255,29 @@ export class SqliteDeviceCredentialStore {
     });
   }
 
+  createProductionStateStore(
+    options: Omit<SqliteProductionStateStoreOptions, 'database'> = {},
+  ): SqliteProductionStateStore {
+    if (this.productionStateStore) {
+      throw new DeviceCredentialStoreError(
+        'INVALID_DEVICE_CREDENTIAL_STORE',
+        'SQLite production authority has already been created for this connection',
+      );
+    }
+    this.productionStateStore = new SqliteProductionStateStore({
+      ...options,
+      database: () => this.requiredDatabase(),
+    });
+    return this.productionStateStore;
+  }
+
   close(): void {
     const database = this.database;
     this.database = null;
     this.selectStatement = null;
     this.insertStatement = null;
     this.replaceStatement = null;
+    this.productionStateStore = null;
     database?.close();
   }
 
@@ -261,8 +285,21 @@ export class SqliteDeviceCredentialStore {
     database.exec('PRAGMA busy_timeout = 0');
     database.exec('PRAGMA journal_mode = DELETE');
     database.exec('PRAGMA synchronous = FULL');
+    database.exec('PRAGMA secure_delete = ON');
     database.exec('PRAGMA locking_mode = EXCLUSIVE');
     database.exec('BEGIN EXCLUSIVE; COMMIT');
+  }
+
+  private assertIntegrity(database: DatabaseSync): void {
+    const rows = database.prepare('PRAGMA quick_check').all() as unknown as Array<{
+      quick_check?: string;
+    }>;
+    if (rows.length !== 1 || rows[0]?.quick_check !== 'ok') {
+      throw new DeviceCredentialStoreError(
+        'INVALID_DEVICE_CREDENTIAL_STORE',
+        'SQLite authority failed its integrity check',
+      );
+    }
   }
 
   private initializeSchema(database: DatabaseSync, legacyRaw: string | null): void {
@@ -290,6 +327,7 @@ export class SqliteDeviceCredentialStore {
         ) STRICT;
       `);
       initializeDeviceTransitionLedgerSchema(database);
+      initializeProductionStateSchema(database);
       const userVersion = database.prepare('PRAGMA user_version').get() as
         | { user_version?: number }
         | undefined;

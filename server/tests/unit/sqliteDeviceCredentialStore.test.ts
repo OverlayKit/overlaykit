@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { StoredDeviceCredential } from '@overlaykit/protocol/device-credential';
@@ -184,6 +185,33 @@ describe('SqliteDeviceCredentialStore', () => {
 
     await expect(recovered.get('device-1')).resolves.toMatchObject({ generation: 1 });
     await expect(fs.stat(paths.legacyFilePath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('upgrades a version 2 authority in place without losing credentials', async () => {
+    const paths = await location();
+    const original = tracked(paths);
+    await original.init();
+    await original.create(record());
+    original.close();
+
+    const versionTwo = new DatabaseSync(paths.databasePath);
+    versionTwo.exec(`
+      DROP TABLE production_current_snapshots;
+      DROP TABLE production_history;
+      DROP TABLE production_quarantines;
+      DELETE FROM authority_metadata
+      WHERE key IN ('production_history_head_sequence', 'production_history_head_hash');
+      PRAGMA user_version = 2;
+    `);
+    versionTwo.close();
+
+    const upgraded = tracked(paths);
+    await upgraded.init();
+    await expect(upgraded.get('device-1')).resolves.toMatchObject({ generation: 1 });
+    expect(upgraded.createProductionStateStore().load()).toEqual({
+      snapshots: [],
+      quarantines: [],
+    });
   });
 
   it('rejects malformed migration and later JSON that conflicts with initialized authority', async () => {

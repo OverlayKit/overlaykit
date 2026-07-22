@@ -6,6 +6,9 @@ import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { setupWebSocketHandler } from '../../src/handlers/websocket';
 import { createApp } from '../../src/index';
+import { ChannelManager, channelManager } from '../../src/services/ChannelManager';
+import { ProductionService, productionRouteKey } from '../../src/services/ProductionService';
+import type { ProductionStatePersistencePort } from '../../src/services/SqliteProductionStateStore';
 import type {
   ActionRecord,
   CollectionMeta,
@@ -75,7 +78,12 @@ describe('local security boundary', () => {
   });
 
   it('protects product APIs, enforces origin, and supports the owner lifecycle', async () => {
-    const agent = request.agent(createApp({ auth, dataStorage: new TestStorage() }));
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
+    const agent = request.agent(createApp({
+      auth,
+      dataStorage: new TestStorage(),
+      production,
+    }));
 
     const health = await agent.get('/health').expect(200);
     expect(health.body).toMatchObject({ status: 'ok' });
@@ -158,7 +166,12 @@ describe('local security boundary', () => {
     const owner = await auth.setup(OWNER);
     const output = await auth.rotateOutputToken(owner.session.user);
     wsServer = new WebSocketServer({ port: 0 });
-    setupWebSocketHandler(wsServer, auth, [ORIGIN]);
+    setupWebSocketHandler(
+      wsServer,
+      auth,
+      [ORIGIN],
+      new ProductionService(new ChannelManager(), { allowEphemeral: true }),
+    );
     await new Promise<void>((resolve) => wsServer!.once('listening', () => resolve()));
     const port = (wsServer.address() as AddressInfo).port;
 
@@ -200,6 +213,50 @@ describe('local security boundary', () => {
       payload: { channelId: 'show-1', scene: { id: 'scene-1', name: 'Scene', elements: [] } },
     }));
     expect(await denied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
+    ws.close();
+  });
+
+  it('does not retain a WebSocket subscription rejected by target quarantine', async () => {
+    const owner = await auth.setup(OWNER);
+    const production = new ProductionService();
+    production.mountPersistence({
+      load: () => ({
+        snapshots: [],
+        quarantines: [
+          {
+            showId: 'show-1',
+            target: 'preview',
+            revision: 1,
+            rejectedSnapshotHash: 'a'.repeat(64),
+            reason: 'Injected bounded corruption',
+            detectedAt: 1_000,
+          },
+        ],
+      }),
+      quarantine: () => undefined,
+      commit: () => {
+        throw new Error('Unexpected recovery commit');
+      },
+      readHistory: () => [],
+    } satisfies ProductionStatePersistencePort);
+    wsServer = new WebSocketServer({ port: 0 });
+    setupWebSocketHandler(wsServer, auth, [ORIGIN], production);
+    await new Promise<void>((resolve) => wsServer!.once('listening', () => resolve()));
+    const port = (wsServer.address() as AddressInfo).port;
+    const key = productionRouteKey('show-1', 'preview');
+    const subscribersBefore = channelManager.getSubscriberCount(key);
+
+    const ws = await openWebSocket(`ws://127.0.0.1:${port}`, {
+      origin: ORIGIN,
+      headers: { Cookie: `overlaykit_session=${owner.token}` },
+    });
+    const rejected = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'preview' }));
+    expect(await rejected).toMatchObject({
+      type: 'error',
+      code: 'PRODUCTION_TARGET_QUARANTINED',
+    });
+    expect(channelManager.getSubscriberCount(key)).toBe(subscribersBefore);
     ws.close();
   });
 });

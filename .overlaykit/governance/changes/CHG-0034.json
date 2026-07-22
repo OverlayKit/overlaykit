@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0034",
+  "title": "Test a durable live production authority",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0006",
+    "ADR-0007",
+    "ADR-0009",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0023",
+    "ADR-0025",
+    "ADR-0027",
+    "ADR-0028",
+    "ADR-0029"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires Preview and Program to restore their last committed structural snapshots, scenes, revisions, component content, and visibility before pending production work is evaluated after restart; animations, audio, timers, transitions in progress, rendered pixels, and operator perception remain outside this structural truth.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires the eventual command authority to place live snapshot mutation, revision advancement, lane fencing, and final command result in one SQLite transaction on the existing exclusive authority connection, with panel, device, and automation adapters publishing only after durable commit. H-025 isolates the prerequisite snapshot and revision authority without claiming the future command journal, fencing, or result semantics.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery permits complete editorial content only in the current operational snapshot for each Show and target; replacing a snapshot must remove the prior complete editorial copy while audit history retains only bounded hashes and metadata.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires structurally invalid persisted state to quarantine only the exact Show and target when that boundary is provable, while schema, transaction, journal, or otherwise non-delimitable integrity failure aborts the host.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery allows the Owner to recover a quarantined target by restoring a valid scene or resetting it empty, allows the Producer role to restore a valid scene but not reset it empty, denies device recovery, and requires recovery to be a new validated durable revision that records the rejected-state hash.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-025: A serialized production-state authority on the same exclusive SQLite connection can transactionally replace the current complete structural snapshot and revision for every live mutation, restore valid targets before exposure, publish only committed truth, quarantine exactly bounded invalid targets, and recover them through explicit human authority without creating a second production authority.",
+      "evidence": "SDD-025 hypothesis and refutation experiment approved by Human Doctrine review on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-025 only for the tested same-process, single-host, local-file SQLite production authority and process-crash boundary whose shared exclusive connection, exact canonical current snapshots, strict revisions, bounded hash-chained history, restoration before exposure, commit-before-memory and publication, fatal post-commit uncertainty, exact-target quarantine, authorized successor recovery, replacement privacy bounds, and sibling isolation were demonstrated by hostile tests, full repository checks, builds, compiled-runtime execution, zero-vulnerability audit, governance verification, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-025 refutation evidence and GitHub Actions Constitution run 74",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish multi-user or Show-membership authorization, Show-archive or orphan-snapshot retention and disposal, a durable device command journal, WebSocket command execution, replay or cancellation, macros or batches, durable temporal effects, at-rest encryption, backup or restore, hostile out-of-band database resistance, multi-host coordination, abrupt-power physical-media durability, Caddy or TLS behavior, hardware state, rendered pixels, OBS output, or operator perception. The current single-local-user OSS role model therefore bounds Producer recovery evidence. A projection that requires Preview and Program together remains unavailable while either constituent target is quarantined; it fails closed instead of inventing the unavailable target, while independently addressable sibling operations remain available.",
+      "evidence": "SDD-025 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Every existing live production mutation commits its complete resulting Preview or Program snapshot, strictly advancing revision, canonical hash, and mutation metadata on the existing exclusive SQLite connection before memory, observers, panel, OBS, or device projection can observe it.",
+      "verification": "Controlled commit barriers, observer-order assertions, mutation-path coverage, cross-target serialization tests, and injected SQLite faults."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A successor runtime restores byte-equivalent canonical structural truth and revisions for every valid target before exposure, while crashes before commit expose old truth and crashes after commit recover new truth without a partial state.",
+      "verification": "Graceful restart, child-process SIGKILL at pre-commit and post-commit barriers, independent hash recomputation, and startup-admission tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Persistence contains exactly one complete current editorial snapshot document per materialized Show and target, and replacement leaves no prior complete editorial payload in operational or audit rows while retaining bounded revision and hash evidence.",
+      "verification": "Direct database inspection with prohibited prior-content probes across repeated replacements and restart."
+    },
+    {
+      "id": "SC-004",
+      "statement": "A structurally invalid snapshot quarantines only its provably identified target and blocks its reads, publication, and dependent mutations; independently addressable sibling reads and mutations remain available, combined projections fail closed, and non-delimitable schema or transactional integrity failure aborts composition before network exposure.",
+      "verification": "Target-row corruption, cross-target isolation, schema corruption, head mismatch, and startup-failure tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Owner restore or empty reset and Producer restore create a fully validated new durable revision that references the quarantined hash before lifting quarantine; unauthorized principals, devices, and invalid recovery candidates cannot change quarantine state.",
+      "verification": "Role matrix, recovery commit-fault, invalid-scene, revision, audit-reference, and post-recovery publication tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0034 records Discovery facts, H-025, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only shared SQLite composition, live production persistence and restoration, post-commit publication, bounded quarantine and recovery, focused tests, and portability evidence.",
+      "evidence": "git diff for CHG-0034"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-025 through commit barriers, process death, cross-target serialization, replacement privacy probes, malformed target isolation, non-delimitable corruption, unauthorized recovery, recovery faults, and publication-order failures.",
+      "evidence": "Focused unit, integration, and real-process tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, compiled-runtime verification, and GitHub Actions Constitution run 74"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0029, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-025.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0029"
+    }
+  ]
+}

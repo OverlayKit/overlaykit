@@ -27,6 +27,7 @@ import {
   authService,
   createDeviceCredentialRuntime,
   enforceBrowserOrigin,
+  requireAnyRole,
   requireRole,
   requireSession,
   type AuthService,
@@ -37,7 +38,7 @@ import { createDeviceCredentialsRouter } from './routes/deviceCredentials';
 import { createDeviceControlRouter } from './routes/deviceControl';
 import { createShowsRouter } from './routes/shows';
 import { createProductionRouter } from './routes/production';
-import { productionService, type ProductionService } from './services/ProductionService';
+import { ProductionService, productionService } from './services/ProductionService';
 import {
   createDeviceActionCatalogRuntime,
   type DeviceActionCatalogRuntime,
@@ -69,7 +70,8 @@ export interface ServerRuntimeDependencies extends AppDependencies {
   createDeviceActionCatalog?: () => Promise<DeviceActionCatalogRuntime>;
   deviceBootstrapSigning?: DeviceBootstrapSigningAuthority;
   deviceBootstrapSequences?: ManagedFeedbackSequenceStore;
-  onDeviceFatal?: (error: unknown) => void;
+  onAuthorityFatal?: (error: unknown) => void;
+  allowEphemeralProduction?: boolean;
 }
 
 export interface ServerRuntime {
@@ -148,7 +150,11 @@ export function createApp(dependencies: AppDependencies = {}): Express {
     );
   }
   app.use('/api', requireRole('producer'), createShowsRouter(dataStorage));
-  app.use('/api', requireRole('producer'), createProductionRouter(dataStorage, production));
+  app.use(
+    '/api',
+    requireAnyRole(['owner', 'producer']),
+    createProductionRouter(dataStorage, production),
+  );
 
   app.use('/api', elementRoutes);
   app.use('/api', variablesRoutes);
@@ -178,13 +184,31 @@ export async function createServerRuntime(
 ): Promise<ServerRuntime> {
   const auth = dependencies.auth ?? authService;
   const dataStorage = dependencies.dataStorage ?? storage;
-  const production = dependencies.production ?? productionService;
+  const production = dependencies.production ?? new ProductionService(
+    undefined,
+    { allowEphemeral: dependencies.allowEphemeralProduction === true },
+  );
 
   await dataStorage.init();
   await auth.init();
   const ownsDeviceCredentials = dependencies.deviceCredentials === undefined;
   const deviceCredentials = dependencies.deviceCredentials
     ?? await (dependencies.createDeviceCredentials ?? createDeviceCredentialRuntime)();
+  try {
+    if (deviceCredentials.productionState) {
+      production.mountPersistence(
+        deviceCredentials.productionState,
+        dependencies.onAuthorityFatal,
+      );
+    } else if (!dependencies.allowEphemeralProduction) {
+      throw new Error(
+        'Server runtime requires durable production state on the shared SQLite authority',
+      );
+    }
+  } catch (error) {
+    if (ownsDeviceCredentials) await deviceCredentials.close().catch(() => undefined);
+    throw error;
+  }
   let deviceActionCatalog: DeviceActionCatalogRuntime;
   try {
     deviceActionCatalog = dependencies.deviceActionCatalog
@@ -252,7 +276,7 @@ export async function createServerRuntime(
           transitionLedger: deviceCredentials.transitionLedger,
         }
       : {}),
-    onFatal: dependencies.onDeviceFatal,
+    onFatal: dependencies.onAuthorityFatal,
   });
 
   return {
@@ -281,15 +305,15 @@ async function startServer(): Promise<void> {
     validateConfig();
     setLogLevel(config.logLevel);
     logger.info('Starting OverlayKit OSS server', { config });
-    let reportDeviceFatal: ((error: unknown) => void) | null = null;
+    let reportAuthorityFatal: ((error: unknown) => void) | null = null;
     const runtime = await createServerRuntime({
-      onDeviceFatal: (error) => reportDeviceFatal?.(error),
+      onAuthorityFatal: (error) => reportAuthorityFatal?.(error),
     });
 
     const restServer = createServer(runtime.app);
     const wsServer = createServer();
     const wss = new WebSocketServer({ noServer: true });
-    setupWebSocketHandler(wss, runtime.auth, config.corsOrigin);
+    setupWebSocketHandler(wss, runtime.auth, config.corsOrigin, runtime.production);
     const upgradeRouter = new WebSocketUpgradeRouter(wss, runtime.deviceGateway);
     wsServer.on('upgrade', (request, socket, head) => {
       upgradeRouter.handleUpgrade(request, socket, head);
@@ -340,11 +364,11 @@ async function startServer(): Promise<void> {
         process.exit(1);
       }
     };
-    reportDeviceFatal = (error) => {
-      logger.error('Device audit authority failed; shutting down host', {
+    reportAuthorityFatal = (error) => {
+      logger.error('Durable runtime authority failed; shutting down host', {
         error: error instanceof Error ? error.message : String(error),
       });
-      void shutdown('DEVICE_FATAL');
+      void shutdown('AUTHORITY_FATAL');
     };
     process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
     process.on('SIGINT', () => { void shutdown('SIGINT'); });

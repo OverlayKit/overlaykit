@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0029",
+  "title": "Live production truth requires durable commit-before-publication authority",
+  "status": "accepted",
+  "date": "2026-07-22",
+  "supersedes": null,
+  "governs": [
+    "production-state-authority",
+    "production-state-restoration",
+    "production-state-publication",
+    "production-target-quarantine",
+    "production-target-recovery"
+  ],
+  "context": "Existing Preview and Program state lived only in process memory, so a restart could expose state different from the last mutation an operator had been told was applied. ADR-0027 established one exclusive Node 24 SQLite credential authority and ADR-0028 mounted auditable device readiness on that same connection, but neither proved durable live production truth. Discovery for SDD-025 required complete current structural snapshots and revisions to survive restart, every live mutation to commit before publication, replaced editorial payloads to disappear from operational and audit rows, invalid state to quarantine only a provably bounded Show and target, and recovery to require explicit human authority. Slice 1 added one production-state authority to the existing exclusive SQLite connection, canonical complete current snapshots, bounded hash-chained history, commit-before-memory and commit-before-publication mutation paths, startup restoration, exact-target quarantine, Owner restore or reset, and Producer restore. Refutation exercised every mutation kind, malformed candidates, reentrant and failing observers, SQLite commit uncertainty, graceful restart, template-bearing state, independent canonical hashing, target corruption, history-head mismatch, recovery faults, replacement privacy probes, schema migration, real HTTP and WebSocket isolation, and child-process SIGKILL immediately before and after COMMIT. Full repository checks, builds, licensing, dependency audit, compiled-runtime verification, and 434 tests passed locally. GitHub Actions Constitution run 74 passed validation, observation, and the focused durable-production suite on Ubuntu, macOS, and Windows for signed commit 12296b94dacb1e69fdc8c9110b4a8e80bde1bb89. The human authority accepted H-025 only within the tested same-process, single-host, local-file SQLite and process-crash boundary.",
+  "decision": "The OverlayKit runtime owns one durable production-state authority on the same long-lived exclusive SQLite connection as credential and device-transition authority. It must mount, validate, and restore production truth before production routes, browser subscriptions, device projection, or action catalogs can expose it. Each materialized Show and target has exactly one complete canonical current structural snapshot, a strictly increasing revision, and a SHA-256 identity. Every accepted production mutation must derive and fully validate its complete candidate, synchronously commit the replacement snapshot, revision, bounded history evidence, quarantine change, and durable history head in one SQLite transaction, and only then replace in-memory truth or publish to observers. A commit failure leaves prior truth authoritative; uncertainty after COMMIT permanently fails that authority so a successor must restore durable truth. Publication is serialized in commit order, each observer receives an isolated copy of the exact committed state, and publication failure is authority-fatal rather than evidence that the mutation did not commit. Startup validates canonical payloads, scene-to-live-tree derivation, controls, revisions, history chains, and durable heads. Corruption may quarantine only an exact Show and target when that boundary is provable; reads, publications, and dependent mutations for that target fail closed, independently addressable siblings remain available, and combined projections fail closed if any required target is unavailable. Non-delimitable schema, transaction, journal, history, or head failure aborts startup. Recovery is a new validated durable revision: an Owner may restore a valid scene or reset empty, a Producer may restore a valid scene, and a device may not recover production state. Recovery evidence binds the rejected snapshot hash. Persistence retains complete editorial content only in the current snapshot row; replacement and bounded history retain hashes and metadata rather than prior complete payloads. These guarantees apply only to the cooperating OverlayKit runtime using the tested local SQLite file and process-crash boundary. They do not establish the future durable command journal, lane fencing, final command results, multi-user or Show-membership authorization, Show archive retention, temporal-effect recovery, at-rest encryption, backup and restore, hostile out-of-band database resistance, multi-host coordination, abrupt-power physical-media durability, Caddy or TLS behavior, hardware state, rendered pixels, OBS output, or operator perception.",
+  "consequences": [
+    "The default production service fails closed unless durable persistence is mounted; ephemeral operation is an explicit test-only choice.",
+    "Server startup now pays synchronous SQLite validation and restoration cost before production state can be exposed.",
+    "Live mutation latency includes one SQLite commit because memory, panel, OBS, and device projections cannot precede durable truth.",
+    "A committed mutation remains authoritative even if later publication fails; publication uncertainty fails the authority and requires successor restoration.",
+    "An exact corrupted target can be unavailable while independently addressable sibling targets continue, but any projection requiring both Preview and Program fails closed.",
+    "Owner and Producer recovery create auditable successor revisions instead of editing or deleting rejected history.",
+    "Only the current operational row retains complete editorial content; historical evidence intentionally cannot reconstruct prior complete scenes.",
+    "The accepted evidence is a prerequisite for durable commands but does not prove a command journal, fencing, replay, cancellation, batches, or macros.",
+    "The accepted evidence does not prove physical power-loss durability, hostile database access resistance, multi-host behavior, browser or device execution, rendered output, OBS state, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "production-state-shares-exclusive-sqlite-authority",
+      "statement": "Production state must use the existing long-lived exclusive SQLite authority connection and must not create a second executable production authority."
+    },
+    {
+      "kind": "rule",
+      "id": "production-state-restores-before-exposure",
+      "statement": "Complete current production snapshots, revisions, canonical identities, history chains, and durable heads must validate and restore before any production route, subscription, projection, or action catalog can expose production truth."
+    },
+    {
+      "kind": "rule",
+      "id": "production-mutations-commit-before-publication",
+      "statement": "Every accepted production mutation must fully validate and durably commit its complete resulting snapshot and strictly advancing revision before memory or any observer can publish it."
+    },
+    {
+      "kind": "rule",
+      "id": "production-publication-failure-is-authority-fatal",
+      "statement": "A publication failure after commit must fail that production authority and must never roll memory back or represent the committed mutation as uncommitted."
+    },
+    {
+      "kind": "rule",
+      "id": "production-history-is-bounded-evidence",
+      "statement": "Production history may retain canonical hashes, revisions, mutation metadata, rejected-state references, and chain evidence but must not retain replaced complete editorial payloads."
+    },
+    {
+      "kind": "rule",
+      "id": "production-quarantine-requires-proven-boundary",
+      "statement": "Persisted corruption may quarantine only an exactly provable Show and target; non-delimitable integrity failure must abort startup, and every projection requiring an unavailable target must fail closed."
+    },
+    {
+      "kind": "rule",
+      "id": "production-recovery-is-authorized-successor-revision",
+      "statement": "Quarantine recovery must create a fully validated durable successor revision that binds the rejected snapshot hash; Owners may restore or reset, Producers may restore, and devices may not recover production state."
+    },
+    {
+      "kind": "rule",
+      "id": "production-canonical-json-is-exact",
+      "statement": "Persisted production identity must use the tested canonical JSON representation that preserves all JSON object keys, orders keys by code unit, and rejects values that are not valid complete JSON data."
+    },
+    {
+      "kind": "rule",
+      "id": "production-authority-claims-are-bounded",
+      "statement": "Passing durable-production evidence may not be represented as durable command journaling or fencing, multi-user authorization, archive retention, temporal-effect recovery, encryption, backup, hostile database resistance, multi-host coordination, abrupt-power physical durability, proxy or TLS verification, hardware state, rendered pixels, OBS output, or operator perception."
+    }
+  ]
+}

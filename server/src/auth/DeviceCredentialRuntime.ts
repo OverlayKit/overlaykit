@@ -14,6 +14,7 @@ import { ObservableDeviceCredentialLifecycle } from './ObservableDeviceCredentia
 import { SqliteDeviceCredentialStore } from './SqliteDeviceCredentialStore';
 import type { DeviceAuthorityObservationSource } from '../services/DeviceConnectionAuthorityMonitor';
 import type { DeviceTransitionLedgerPort } from '../services/SqliteDeviceTransitionLedger';
+import type { ProductionStatePersistencePort } from '../services/SqliteProductionStateStore';
 
 type DeviceCredentialProtocolModule = typeof import(
   '@overlaykit/protocol/device-credential',
@@ -49,6 +50,7 @@ export interface DeviceCredentialRuntime {
   readonly authoritySource: DeviceAuthorityObservationSource;
   readonly store: Pick<InitializableDeviceCredentialStore, 'get'>;
   readonly transitionLedger: DeviceTransitionLedgerPort | null;
+  readonly productionState: ProductionStatePersistencePort | null;
   close(): Promise<void>;
 }
 
@@ -58,6 +60,7 @@ export interface DeviceCredentialRuntimeOptions {
   readonly store?: InitializableDeviceCredentialStore;
   readonly lifecycleOptions?: DeviceCredentialLifecycleOptions;
   readonly transitionLedger?: DeviceTransitionLedgerPort;
+  readonly productionState?: ProductionStatePersistencePort;
   readonly loadProtocol?: () => Promise<DeviceCredentialProtocolModule>;
 }
 
@@ -85,6 +88,7 @@ export async function createDeviceCredentialRuntime(
     now: lifecycleOptions.now,
   });
   let transitionLedger = options.transitionLedger ?? null;
+  let productionState = options.productionState ?? null;
   if (!transitionLedger && store instanceof SqliteDeviceCredentialStore) {
     try {
       transitionLedger = store.createTransitionLedger();
@@ -94,11 +98,15 @@ export async function createDeviceCredentialRuntime(
       throw error;
     }
   }
+  if (!productionState && store instanceof SqliteDeviceCredentialStore) {
+    productionState = store.createProductionStateStore();
+  }
   return {
     lifecycle,
     authoritySource: lifecycle,
     store,
     transitionLedger,
+    productionState,
     close: async () => {
       let ledgerError: unknown;
       if (transitionLedger?.getState().activeHostEpochId) {

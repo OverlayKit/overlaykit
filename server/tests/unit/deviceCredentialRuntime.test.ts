@@ -65,6 +65,7 @@ describe('device credential server composition', () => {
     expect(loadProtocol).toHaveBeenCalledTimes(1);
     expect(store.init).toHaveBeenCalledTimes(1);
     expect(runtime.store).toBe(store);
+    expect(runtime.productionState).toBeNull();
     await expect(runtime.lifecycle.authenticate(issued.token)).resolves.toMatchObject({
       showId: 'show-1',
       credentialId: issued.credential.credentialId,
@@ -123,9 +124,30 @@ describe('device credential server composition', () => {
       dataStorage,
       deviceCredentials,
       createDeviceActionCatalog,
+      allowEphemeralProduction: true,
     })).rejects.toThrow('catalog projector unavailable');
     expect(init).toHaveBeenCalledTimes(1);
     expect(createDeviceActionCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses an implicit ephemeral production authority in server composition', async () => {
+    const protocol = await import('@overlaykit/protocol/device-credential');
+    const deviceCredentials = await createDeviceCredentialRuntime({
+      store: new RecordingStore(),
+      loadProtocol: async () => protocol,
+    });
+    const auth = new AuthService(new MemoryAuthStore());
+    const dataStorage = { init: vi.fn(async () => undefined) } as unknown as Storage;
+
+    await expect(createServerRuntime({
+      auth,
+      dataStorage,
+      deviceCredentials,
+      deviceActionCatalog: await createDeviceActionCatalogRuntime(),
+    })).rejects.toThrow(
+      'Server runtime requires durable production state on the shared SQLite authority',
+    );
+    await deviceCredentials.close();
   });
 
   it('mounts audited bootstrap only with one SQLite ledger and an explicit signer', async () => {
@@ -167,6 +189,8 @@ describe('device credential server composition', () => {
     });
 
     expect(deviceCredentials.transitionLedger).not.toBeNull();
+    expect(deviceCredentials.productionState).not.toBeNull();
+    expect(runtime.production.getSnapshot('show-1', 'preview').revision).toBe(0);
     expect(runtime.deviceBootstrapSessions).not.toBeNull();
     expect(runtime.deviceBootstrapSequences).toBe(sequences);
     expect(sequences.init).toHaveBeenCalledTimes(1);
@@ -189,6 +213,7 @@ describe('device credential server composition', () => {
       dataStorage,
       deviceCredentials,
       deviceActionCatalog: await createDeviceActionCatalogRuntime(),
+      allowEphemeralProduction: true,
       deviceBootstrapSigning: {
         current: () => ({ issuerKeyId: 'server-key-1', sign: () => 'signature' }),
       },
