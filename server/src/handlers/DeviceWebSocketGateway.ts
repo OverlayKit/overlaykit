@@ -34,6 +34,7 @@ export const DEVICE_WEBSOCKET_PROTOCOLS = ['overlaykit.device.v1'] as const;
 const DEVICE_REALM = 'overlaykit-device';
 export const DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS = 12_000;
 export const DEVICE_MAX_INBOUND_MESSAGE_BYTES = 16_384;
+export const DEVICE_MAX_OUTBOUND_BUFFER_BYTES = 2_097_152;
 const BEARER_CREDENTIAL = /^Bearer ([A-Za-z0-9._~+/-]+=*)$/i;
 const DEVICE_PROTOCOL = /^overlaykit\.device\.v([1-9][0-9]*)$/;
 const NOT_READY_MESSAGE = JSON.stringify({
@@ -262,8 +263,16 @@ function sendJson(ws: WebSocket, value: unknown): Promise<void> {
   if (ws.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error('Device WebSocket is not open'));
   }
+  const payload = JSON.stringify(value);
+  const payloadBytes = Buffer.byteLength(payload);
+  if (
+    payloadBytes > DEVICE_MAX_OUTBOUND_BUFFER_BYTES
+    || ws.bufferedAmount + payloadBytes > DEVICE_MAX_OUTBOUND_BUFFER_BYTES
+  ) {
+    return Promise.reject(new Error('Device WebSocket outbound buffer limit exceeded'));
+  }
   return new Promise((resolve, reject) => {
-    ws.send(JSON.stringify(value), (error) => {
+    ws.send(payload, (error) => {
       if (error) reject(error);
       else resolve();
     });
@@ -539,7 +548,6 @@ export class DeviceWebSocketGateway {
           });
         }
       }
-      transitionSession?.quiesce(reason);
       void Promise.resolve(connection.close(reason)).catch(() => undefined);
     };
 
@@ -580,32 +588,44 @@ export class DeviceWebSocketGateway {
         error: error.message,
       });
     });
-    ws.once('close', () => {
+    ws.once('close', (code) => {
       try {
         monitorLease?.close();
       } catch {
         // Transport closure remains authoritative even if monitor cleanup fails.
       }
-      transitionSession?.close(invalidatedReason ?? 'transport.closed');
-      if (bootstrapSession) {
-        const disposal = bootstrapSession.dispose().catch((error) => {
-          logger.warn('Device bootstrap disposal failed', {
-            connectionId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
-        this.pendingDisposals.add(disposal);
-        void disposal.finally(() => this.pendingDisposals.delete(disposal));
-      }
-      if (coordinatorLease) {
-        try {
-          void Promise.resolve(
-            this.coordinator.retire(coordinatorLease, invalidatedReason ?? 'authority.rejected')
-          ).catch(() => undefined);
-        } catch {
-          // The transport is already closed and cannot admit more work.
+      const disposal = (async () => {
+        if (bootstrapSession) {
+          try {
+            await bootstrapSession.dispose('transport.closed', code === 1000);
+          } catch (error) {
+            logger.warn('Device bootstrap disposal failed', {
+              connectionId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            this.failHost(error);
+          }
         }
-      }
+        try {
+          transitionSession?.close(invalidatedReason ?? 'transport.closed');
+        } catch (error) {
+          this.failHost(error);
+        }
+        if (coordinatorLease) {
+          try {
+            await Promise.resolve(
+              this.coordinator.retire(
+                coordinatorLease,
+                invalidatedReason ?? 'authority.rejected',
+              ),
+            );
+          } catch {
+            // The transport is already closed and cannot admit more work.
+          }
+        }
+      })();
+      this.pendingDisposals.add(disposal);
+      void disposal.finally(() => this.pendingDisposals.delete(disposal));
     });
 
     let connectionAdmission: Promise<DeviceConnectionLease>;
@@ -664,6 +684,7 @@ export class DeviceWebSocketGateway {
             transitions: transitionSession,
             transport: {
               sendSnapshot: (message) => sendJson(ws, message),
+              sendDelta: (message) => sendJson(ws, message),
               sendReady: (message) => sendJson(ws, message),
               close: (reason) => {
                 transitionSession?.close(reason);
@@ -673,6 +694,11 @@ export class DeviceWebSocketGateway {
           });
           if (invalidatedReason || !monitorLease?.isCurrent() || ws.readyState !== WebSocket.OPEN) {
             const reason = invalidatedReason ?? 'authority.changed';
+            try {
+              await bootstrapSession.dispose('transport.closed', false);
+            } catch (error) {
+              this.failHost(error);
+            }
             transitionSession.quiesce(reason);
             await Promise.resolve(this.coordinator.retire(lease, reason)).catch(() => undefined);
             await Promise.resolve(connection.close(reason)).catch(() => undefined);

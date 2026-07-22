@@ -194,11 +194,24 @@ jobs:
       - name: Test exclusive auditable device authority
         run: >-
           npx vitest run
+          --maxWorkers=1
+          --no-file-parallelism
+          protocol/tests/device-bootstrap.test.ts
+          protocol/tests/device-control-frame.test.ts
+          protocol/tests/device-state-sync.test.ts
           server/tests/unit/sqliteDeviceCredentialStore.test.ts
           server/tests/unit/sqliteDeviceTransitionLedger.test.ts
           server/tests/unit/deviceConnectionTransitionSession.test.ts
+          server/tests/unit/deviceBootstrapReadinessCoordinator.test.ts
+          server/tests/unit/deviceBootstrapSnapshotIssuer.test.ts
           server/tests/unit/deviceBootstrapSessionRuntime.test.ts
+          server/tests/unit/devicePostReadySyncCoordinator.test.ts
+          server/tests/unit/deviceTargetReadinessRegistry.test.ts
+          server/tests/unit/deviceControlHttp.test.ts
           server/tests/unit/deviceWebSocketGateway.test.ts
           server/tests/unit/durableProductionService.test.ts
           server/tests/unit/durableProductionCommandAuthority.test.ts
           server/tests/unit/sqliteProductionStateStore.test.ts
+
+      - name: Test protocol package distribution
+        run: npx vitest run protocol/tests/package-distribution.test.ts

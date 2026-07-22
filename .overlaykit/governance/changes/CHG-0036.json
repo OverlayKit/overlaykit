@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0036",
+  "title": "Test post-ready signed device state synchronization",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0015",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026",
+    "ADR-0028",
+    "ADR-0029",
+    "ADR-0030",
+    "ADR-0031"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery requires post-ready state synchronization to begin only from the exact bootstrap frame acknowledged as applied for each target. A delta advances its target base only after an exact applied acknowledgement binds mode, target, issuerKeyId, sequence, and SHA-256; sending a frame or receiving command-delivery evidence cannot establish state truth.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires every delta to declare the exact issuerKeyId, sequence, and SHA-256 of its last confirmed target base. An already-applied resulting identity may be acknowledged idempotently, while a non-duplicate base mismatch closes the connection and requires a complete new bootstrap rather than trusting device state or rewinding in place.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "If authoritative production changes while a target delta awaits acknowledgement, Discovery invalidates that pending delta, consumes its sequence forever, and emits a new delta from the last confirmed base to the latest real state without consuming a retry. A late acknowledgement for the invalidated sequence is obsolete and ignored.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "For unchanged truth, Discovery requires retransmission of the exact same signed bytes after a three-second acknowledgement timeout, with three additional attempts and four sends total per target. Applied and error acknowledgements are target-local, an error consumes one retry, and exhaustion closes the whole connection and requires bootstrap.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A retry budget begins only after transport confirms acceptance of the exact frame for sending. Send failure, unresolved send, or bounded backpressure overflow closes the connection as a transport failure without consuming a target retry or queueing retransmissions.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery permits one pending synchronization frame independently for Preview and Program, while sequence reservation and physical sends remain globally serialized by issuerKeyId plus audienceCredentialId. Target bases, timers, freshness, and retry counts remain independent, and a shared catalog change invalidates every affected target.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A target with a pending delta rejects new commands for that target as not_ready without consuming operationId. At exactly three seconds without newer applied signed evidence its controls become unknown on the device local monotonic clock while unaffected targets remain usable; the connection stays open only for its bounded retries.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a per-target no-change signed confirmation one second after the previous applied acknowledgement when production remains unchanged. It uses the same delta lane and exact acknowledgement contract, becomes the new confirmed base when applied, renews freshness without claiming clock synchronization, and is replaced by a real delta when truth changes.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Bootstrap and delta acknowledgements share one closed versioned contract with mode, target, issuerKeyId, sequence, SHA-256, status, and an errorCode only for error status. Command results remain separate messages and cannot substitute for state acknowledgement or authoritative observation.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Issuer-key rotation cannot bridge a confirmed base in place. It suspends command admission, closes the connection with issuer_rotated, and requires a newly authenticated full bootstrap under the current signing authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Periodic one-hertz acknowledgements are not durably journaled. A graceful close persists only bounded diagnostic checkpoint evidence for the connection, audience, reason, close time, and each target's last applied issuer, sequence, SHA-256, production revision, catalog generation, and acknowledgement time; no bearer, editorial payload, signature, or rendered content is stored, and the checkpoint never authorizes resumption.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-027: A post-bootstrap coordinator with one confirmed base, pending frame, freshness lease, and retry budget per target, plus one globally serialized issuer-audience sequence and send lane, can continuously deliver canonical signed deltas and no-change confirmations without allowing transport metadata, stale acknowledgements, device belief, or command outcomes to create an unsupported state transition.",
+      "evidence": "SDD-027 hypothesis and post-ready synchronization experiment approved by Human Doctrine review on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-027 only for the tested single-host cooperating OverlayKit runtime with one authenticated non-browser device connection, one current signing issuer, authorized Preview and Program targets, exact bootstrap bases, per-target confirmed state and retry authority, one globally serialized issuer-audience sequence and send lane, canonical signed deltas and no-change confirmations, exact applied acknowledgements, target-local readiness and freshness, fail-closed transport and issuer changes, and bounded non-resumable checkpoint evidence demonstrated by hostile tests, full repository checks, builds, zero-vulnerability audit, governance verification, valid commit signatures, and Linux, macOS, and Windows CI evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-027 refutation evidence and GitHub Actions Constitution run 29958370450",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish device-originated WebSocket command framing or execution, renderer or OBS output truth, hardware state, operator perception, multi-host coordination, synchronized clocks, signer distribution or rotation deployment, hostile-network liveness, Caddy or TLS behavior, physical power-loss durability, checkpoint-based resumption, macros, cues, batches, or external temporal effects.",
+      "evidence": "SDD-027 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "After exact bootstrap application, production changes and one-second unchanged confirmations emit canonical signed delta messages whose declared base is exactly the target's last applied frame and whose global sequence reservation and physical send order never diverge.",
+      "verification": "Deterministic protocol, mounted runtime, concurrent target, signing-byte, sequence, and send-barrier tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Only an exact applied acknowledgement advances a target base; error, timeout, malformed, mismatched, future, stale, duplicate, and invalidated acknowledgements produce only their specified retry, idempotent, ignore, or fail-closed outcomes without mutating unsupported truth.",
+      "verification": "Hostile acknowledgement matrix with state and transport inspection."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A truth change invalidates an in-flight delta without consuming retry and reissues from the confirmed base, while an unchanged timeout resends byte-identical evidence no more than three additional times at three-second intervals before closing the connection.",
+      "verification": "Deterministic scheduler, immutable-byte, race, timeout, and retry-exhaustion tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Preview and Program maintain independent readiness and freshness: a pending or expired target rejects only its own commands as not_ready or projects unknown, while a shared catalog change reissues every affected target through the global lane.",
+      "verification": "Two-target interleaving, target gate, catalog mutation, and three-second lease tests."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The gateway demultiplexes bootstrap acknowledgements from post-ready state acknowledgements before routing, rejects binary and unknown frames, closes on transport failure or issuer rotation, and never routes a state acknowledgement as a command result.",
+      "verification": "Real WebSocket gateway tests with malformed, binary, lifecycle, rotation, backpressure, and close races."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Graceful close appends one bounded checkpoint containing only the accepted diagnostic fields, abrupt host discontinuity requires full bootstrap, and neither path journals periodic heartbeat payloads or resumes prior session authority.",
+      "verification": "SQLite raw-record inspection, restart, graceful-close, abrupt-discontinuity, privacy, and bounded-growth tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0036 records Discovery facts, H-027, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the shared state-sync protocol, post-ready issuer and coordinator, WebSocket lifecycle routing, bounded transition checkpoint, composition, focused tests, and portability evidence.",
+      "evidence": "git diff for CHG-0036"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-027 through concurrent targets, stale and future acknowledgements, base mismatch, truth-change races, retry exhaustion, send failure, issuer rotation, catalog fan-out, lease expiry, malformed frames, graceful close, restart, and adapter bypass.",
+      "evidence": "Focused protocol, coordinator, gateway, ledger, integration, and real-transport tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 29958370450"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0031, implemented status, the bounded inference, and the governance profile bump are created only after the human authority reviews the refutation evidence and explicitly accepts H-027.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0031"
+    }
+  ]
+}

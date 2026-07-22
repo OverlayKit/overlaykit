@@ -308,6 +308,14 @@
       "id": "ADR-0030",
       "supersededBy": null,
       "title": "Production commands require durable idempotent authority"
+    },
+    {
+      "contentHash": "ecf283f2054b3c255e6526cf24bf77441d226da94fd3d41db48c2e2e272924c4",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0031",
+      "supersededBy": null,
+      "title": "Post-ready device state requires exact signed evidence"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -442,10 +450,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "dc7756875727eb30ac596f36e1d4f0031fce774ddddafddb62e56cea1c654a99",
-  "profileHash": "a02c7d9419acf56d6f01cd03fd956a477aeba6340341e89296edefbda383f571",
+  "planHash": "3e9da51830ffbea7ffd187bceef6d498e35d17d83ba6bed31f6becfd6a3af6f9",
+  "profileHash": "35e49c199d2c6c0aa449ee5112972c2388f6113115b861420b61c4c6cd6f9e0e",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.26.0",
+  "profileVersion": "2.27.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -988,6 +996,18 @@
       "statement": "Entropy or sealing failure prevents credential persistence, and verifier parsing, digest, or comparison failure denies authentication."
     },
     {
+      "id": "device-delta-base-is-target-local-and-send-order-is-global",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Each target must derive from its own exact confirmed base while all issuer-audience sequence reservations and physical sends remain globally serialized and every reserved sequence remains consumed forever."
+    },
+    {
+      "id": "device-delta-retry-reuses-exact-bounded-bytes",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "A current timeout or error may retransmit only the exact same signed bytes, with one initial send and no more than three additional sends per target, and retry accounting begins only after successful transport acceptance."
+    },
+    {
       "id": "device-direct-program-is-external-capability",
       "kind": "rule",
       "sourceDecision": "ADR-0014",
@@ -1042,6 +1062,18 @@
       "statement": "Passing issuer and file-store evidence may not be represented as key lifecycle, multi-process coordination, directory-fsync power-loss durability, network delivery, three-second scheduling, acknowledgement, reconnect recovery, renderer or OBS observation, Companion integration, or hardware state."
     },
     {
+      "id": "device-graceful-checkpoint-is-diagnostic-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "A graceful checkpoint must remain bounded and free of bearer, signature, payload, rendered content, and frame bytes, and neither graceful nor abrupt restart may restore device connection authority."
+    },
+    {
+      "id": "device-issuer-change-requires-complete-bootstrap",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Issuer-key rotation must suspend command admission, close the connection with issuer_rotated, and forbid carrying a confirmed base across signing authorities."
+    },
+    {
       "id": "device-lifecycle-authority-is-external",
       "kind": "rule",
       "sourceDecision": "ADR-0009",
@@ -1060,10 +1092,22 @@
       "statement": "Issue authority comes from an existing active Show route, and rotate or revoke must reject a stored credential that does not belong to the active Show named by that route."
     },
     {
+      "id": "device-no-change-confirmation-renews-evidence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Unchanged production must emit a signed target-local confirmation one second after the prior applied acknowledgement through the same delta and acknowledgement authority."
+    },
+    {
       "id": "device-operation-authority-begins-at-execution",
       "kind": "rule",
       "sourceDecision": "ADR-0021",
       "statement": "Receiving or queueing an instruction grants no authority; an operation may begin only after its current exact lease is synchronously admitted at the execution boundary."
+    },
+    {
+      "id": "device-post-ready-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Passing post-ready synchronization evidence may not be represented as device-originated command, renderer, OBS, hardware, operator-perception, multi-host, clock-synchronization, signer-deployment, hostile-network, proxy, physical-power, checkpoint-resumption, macro, cue, batch, or external-effect evidence."
     },
     {
       "id": "device-principal-is-not-studio",
@@ -1162,6 +1206,18 @@
       "statement": "Passing SQLite authority evidence may not be represented as abrupt-power or physical-media durability, network-filesystem coordination, hostile database access prevention, cross-process listener delivery, proxy or TLS verification, bootstrap or command authority, Companion integration, hardware state, renderer or OBS observation, or operator perception."
     },
     {
+      "id": "device-state-truth-advances-only-on-exact-applied-ack",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Only an exact current applied acknowledgement bound to mode, target, issuerKeyId, sequence, and SHA-256 may advance a target's confirmed state and freshness; transport, commands, and device belief are not state evidence."
+    },
+    {
+      "id": "device-target-readiness-requires-current-applied-evidence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "A pending or stale target must reject only its own commands as not_ready without consuming operation identity and must project unknown after three seconds without newer applied signed evidence."
+    },
+    {
       "id": "device-transition-audit-claims-are-bounded",
       "kind": "rule",
       "sourceDecision": "ADR-0028",
@@ -1184,6 +1240,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0028",
       "statement": "Every transition record must have one positive global sequence, the exact previous global hash, the exact previous connection hash when connection-scoped, bounded canonical evidence, and a SHA-256 record identity."
+    },
+    {
+      "id": "device-transport-failure-closes-without-retry",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Send rejection, unresolved send, or bounded backpressure failure must close the connection without consuming target retry or queueing a retransmission whose prior acceptance is unknown."
+    },
+    {
+      "id": "device-truth-change-invalidates-pending-without-retry",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "New authoritative truth must invalidate every affected pending frame immediately, spend its sequence without consuming retry, ignore its later acknowledgement as stale, and reissue latest truth from the last confirmed base."
     },
     {
       "id": "device-unsealed-host-epoch-becomes-discontinuity",
@@ -1400,6 +1468,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0006",
       "statement": "A failed cue reports every completed step, the failed step and error, and the resulting revision without claiming rollback or atomicity."
+    },
+    {
+      "id": "post-ready-state-begins-from-exact-bootstrap-base",
+      "kind": "rule",
+      "sourceDecision": "ADR-0031",
+      "statement": "Post-ready synchronization may begin only after every authorized target's exact bootstrap frame is acknowledged as applied and the ready message is sent successfully."
     },
     {
       "id": "preview-precedes-program",

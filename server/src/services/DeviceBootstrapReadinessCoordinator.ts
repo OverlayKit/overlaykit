@@ -76,6 +76,15 @@ export interface DeviceBootstrapTargetStateView {
   readonly appliedSha256: string | null;
 }
 
+export interface DeviceBootstrapAppliedTarget {
+  readonly target: ProductionBus;
+  readonly issuerKeyId: string;
+  readonly sequence: number;
+  readonly sha256: string;
+  readonly appliedAt: number;
+  readonly snapshot: DeviceBootstrapSnapshot;
+}
+
 export interface DeviceBootstrapReadinessState {
   readonly phase: DeviceBootstrapPhase;
   readonly startedAt: number | null;
@@ -128,7 +137,10 @@ interface DeviceBootstrapCoordinatorOptions {
   readonly scheduler?: DeviceBootstrapScheduler;
   readonly onBackgroundError?: (error: unknown) => void;
   readonly transitions?: DeviceReadinessTransitionPort;
-  readonly onReady?: (witness: DeviceReadinessCommitWitness) => void | Promise<void>;
+  readonly onReady?: (
+    witness: DeviceReadinessCommitWitness,
+    targets: ReadonlyArray<DeviceBootstrapAppliedTarget>
+  ) => void | Promise<void>;
 }
 
 export interface DeviceBootstrapCoordinatorRuntimeOptions extends Omit<
@@ -230,11 +242,15 @@ export class DeviceBootstrapReadinessCoordinator {
   private readonly scheduler: DeviceBootstrapScheduler;
   private readonly onBackgroundError: (error: unknown) => void;
   private readonly transitions: DeviceReadinessTransitionPort | null;
-  private readonly onReady: (witness: DeviceReadinessCommitWitness) => void | Promise<void>;
+  private readonly onReady: (
+    witness: DeviceReadinessCommitWitness,
+    targets: ReadonlyArray<DeviceBootstrapAppliedTarget>
+  ) => void | Promise<void>;
   private readonly issuedHashes = new Map<
     string,
     {
       readonly target: ProductionBus;
+      readonly issuerKeyId: string;
       readonly sequence: number;
     }
   >();
@@ -363,7 +379,14 @@ export class DeviceBootstrapReadinessCoordinator {
       if (this.phase === 'closed') return;
       const state = this.states.get(acknowledgement.target);
       const issued = this.issuedHashes.get(acknowledgement.sha256);
-      if (!state || !issued || issued.target !== acknowledgement.target) {
+      if (
+        acknowledgement.mode !== 'bootstrap'
+        || !state
+        || !issued
+        || issued.target !== acknowledgement.target
+        || issued.issuerKeyId !== acknowledgement.issuerKeyId
+        || issued.sequence !== acknowledgement.sequence
+      ) {
         await this.closeConnection('bootstrap.protocol_violation');
         return;
       }
@@ -372,6 +395,8 @@ export class DeviceBootstrapReadinessCoordinator {
         if (
           acknowledgement.status === 'applied' &&
           state.current?.sha256 === acknowledgement.sha256 &&
+          state.current.snapshot.issuerKeyId === acknowledgement.issuerKeyId &&
+          state.current.sequence === acknowledgement.sequence &&
           state.appliedSha256 === acknowledgement.sha256
         )
           return;
@@ -383,7 +408,11 @@ export class DeviceBootstrapReadinessCoordinator {
         await this.closeConnection('bootstrap.protocol_violation');
         return;
       }
-      if (state.current?.sha256 !== acknowledgement.sha256) return;
+      if (
+        state.current?.sha256 !== acknowledgement.sha256
+        || state.current.snapshot.issuerKeyId !== acknowledgement.issuerKeyId
+        || state.current.sequence !== acknowledgement.sequence
+      ) return;
 
       try {
         if (!this.isSnapshotCurrent(state.current.snapshot)) {
@@ -553,7 +582,11 @@ export class DeviceBootstrapReadinessCoordinator {
       await this.failInternal(error);
       return;
     }
-    this.issuedHashes.set(sha256, { target, sequence: snapshot.sequence });
+    this.issuedHashes.set(sha256, {
+      target,
+      issuerKeyId: snapshot.issuerKeyId,
+      sequence: snapshot.sequence,
+    });
 
     let sendFailed = false;
     try {
@@ -700,7 +733,18 @@ export class DeviceBootstrapReadinessCoordinator {
     }
     this.phase = 'ready';
     try {
-      await this.onReady(witness);
+      const appliedTargets = Object.freeze(this.targets.map((target) => {
+        const attempt = this.states.get(target)!.current!;
+        return Object.freeze({
+          target,
+          issuerKeyId: attempt.snapshot.issuerKeyId,
+          sequence: attempt.sequence,
+          sha256: attempt.sha256,
+          appliedAt: attempt.appliedAt!,
+          snapshot: attempt.snapshot,
+        });
+      }));
+      await this.onReady(witness, appliedTargets);
     } catch (error) {
       await this.failInternal(error);
     }

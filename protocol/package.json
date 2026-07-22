@@ -67,6 +67,10 @@
       "types": "./dist/device-bootstrap.d.ts",
       "import": "./dist/device-bootstrap.js"
     },
+    "./device-state-sync": {
+      "types": "./dist/device-state-sync.d.ts",
+      "import": "./dist/device-state-sync.js"
+    },
     "./device-credential": {
       "types": "./dist/device-credential.d.ts",
       "import": "./dist/device-credential.js"

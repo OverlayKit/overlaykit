@@ -21,6 +21,7 @@ const PUBLIC_SUBPATHS = [
   '/control-visibility-feedback',
   '/device-control-frame',
   '/device-bootstrap',
+  '/device-state-sync',
   '/device-credential',
 ] as const;
 
@@ -33,16 +34,24 @@ interface PackResult {
   files: PackedFile[];
 }
 
+async function runNpm(args: string[], cwd: string) {
+  const npmCliPath = process.env.npm_execpath;
+  if (!npmCliPath) {
+    throw new Error('npm_execpath is required to verify the published package');
+  }
+
+  return execFileAsync(process.execPath, [npmCliPath, ...args], { cwd });
+}
+
 let temporaryDirectory = '';
 let consumerDirectory = '';
 let packed: PackResult;
 
 beforeAll(async () => {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'overlaykit-protocol-package-'));
-  const { stdout } = await execFileAsync(
-    'npm',
+  const { stdout } = await runNpm(
     ['pack', '--json', '--silent', '--pack-destination', temporaryDirectory],
-    { cwd: protocolRoot }
+    protocolRoot
   );
   [packed] = JSON.parse(stdout) as PackResult[];
   await writeFile(
@@ -50,8 +59,7 @@ beforeAll(async () => {
     JSON.stringify({ private: true }),
     'utf8'
   );
-  await execFileAsync(
-    'npm',
+  await runNpm(
     [
       'install',
       '--silent',
@@ -60,7 +68,7 @@ beforeAll(async () => {
       '--no-fund',
       path.join(temporaryDirectory, packed.filename),
     ],
-    { cwd: temporaryDirectory }
+    temporaryDirectory
   );
   consumerDirectory = temporaryDirectory;
 }, 30_000);
@@ -124,6 +132,7 @@ describe('published protocol package', () => {
       './control-visibility-feedback',
       './device-control-frame',
       './device-bootstrap',
+      './device-state-sync',
       './device-credential',
     ]);
     for (const target of Object.values(manifest.exports).flatMap((entry) => [
@@ -191,6 +200,9 @@ describe('published protocol package', () => {
       "  issuerKeyId: 'server-key-1',",
       '  audienceCredentialId: authenticated.audienceCredentialId,',
       '  sequence: 1,',
+      '  baseIssuerKeyId: null,',
+      '  baseSequence: null,',
+      '  baseSha256: null,',
       '  frame,',
       '});',
       "const signature = sign(null, payloadBytes, keys.privateKey).toString('base64url');",
@@ -206,9 +218,12 @@ describe('published protocol package', () => {
       "if (!frameView.available || frameView.buttonState !== 'active') process.exit(1);",
       "const { buildDeviceBootstrapSnapshotMessage, buildDeviceReadyMessage, parseDeviceBootstrapAck, parseDeviceBootstrapSnapshotMessage } = await import('@overlaykit/protocol/device-bootstrap');",
       'const acknowledgement = parseDeviceBootstrapAck({',
-      "  schemaVersion: 'overlaykit-device-bootstrap-ack/v1',",
-      "  type: 'device.bootstrap.ack',",
+      "  schemaVersion: 'overlaykit-device-state-ack/v1',",
+      "  type: 'device.state.ack',",
+      "  mode: 'bootstrap',",
       "  target: 'program',",
+      "  issuerKeyId: 'server-key-1',",
+      '  sequence: 1,',
       "  sha256: 'a'.repeat(64),",
       "  status: 'applied',",
       '});',
@@ -225,6 +240,17 @@ describe('published protocol package', () => {
       '});',
       'const parsedSnapshot = await parseDeviceBootstrapSnapshotMessage(snapshotMessage);',
       'if (parsedSnapshot.payloadBytes.length !== payloadBytes.length) process.exit(1);',
+      "const { buildDeviceStateDeltaMessage, parseDeviceStateDeltaMessage } = await import('@overlaykit/protocol/device-state-sync');",
+      'const deltaMessage = await buildDeviceStateDeltaMessage({',
+      "  target: 'program',",
+      "  issuerKeyId: 'server-key-1',",
+      '  sequence: 2,',
+      '  sha256: snapshotHash,',
+      '  payloadBytes,',
+      "  signature: 'detached-signature',",
+      '});',
+      'const parsedDelta = await parseDeviceStateDeltaMessage(deltaMessage);',
+      "if (parsedDelta.message.type !== 'device.state.delta' || parsedDelta.payloadBytes.length !== payloadBytes.length) process.exit(1);",
       'const ready = buildDeviceReadyMessage();',
       "if (ready.type !== 'device.ready' || 'recordHash' in ready || 'globalSequence' in ready) process.exit(1);",
     ].join('\n');
@@ -270,6 +296,7 @@ describe('published protocol package', () => {
         "import type { ServerVisibilityFeedbackProjection } from '@overlaykit/protocol/control-visibility-feedback';",
         "import type { DeviceControlFrameState } from '@overlaykit/protocol/device-control-frame';",
         "import type { DeviceBootstrapAck, DeviceBootstrapSnapshotMessage, DeviceReadyMessage } from '@overlaykit/protocol/device-bootstrap';",
+        "import type { DeviceStateAck, DeviceStateDeltaMessage } from '@overlaykit/protocol/device-state-sync';",
         'const lifecycle: typeof DeviceCredentialLifecycle = DeviceCredentialLifecycle;',
         'const store: DeviceCredentialStore | null = null;',
         'const feedback: ServerVisibilityFeedbackProjection | null = null;',
@@ -277,6 +304,8 @@ describe('published protocol package', () => {
         'const bootstrapAck: DeviceBootstrapAck | null = null;',
         'const bootstrapSnapshot: DeviceBootstrapSnapshotMessage | null = null;',
         'const readyMessage: DeviceReadyMessage | null = null;',
+        'const stateAck: DeviceStateAck | null = null;',
+        'const deltaMessage: DeviceStateDeltaMessage | null = null;',
         'void lifecycle;',
         'void store;',
         'void feedback;',
@@ -284,6 +313,8 @@ describe('published protocol package', () => {
         'void bootstrapAck;',
         'void bootstrapSnapshot;',
         'void readyMessage;',
+        'void stateAck;',
+        'void deltaMessage;',
       ].join('\n'),
       'utf8'
     );

@@ -150,14 +150,20 @@ function acknowledgement(
     ? {
         schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
         type: DEVICE_BOOTSTRAP_ACK_TYPE,
+        mode: 'bootstrap',
         target: emission.target,
+        issuerKeyId: emission.issuerKeyId,
+        sequence: emission.sequence,
         sha256: emission.sha256,
         status,
       }
     : {
         schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
         type: DEVICE_BOOTSTRAP_ACK_TYPE,
+        mode: 'bootstrap',
         target: emission.target,
+        issuerKeyId: emission.issuerKeyId,
+        sequence: emission.sequence,
         sha256: emission.sha256,
         status,
         errorCode,
@@ -171,7 +177,10 @@ function unknownAcknowledgement(
   return {
     schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
     type: DEVICE_BOOTSTRAP_ACK_TYPE,
+    mode: 'bootstrap',
     target,
+    issuerKeyId: 'server-key-1',
+    sequence: 1,
     sha256: sha,
     status: 'applied',
   };

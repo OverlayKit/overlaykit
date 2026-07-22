@@ -53,6 +53,9 @@ import {
   FileFeedbackSequenceStore,
   type ManagedFeedbackSequenceStore,
 } from './services/FileFeedbackSequenceStore';
+import {
+  DeviceTargetReadinessRegistry,
+} from './services/DeviceTargetReadinessRegistry';
 import type { ProductionState as ProtocolProductionState } from '@overlaykit/protocol/production' with {
   'resolution-mode': 'import',
 };
@@ -63,6 +66,7 @@ export interface AppDependencies {
   production?: ProductionService;
   deviceCredentials?: DeviceCredentialRuntime;
   deviceActionCatalog?: DeviceActionCatalogRuntime;
+  deviceTargetReadiness?: DeviceTargetReadinessRegistry;
 }
 
 export interface ServerRuntimeDependencies extends AppDependencies {
@@ -86,6 +90,7 @@ export interface ServerRuntime {
   deviceGateway: DeviceWebSocketGateway;
   deviceBootstrapSessions: DeviceBootstrapSessionFactory | null;
   deviceBootstrapSequences: ManagedFeedbackSequenceStore | null;
+  deviceTargetReadiness: DeviceTargetReadinessRegistry;
 }
 
 export function createApp(dependencies: AppDependencies = {}): Express {
@@ -95,6 +100,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   const production = dependencies.production ?? productionService;
   const deviceCredentials = dependencies.deviceCredentials;
   const deviceActionCatalog = dependencies.deviceActionCatalog;
+  const deviceTargetReadiness = dependencies.deviceTargetReadiness;
 
   if (config.trustProxy !== undefined) app.set('trust proxy', config.trustProxy);
 
@@ -124,6 +130,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
         production,
         deviceCredentials,
         deviceActionCatalog,
+        deviceTargetReadiness,
       ),
     );
   }
@@ -226,6 +233,7 @@ export async function createServerRuntime(
   });
   let deviceBootstrapSessions: DeviceBootstrapSessionFactory | null = null;
   let deviceBootstrapSequences: ManagedFeedbackSequenceStore | null = null;
+  const deviceTargetReadiness = new DeviceTargetReadinessRegistry();
   try {
     if (dependencies.deviceBootstrapSigning) {
       if (!deviceCredentials.transitionLedger) {
@@ -256,6 +264,7 @@ export async function createServerRuntime(
         actionCatalog: deviceActionCatalog,
         sequences: deviceBootstrapSequences,
         signing: dependencies.deviceBootstrapSigning,
+        readiness: deviceTargetReadiness,
         onBackgroundError: (error) => logger.error('Device bootstrap session failed', {
           error: error instanceof Error ? error.message : String(error),
         }),
@@ -286,6 +295,7 @@ export async function createServerRuntime(
       production,
       deviceCredentials,
       deviceActionCatalog,
+      ...(deviceBootstrapSessions ? { deviceTargetReadiness } : {}),
     }),
     auth,
     dataStorage,
@@ -297,6 +307,7 @@ export async function createServerRuntime(
     deviceGateway,
     deviceBootstrapSessions,
     deviceBootstrapSequences,
+    deviceTargetReadiness,
   };
 }
 

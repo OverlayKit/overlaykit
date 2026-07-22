@@ -3,6 +3,7 @@ import type { ProductionBus } from '@overlaykit/protocol/production' with {
 };
 import type {
   DeviceTransitionAuthorityEvidence,
+  DeviceTransitionCheckpointTargetEvidence,
   DeviceTransitionLedgerPort,
   DeviceTransitionReadyTargetEvidence,
 } from './SqliteDeviceTransitionLedger';
@@ -35,6 +36,11 @@ export interface DeviceReadinessTransitionPort {
     occurredAt: number,
     targets: ReadonlyArray<DeviceTransitionReadyTargetEvidence>,
   ): DeviceReadinessCommitWitness;
+  checkpoint(
+    occurredAt: number,
+    reason: string,
+    targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>,
+  ): void;
   close(reason: string): void;
 }
 
@@ -60,6 +66,7 @@ export class DeviceConnectionTransitionSession implements DeviceReadinessTransit
   private readonly authorityIsCurrent: () => boolean;
   private phase: DeviceConnectionTransitionSessionPhase = 'new';
   private fatalReported = false;
+  private checkpointed = false;
 
   constructor(options: DeviceConnectionTransitionSessionOptions) {
     if (
@@ -137,6 +144,33 @@ export class DeviceConnectionTransitionSession implements DeviceReadinessTransit
     this.appendSafetyTransition('device.connection.quiescing', reason);
   }
 
+  checkpoint(
+    occurredAt: number,
+    reason: string,
+    targets: ReadonlyArray<DeviceTransitionCheckpointTargetEvidence>,
+  ): void {
+    if (this.phase !== 'ready') {
+      throw new Error('Device connection is not ready for checkpoint');
+    }
+    if (this.checkpointed) {
+      throw new Error('Device connection checkpoint already exists');
+    }
+    try {
+      this.ledger.append({
+        kind: 'device.connection.checkpoint',
+        connectionId: this.connectionId,
+        occurredAt,
+        audienceCredentialId: this.authority.audienceCredentialId,
+        reason,
+        targets,
+      });
+    } catch (error) {
+      this.reportFatal(error);
+      throw error;
+    }
+    this.checkpointed = true;
+  }
+
   close(reason: string): void {
     if (this.phase === 'closed' || this.phase === 'new') return;
     if (this.phase === 'ready') this.quiesce(reason);
@@ -160,13 +194,17 @@ export class DeviceConnectionTransitionSession implements DeviceReadinessTransit
         reason,
       });
     } catch (error) {
-      if (this.fatalReported) return;
-      this.fatalReported = true;
-      try {
-        this.onFatal(error);
-      } catch {
-        // Safety state remains removed even if the host-fatal observer fails.
-      }
+      this.reportFatal(error);
+    }
+  }
+
+  private reportFatal(error: unknown): void {
+    if (this.fatalReported) return;
+    this.fatalReported = true;
+    try {
+      this.onFatal(error);
+    } catch {
+      // Safety state remains removed even if the host-fatal observer fails.
     }
   }
 }

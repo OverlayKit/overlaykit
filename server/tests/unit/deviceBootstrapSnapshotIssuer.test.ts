@@ -2,6 +2,7 @@ import { createHash, generateKeyPairSync, sign as signBytes, verify, type KeyObj
 import { describe, expect, it, vi } from 'vitest';
 import {
   admitDeviceControlFrame,
+  reduceAdmittedDeviceControlFrame,
   type DeviceControlFrameAuthorityContext,
 } from '@overlaykit/protocol/device-control-frame';
 import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential';
@@ -370,6 +371,116 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
     const unrelated = context.issuer.observeCurrentProductionState();
     expect(unrelated.generation).toBe(3);
     expect(context.issuer.isCurrent(currentProgram)).toBe(true);
+  });
+
+  it('chains signed no-change and changed deltas from the exact applied base', async () => {
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
+    production.loadPreview('show-1', scene());
+    let now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
+    const context = await harness({ production, now: () => now });
+    const bootstrap = await context.issuer.create('preview');
+    const bootstrapBase = {
+      identity: {
+        issuerKeyId: bootstrap.issuerKeyId,
+        sequence: bootstrap.sequence,
+        sha256: createHash('sha256').update(bootstrap.bytes).digest('hex'),
+      },
+      state: bootstrap.state,
+    };
+
+    now += 1;
+    const confirmation = await context.issuer.createDelta(bootstrapBase);
+    const admittedConfirmation = await admitDeviceControlFrame(
+      confirmation.bytes,
+      confirmation.signature,
+      {
+        ...admissionAuthority(
+          context.device,
+          confirmation.issuerKeyId,
+          bootstrap.sequence,
+        ),
+        acceptedFrameIdentities: [bootstrapBase.identity],
+      },
+      (bytes, signature) =>
+        verify(null, bytes, context.keys.publicKey, Buffer.from(signature, 'base64url')),
+    );
+    expect(admittedConfirmation).toMatchObject({
+      base: bootstrapBase.identity,
+      frame: {
+        mode: 'delta',
+        target: 'preview',
+        revision: bootstrap.state.revision,
+        addedActions: [],
+        removedControlIds: [],
+        observations: [],
+      },
+    });
+    const reducedConfirmation = await reduceAdmittedDeviceControlFrame(
+      bootstrapBase,
+      admittedConfirmation,
+    );
+    expect(reducedConfirmation).toMatchObject({
+      applied: true,
+      state: {
+        identity: admittedConfirmation.identity,
+        state: confirmation.state,
+      },
+    });
+
+    production.executeVisibilityIntent(
+      {
+        kind: 'component.visibility',
+        showId: 'show-1',
+        target: 'preview',
+        componentId: 'alpha',
+        visible: true,
+        operationId: 'delta-visibility',
+        expectedRevision: bootstrap.state.revision,
+      },
+      { directProgram: false },
+    );
+    context.issuer.observeCurrentProductionState();
+    now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
+    const changed = await context.issuer.createDelta(reducedConfirmation.state);
+    const admittedChanged = await admitDeviceControlFrame(
+      changed.bytes,
+      changed.signature,
+      {
+        ...admissionAuthority(
+          context.device,
+          changed.issuerKeyId,
+          admittedConfirmation.identity.sequence,
+        ),
+        acceptedFrameIdentities: [admittedConfirmation.identity],
+      },
+      (bytes, signature) =>
+        verify(null, bytes, context.keys.publicKey, Buffer.from(signature, 'base64url')),
+    );
+    expect(admittedChanged.base).toEqual(admittedConfirmation.identity);
+    expect(admittedChanged.frame).toMatchObject({
+      mode: 'delta',
+      revision: bootstrap.state.revision + 1,
+      observations: [
+        {
+          subject: { controlId: 'alpha.visibility' },
+          value: 'active',
+        },
+      ],
+    });
+    const reducedChanged = await reduceAdmittedDeviceControlFrame(
+      reducedConfirmation.state,
+      admittedChanged,
+    );
+    expect(reducedChanged.applied).toBe(true);
+    expect(reducedChanged.state.state).toEqual(changed.state);
+
+    const rotated = generateKeyPairSync('ed25519');
+    context.signing.rotate('server-key-2', rotated.privateKey);
+    await expect(
+      context.issuer.createDelta(reducedChanged.state),
+    ).rejects.toMatchObject<DeviceBootstrapSnapshotIssuerError>({
+      code: 'DEVICE_CONTROL_ISSUER_ROTATED',
+    });
   });
 
   it('invalidates both targets on key rotation and uses the new issuer sequence lane', async () => {

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SqliteDeviceCredentialStore } from '../../src/auth/SqliteDeviceCredentialStore';
 import {
   SqliteDeviceTransitionLedger,
+  type DeviceTransitionCheckpointTargetEvidence,
   type DeviceTransitionReadyTargetEvidence,
 } from '../../src/services/SqliteDeviceTransitionLedger';
 
@@ -48,6 +49,21 @@ function readyTarget(overrides: Partial<DeviceTransitionReadyTargetEvidence> = {
     sentAt: 1_020,
     sendConfirmedAt: 1_025,
     appliedAt: 1_030,
+    ...overrides,
+  };
+}
+
+function checkpointTarget(
+  overrides: Partial<DeviceTransitionCheckpointTargetEvidence> = {},
+): DeviceTransitionCheckpointTargetEvidence {
+  return {
+    target: 'preview',
+    targetRevision: 8,
+    catalogGeneration: 3,
+    issuerKeyId: 'server-key-1',
+    sequence: 12,
+    sha256: 'b'.repeat(64),
+    appliedAt: 1_040,
     ...overrides,
   };
 }
@@ -180,6 +196,114 @@ describe('SqliteDeviceTransitionLedger', () => {
     expect(ledger.readRecords()).toHaveLength(2);
   });
 
+  it('persists one bounded checkpoint and verifies it without restoring authority', async () => {
+    const file = await databasePath();
+    const store = tracked(new SqliteDeviceCredentialStore({ databasePath: file }));
+    await store.init();
+    const ledger = store.createTransitionLedger({ hostEpochId: 'host-1', now: () => 1_000 });
+    ledger.startHostEpoch();
+    ledger.append({
+      kind: 'device.connection.not_ready',
+      connectionId: 'connection-1',
+      occurredAt: 1_001,
+      authority: authority(),
+      targets: ['preview', 'program'],
+    });
+    ledger.append({
+      kind: 'device.connection.ready',
+      connectionId: 'connection-1',
+      occurredAt: 1_031,
+      targets: [
+        readyTarget(),
+        readyTarget({
+          target: 'program',
+          targetRevision: 8,
+          sequence: 12,
+          sha256: 'b'.repeat(64),
+        }),
+      ],
+    });
+    const checkpoint = ledger.append({
+      kind: 'device.connection.checkpoint',
+      connectionId: 'connection-1',
+      occurredAt: 1_050,
+      audienceCredentialId: 'device-1.g1',
+      reason: 'transport.closed',
+      targets: [
+        checkpointTarget(),
+        checkpointTarget({
+          target: 'program',
+          targetRevision: 9,
+          sequence: 13,
+          sha256: 'c'.repeat(64),
+          appliedAt: 1_045,
+        }),
+      ],
+    });
+    expect(() => ledger.append({
+      kind: 'device.connection.checkpoint',
+      connectionId: 'connection-1',
+      occurredAt: 1_051,
+      audienceCredentialId: 'device-1.g1',
+      reason: 'transport.closed',
+      targets: [checkpointTarget()],
+    })).toThrow('already exists');
+    ledger.append({
+      kind: 'device.connection.quiescing',
+      connectionId: 'connection-1',
+      occurredAt: 1_052,
+      reason: 'transport.closed',
+    });
+    ledger.append({
+      kind: 'device.connection.closed',
+      connectionId: 'connection-1',
+      occurredAt: 1_053,
+      reason: 'transport.closed',
+    });
+    ledger.stopHostEpoch(1_054);
+
+    expect(checkpoint.evidence).toEqual({
+      audienceCredentialId: 'device-1.g1',
+      reason: 'transport.closed',
+      targets: [
+        checkpointTarget(),
+        checkpointTarget({
+          target: 'program',
+          targetRevision: 9,
+          sequence: 13,
+          sha256: 'c'.repeat(64),
+          appliedAt: 1_045,
+        }),
+      ],
+    });
+    const evidence = JSON.stringify(checkpoint.evidence);
+    for (const forbidden of [
+      'Bearer ',
+      'payloadBase64',
+      'detached-signature',
+      'lower-third',
+      'renderedContent',
+    ]) {
+      expect(evidence).not.toContain(forbidden);
+    }
+
+    store.close();
+    const reopened = tracked(new SqliteDeviceCredentialStore({ databasePath: file }));
+    await reopened.init();
+    const verified = reopened.createTransitionLedger({
+      hostEpochId: 'host-2',
+      now: () => 2_000,
+    });
+    expect(verified.readRecords().filter(({ kind }) =>
+      kind === 'device.connection.checkpoint'
+    )).toHaveLength(1);
+    expect(verified.getState().connectionPhases).toEqual({
+      'connection-1': 'closed',
+    });
+    verified.startHostEpoch();
+    verified.stopHostEpoch(2_001);
+  });
+
   it('fails permanently on readiness commit uncertainty and detects the unsealed run', async () => {
     const file = await databasePath();
     const failingStore = tracked(new SqliteDeviceCredentialStore({ databasePath: file }));
@@ -303,6 +427,23 @@ describe('SqliteDeviceTransitionLedger', () => {
         authority: ${JSON.stringify(authority())},
         targets: ['preview'],
       });
+      ledger.append({
+        kind: 'device.connection.ready',
+        connectionId: 'connection-killed',
+        occurredAt: 1002,
+        targets: [{
+          target: 'preview',
+          targetRevision: 7,
+          catalogGeneration: 3,
+          issuerKeyId: 'server-key-1',
+          sequence: 11,
+          sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          confirmedAt: 1001,
+          sentAt: 1001,
+          sendConfirmedAt: 1002,
+          appliedAt: 1002,
+        }],
+      });
       process.stdout.write('LEDGER_READY\\n');
       setInterval(() => undefined, 1000);
     `;
@@ -335,15 +476,19 @@ describe('SqliteDeviceTransitionLedger', () => {
     expect(recovery.map(({ kind }) => kind)).toEqual([
       'host.started',
       'host.discontinuity.detected',
+      'device.connection.quiescing',
       'device.connection.closed',
     ]);
     expect(recovered.getState().connectionPhases).toEqual({
       'connection-killed': 'closed',
     });
-    expect(recovered.readRecords().some((record) => (
-      record.kind === 'device.connection.ready'
-      && record.connectionId === 'connection-killed'
-    ))).toBe(false);
+    const killedConnection = recovered.readRecords().filter(
+      ({ connectionId }) => connectionId === 'connection-killed',
+    );
+    expect(killedConnection.some(({ kind }) => kind === 'device.connection.ready')).toBe(true);
+    expect(killedConnection.some(({ kind }) =>
+      kind === 'device.connection.checkpoint'
+    )).toBe(false);
     recovered.stopHostEpoch(2_010);
   });
 

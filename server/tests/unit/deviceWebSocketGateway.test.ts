@@ -10,6 +10,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket, type ClientOptions } from 'ws';
 import {
+  DEVICE_MAX_OUTBOUND_BUFFER_BYTES,
   DEVICE_WEBSOCKET_PATH,
   DeviceWebSocketGateway,
 } from '../../src/handlers/DeviceWebSocketGateway';
@@ -294,6 +295,12 @@ function memoryTransitionLedger(inputs: DeviceConnectionTransitionInput[]): Devi
         ? { authority: input.authority, targets: input.targets }
         : input.kind === 'device.connection.ready'
           ? { targets: input.targets }
+          : input.kind === 'device.connection.checkpoint'
+            ? {
+                audienceCredentialId: input.audienceCredentialId,
+                reason: input.reason,
+                targets: input.targets,
+              }
           : { reason: input.reason };
       const record: DeviceTransitionRecord = {
         schemaVersion: 'overlaykit-device-transition/v1',
@@ -528,7 +535,7 @@ describe('DeviceWebSocketGateway', () => {
     ws.close();
   });
 
-  it('routes a real WebSocket acknowledgement through audited readiness and closure', async () => {
+  it('checkpoints before audited closure when active authority is invalidated', async () => {
     const auditedAuthority: DeviceCredentialAuthority = {
       ...authority(),
       targets: ['preview'],
@@ -537,6 +544,7 @@ describe('DeviceWebSocketGateway', () => {
     const coordinator = pendingCoordinator();
     const authorityMonitor = authorityMonitorHarness();
     const transitions: DeviceConnectionTransitionInput[] = [];
+    const disposalEvents: string[] = [];
     const transitionLedger = memoryTransitionLedger(transitions);
     const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
       create: vi.fn(async ({ transitions: sessionTransitions, transport }) => {
@@ -558,7 +566,10 @@ describe('DeviceWebSocketGateway', () => {
           async receive(value) {
             const acknowledgement = value as Record<string, unknown>;
             if (
-              acknowledgement.type !== 'device.bootstrap.ack'
+              acknowledgement.type !== DEVICE_BOOTSTRAP_ACK_TYPE
+              || acknowledgement.mode !== 'bootstrap'
+              || acknowledgement.issuerKeyId !== 'server-key-1'
+              || acknowledgement.sequence !== 1
               || acknowledgement.sha256 !== sha256
             ) throw new Error('unexpected acknowledgement');
             sessionTransitions.commitReady(Date.now(), [{
@@ -579,8 +590,22 @@ describe('DeviceWebSocketGateway', () => {
               type: 'device.ready',
             });
           },
-          async dispose() {},
+          async dispose(reason = 'transport.closed', graceful = false) {
+            disposalEvents.push(`dispose:${reason}:${graceful}`);
+            if (graceful) {
+              sessionTransitions.checkpoint(Date.now(), reason, [{
+                target: 'preview',
+                targetRevision: 1,
+                catalogGeneration: 1,
+                issuerKeyId: 'server-key-1',
+                sequence: 1,
+                sha256,
+                appliedAt: 4,
+              }]);
+            }
+          },
           isReady: () => ready,
+          isTargetReady: () => ready,
         };
       }),
     };
@@ -613,7 +638,10 @@ describe('DeviceWebSocketGateway', () => {
     ws.send(JSON.stringify({
       schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
       type: DEVICE_BOOTSTRAP_ACK_TYPE,
+      mode: 'bootstrap',
       target: 'preview',
+      issuerKeyId: snapshot.issuerKeyId,
+      sequence: snapshot.sequence,
       sha256: snapshot.sha256,
       status: 'applied',
     }));
@@ -626,8 +654,9 @@ describe('DeviceWebSocketGateway', () => {
       'device.connection.ready',
     ]);
 
-    ws.close();
-    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    authorityMonitor.invalidate('authority.changed');
+    await closed;
     await waitFor(
       () => transitions.some(({ kind }) => kind === 'device.connection.closed'),
       'Audited close transition was not recorded',
@@ -635,9 +664,186 @@ describe('DeviceWebSocketGateway', () => {
     expect(transitions.map(({ kind }) => kind)).toEqual([
       'device.connection.not_ready',
       'device.connection.ready',
+      'device.connection.checkpoint',
       'device.connection.quiescing',
       'device.connection.closed',
     ]);
+    expect(disposalEvents).toEqual(['dispose:transport.closed:true']);
+    expect(transitions.slice(-2)).toMatchObject([
+      { kind: 'device.connection.quiescing', reason: 'authority.changed' },
+      { kind: 'device.connection.closed', reason: 'authority.changed' },
+    ]);
+  });
+
+  it('retires authority and closes audit even when session disposal fails', async () => {
+    const coordinator = pendingCoordinator();
+    const transitions: DeviceConnectionTransitionInput[] = [];
+    const onFatal = vi.fn();
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      create: vi.fn(async () => ({
+        async start() {},
+        async receive() {},
+        async dispose() { throw new Error('catalog close failed'); },
+        isReady: () => false,
+        isTargetReady: () => false,
+      })),
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate: vi.fn(async () => authority()) },
+      coordinator,
+      authorityMonitor: authorityMonitorHarness().monitor,
+      transitionLedger: memoryTransitionLedger(transitions),
+      bootstrapSessions,
+      onFatal,
+      generateConnectionId: () => 'connection-disposal-failure',
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [, connection] = coordinator.connect.mock.calls[0];
+    coordinator.admission.resolve({
+      connectionId: connection.id,
+      authority: coordinator.connect.mock.calls[0][0],
+    });
+    await waitFor(
+      () => vi.mocked(bootstrapSessions.create).mock.calls.length === 1,
+      'Bootstrap session was not mounted',
+    );
+
+    const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    ws.close(1000);
+    await closed;
+    await waitFor(
+      () => transitions.some(({ kind }) => kind === 'device.connection.closed')
+        && coordinator.retire.mock.calls.length === 1,
+      'Disposal failure skipped authority cleanup',
+    );
+
+    expect(onFatal).toHaveBeenCalledTimes(1);
+    expect(transitions.map(({ kind }) => kind)).toEqual([
+      'device.connection.not_ready',
+      'device.connection.closed',
+    ]);
+    expect(coordinator.retire).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionId: connection.id }),
+      'authority.rejected',
+    );
+  });
+
+  it('disposes a bootstrap session that resolves after its socket already closed', async () => {
+    const coordinator = pendingCoordinator();
+    const session = deferred<Awaited<ReturnType<DeviceBootstrapSessionFactoryPort['create']>>>();
+    const disposed = deferred<void>();
+    const dispose = vi.fn(async () => { disposed.resolve(); });
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      create: vi.fn(() => session.promise),
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate: vi.fn(async () => authority()) },
+      coordinator,
+      authorityMonitor: authorityMonitorHarness().monitor,
+      transitionLedger: memoryTransitionLedger([]),
+      bootstrapSessions,
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [, connection] = coordinator.connect.mock.calls[0];
+    coordinator.admission.resolve({
+      connectionId: connection.id,
+      authority: coordinator.connect.mock.calls[0][0],
+    });
+    await waitFor(
+      () => vi.mocked(bootstrapSessions.create).mock.calls.length === 1,
+      'Deferred bootstrap creation did not start',
+    );
+
+    const closed = new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    ws.close(1000);
+    await closed;
+    session.resolve({
+      async start() {},
+      async receive() {},
+      dispose,
+      isReady: () => false,
+      isTargetReady: () => false,
+    });
+    await disposed.promise;
+
+    expect(dispose).toHaveBeenCalledWith('transport.closed', false);
+  });
+
+  it('rejects outbound overflow before writing and closes as a transport failure', async () => {
+    const auditedAuthority: DeviceCredentialAuthority = {
+      ...authority(),
+      targets: ['preview'],
+    };
+    const coordinator = pendingCoordinator();
+    const authorityMonitor = authorityMonitorHarness();
+    const transitions: DeviceConnectionTransitionInput[] = [];
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      async create({ transport }) {
+        return {
+          async start() {
+            try {
+              await transport.sendDelta({
+                schemaVersion: 'overlaykit-device-state-delta/v1',
+                type: 'device.state.delta',
+                target: 'preview',
+                issuerKeyId: 'server-key-1',
+                sequence: 2,
+                sha256: 'd'.repeat(64),
+                payloadBase64: 'a'.repeat(DEVICE_MAX_OUTBOUND_BUFFER_BYTES),
+                signature: 'signature',
+              });
+            } catch {
+              await transport.close('delta.transport_failure');
+            }
+          },
+          async receive() {},
+          async dispose() {},
+          isReady: () => false,
+          isTargetReady: () => false,
+        };
+      },
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate: vi.fn(async () => auditedAuthority) },
+      coordinator,
+      authorityMonitor: authorityMonitor.monitor,
+      transitionLedger: memoryTransitionLedger(transitions),
+      bootstrapSessions,
+      generateConnectionId: () => 'connection-overflow',
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const messages: unknown[] = [];
+    ws.on('message', (message) => messages.push(message));
+    const [, connection] = coordinator.connect.mock.calls[0];
+    const closed = new Promise<number>((resolve) => ws.once('close', resolve));
+    coordinator.admission.resolve({
+      connectionId: connection.id,
+      authority: coordinator.connect.mock.calls[0][0],
+    });
+
+    expect(await closed).toBe(1000);
+    await waitFor(
+      () => transitions.some(({ kind }) => kind === 'device.connection.closed'),
+      'Outbound overflow did not close its transition',
+    );
+    expect(messages).toEqual([]);
+    expect(transitions.map(({ kind }) => kind)).toEqual([
+      'device.connection.not_ready',
+      'device.connection.closed',
+    ]);
+    expect(transitions.at(-1)).toMatchObject({
+      kind: 'device.connection.closed',
+      reason: 'delta.transport_failure',
+    });
   });
 
   it('closes device admission and reports host fatal when readiness audit becomes uncertain', async () => {
@@ -694,6 +900,7 @@ describe('DeviceWebSocketGateway', () => {
           },
           async dispose() {},
           isReady: () => false,
+          isTargetReady: () => false,
         };
       },
     };
