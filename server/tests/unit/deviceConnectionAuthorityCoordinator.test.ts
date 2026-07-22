@@ -48,9 +48,10 @@ class ManualAuthorityClock implements DeviceAuthorityScheduler {
     while (true) {
       const due = [...this.tasks.entries()]
         .filter(([, entry]) => entry.at <= value)
-        .sort(([leftHandle, left], [rightHandle, right]) => (
-          left.at - right.at || leftHandle - rightHandle
-        ))[0];
+        .sort(
+          ([leftHandle, left], [rightHandle, right]) =>
+            left.at - right.at || leftHandle - rightHandle
+        )[0];
       if (!due) return;
       this.tasks.delete(due[0]);
       await due[1].task();
@@ -60,7 +61,8 @@ class ManualAuthorityClock implements DeviceAuthorityScheduler {
 
 class TestConnection implements DeviceAuthorityConnection {
   readonly reasons: DeviceConnectionCloseReason[] = [];
-  closeImplementation: (reason: DeviceConnectionCloseReason) => void | Promise<void> = () => undefined;
+  closeImplementation: (reason: DeviceConnectionCloseReason) => void | Promise<void> = () =>
+    undefined;
 
   constructor(readonly id: string) {}
 
@@ -70,9 +72,7 @@ class TestConnection implements DeviceAuthorityConnection {
   });
 }
 
-function authority(
-  overrides: Partial<DeviceConnectionAuthority> = {},
-): DeviceConnectionAuthority {
+function authority(overrides: Partial<DeviceConnectionAuthority> = {}): DeviceConnectionAuthority {
   return {
     credentialId: 'device-1',
     audienceCredentialId: 'device-1.g1',
@@ -106,8 +106,12 @@ async function flushTransitions(): Promise<void> {
 async function expectPending(promise: Promise<unknown>): Promise<void> {
   let settled = false;
   void promise.then(
-    () => { settled = true; },
-    () => { settled = true; },
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    }
   );
   await flushTransitions();
   expect(settled).toBe(false);
@@ -153,28 +157,37 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
   it('rejects malformed, expired, conflicting, and forged authority without activation', async () => {
     const { coordinator } = harness();
     const malformed = new TestConnection('malformed');
-    await expect(coordinator.connect(authority({
-      audienceCredentialId: 'device-1.g2',
-    }), malformed)).rejects.toMatchObject({
+    await expect(
+      coordinator.connect(
+        authority({
+          audienceCredentialId: 'device-1.g2',
+        }),
+        malformed
+      )
+    ).rejects.toMatchObject({
       code: 'INVALID_DEVICE_CONNECTION_AUTHORITY',
     });
     expect(malformed.reasons).toEqual(['authority.rejected']);
 
     const expired = new TestConnection('expired');
-    await expect(coordinator.connect(authority({ expiresAt: 1_000 }), expired)).rejects.toMatchObject({
+    await expect(
+      coordinator.connect(authority({ expiresAt: 1_000 }), expired)
+    ).rejects.toMatchObject({
       code: 'DEVICE_AUTHORITY_EXPIRED',
     });
     expect(expired.reasons).toEqual(['credential.expired']);
 
     const active = await coordinator.connect(authority(), new TestConnection('active'));
     const conflictingShow = new TestConnection('wrong-show');
-    await expect(coordinator.connect(authority({ showId: 'show-2' }), conflictingShow))
-      .rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_IDENTITY_CONFLICT' });
+    await expect(
+      coordinator.connect(authority({ showId: 'show-2' }), conflictingShow)
+    ).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_IDENTITY_CONFLICT' });
     expect(conflictingShow.reasons).toEqual(['authority.rejected']);
 
     const conflictingExpiry = new TestConnection('wrong-expiry');
-    await expect(coordinator.connect(authority({ expiresAt: 20_000 }), conflictingExpiry))
-      .rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_IDENTITY_CONFLICT' });
+    await expect(
+      coordinator.connect(authority({ expiresAt: 20_000 }), conflictingExpiry)
+    ).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_IDENTITY_CONFLICT' });
     expect(conflictingExpiry.reasons).toEqual(['authority.rejected']);
 
     const forged = {
@@ -267,12 +280,95 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     expect(coordinator.isEffective(lease)).toBe(false);
 
     const rejected = new TestConnection('revoked-reconnect');
-    await expect(coordinator.connect(authority({
-      audienceCredentialId: 'device-1.g2',
-      generation: 2,
-    }), rejected)).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_BLOCKED' });
+    await expect(
+      coordinator.connect(
+        authority({
+          audienceCredentialId: 'device-1.g2',
+          generation: 2,
+        }),
+        rejected
+      )
+    ).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_BLOCKED' });
     expect(rejected.reasons).toEqual(['credential.revoked']);
     await expect(coordinator.revokeCredential('device-1')).resolves.toBeUndefined();
+  });
+
+  it('retires one exact lease immediately as a barrier while admitted work drains', async () => {
+    const { coordinator } = harness();
+    const connection = new TestConnection('monitored');
+    const closeGate = deferred<void>();
+    connection.closeImplementation = () => closeGate.promise;
+    const lease = await coordinator.connect(authority(), connection);
+    const operationGate = deferred<void>();
+    const running = coordinator.execute(lease, () => operationGate.promise);
+
+    const retirement = coordinator.retire(lease, 'authority.changed');
+    await expect(coordinator.retire(lease, 'authority.unavailable')).resolves.toBeUndefined();
+    const queued = vi.fn(() => 'must-not-start');
+    await expect(coordinator.execute(lease, queued)).rejects.toMatchObject({
+      code: 'DEVICE_CONNECTION_NOT_ACTIVE',
+    });
+    expect(queued).not.toHaveBeenCalled();
+    await flushTransitions();
+    expect(connection.reasons).toEqual(['authority.changed']);
+    await expectPending(retirement);
+
+    operationGate.resolve();
+    await running;
+    await expectPending(retirement);
+    closeGate.resolve();
+    await retirement;
+    expect(coordinator.isEffective(lease)).toBe(false);
+
+    const replacement = await coordinator.connect(
+      authority(),
+      new TestConnection('new-connection')
+    );
+    expect(coordinator.isEffective(replacement)).toBe(true);
+    await expect(coordinator.retire(lease, 'authority.changed')).resolves.toBeUndefined();
+  });
+
+  it('checks a currency witness at the linearizable slot installation boundary', async () => {
+    const { coordinator } = harness();
+    const rejected = new TestConnection('stale-immediate');
+    await expect(coordinator.connect(authority(), rejected, () => false)).rejects.toMatchObject({
+      code: 'DEVICE_AUTHORITY_BLOCKED',
+    });
+    expect(rejected.reasons).toEqual(['authority.changed']);
+
+    const currentConnection = new TestConnection('current');
+    await coordinator.connect(authority(), currentConnection);
+    const closeGate = deferred<void>();
+    currentConnection.closeImplementation = () => closeGate.promise;
+    let current = true;
+    const incoming = new TestConnection('raced');
+    const replacement = coordinator.connect(authority(), incoming, () => current);
+    await flushTransitions();
+    expect(currentConnection.reasons).toEqual(['replaced']);
+
+    current = false;
+    closeGate.resolve();
+    await expect(replacement).rejects.toMatchObject({
+      code: 'DEVICE_AUTHORITY_BLOCKED',
+    });
+    expect(incoming.reasons).toEqual(['authority.changed']);
+
+    const isolated = harness().coordinator;
+    let raceCurrent = true;
+    const stale = isolated.connect(
+      authority({ showId: 'stale-show' }),
+      new TestConnection('stale-before-slot'),
+      () => raceCurrent
+    );
+    raceCurrent = false;
+    await expect(stale).rejects.toMatchObject({
+      code: 'DEVICE_AUTHORITY_BLOCKED',
+    });
+    const cleanLease = await isolated.connect(
+      authority({ showId: 'clean-show' }),
+      new TestConnection('clean-after-race')
+    );
+    expect(cleanLease.authority.showId).toBe('clean-show');
   });
 
   it('retires a rotated generation before admitting its successor', async () => {
@@ -282,10 +378,13 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
 
     const rotation = coordinator.rotateCredential('device-1', 1);
     const successorConnection = new TestConnection('generation-2');
-    const successor = coordinator.connect(authority({
-      audienceCredentialId: 'device-1.g2',
-      generation: 2,
-    }), successorConnection);
+    const successor = coordinator.connect(
+      authority({
+        audienceCredentialId: 'device-1.g2',
+        generation: 2,
+      }),
+      successorConnection
+    );
     const staleConnection = new TestConnection('stale-generation');
     await expect(coordinator.connect(authority(), staleConnection)).rejects.toMatchObject({
       code: 'DEVICE_AUTHORITY_BLOCKED',
@@ -376,15 +475,21 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     const secondConnection = new TestConnection('show-1-b');
     const otherConnection = new TestConnection('show-2');
     const firstLease = await coordinator.connect(authority(), firstConnection);
-    const secondLease = await coordinator.connect(authority({
-      credentialId: 'device-2',
-      audienceCredentialId: 'device-2.g1',
-    }), secondConnection);
-    const otherLease = await coordinator.connect(authority({
-      credentialId: 'device-3',
-      audienceCredentialId: 'device-3.g1',
-      showId: 'show-2',
-    }), otherConnection);
+    const secondLease = await coordinator.connect(
+      authority({
+        credentialId: 'device-2',
+        audienceCredentialId: 'device-2.g1',
+      }),
+      secondConnection
+    );
+    const otherLease = await coordinator.connect(
+      authority({
+        credentialId: 'device-3',
+        audienceCredentialId: 'device-3.g1',
+        showId: 'show-2',
+      }),
+      otherConnection
+    );
     const firstGate = deferred<void>();
     const secondGate = deferred<void>();
     const firstOperation = coordinator.execute(firstLease, () => firstGate.promise);
@@ -398,10 +503,15 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     await expect(coordinator.execute(otherLease, () => 'other-show')).resolves.toBe('other-show');
 
     const lateConnection = new TestConnection('late-show-1');
-    await expect(coordinator.connect(authority({
-      credentialId: 'device-4',
-      audienceCredentialId: 'device-4.g1',
-    }), lateConnection)).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_BLOCKED' });
+    await expect(
+      coordinator.connect(
+        authority({
+          credentialId: 'device-4',
+          audienceCredentialId: 'device-4.g1',
+        }),
+        lateConnection
+      )
+    ).rejects.toMatchObject({ code: 'DEVICE_AUTHORITY_BLOCKED' });
     expect(lateConnection.reasons).toEqual(['show.archived']);
 
     firstGate.resolve();
@@ -426,10 +536,13 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     const closeGate = deferred<void>();
     delayedConnection.closeImplementation = () => closeGate.promise;
     const failedLease = await coordinator.connect(authority(), failedConnection);
-    const delayedLease = await coordinator.connect(authority({
-      credentialId: 'device-2',
-      audienceCredentialId: 'device-2.g1',
-    }), delayedConnection);
+    const delayedLease = await coordinator.connect(
+      authority({
+        credentialId: 'device-2',
+        audienceCredentialId: 'device-2.g1',
+      }),
+      delayedConnection
+    );
 
     const archive = coordinator.archiveShow('show-1');
     await flushTransitions();
@@ -448,11 +561,14 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
   it('keeps another credential operational while one replacement drains', async () => {
     const { coordinator } = harness();
     const first = await coordinator.connect(authority(), new TestConnection('first'));
-    const second = await coordinator.connect(authority({
-      credentialId: 'device-2',
-      audienceCredentialId: 'device-2.g1',
-      showId: 'show-2',
-    }), new TestConnection('second'));
+    const second = await coordinator.connect(
+      authority({
+        credentialId: 'device-2',
+        audienceCredentialId: 'device-2.g1',
+        showId: 'show-2',
+      }),
+      new TestConnection('second')
+    );
     const operationGate = deferred<void>();
     const running = coordinator.execute(first, () => operationGate.promise);
 
@@ -485,11 +601,7 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     });
     oldConnection.closeImplementation = () => undefined;
     await expect(coordinator.revokeCredential('device-1')).resolves.toBeUndefined();
-    expect(oldConnection.reasons).toEqual([
-      'replaced',
-      'credential.revoked',
-      'credential.revoked',
-    ]);
+    expect(oldConnection.reasons).toEqual(['replaced', 'credential.revoked', 'credential.revoked']);
     expect(coordinator.isEffective(oldLease)).toBe(false);
   });
 
@@ -515,12 +627,16 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
     const { coordinator } = harness();
     const connection = new TestConnection('operation-failures');
     const lease = await coordinator.connect(authority(), connection);
-    await expect(coordinator.execute(lease, () => {
-      throw new Error('sync failure');
-    })).rejects.toThrow('sync failure');
-    await expect(coordinator.execute(lease, async () => {
-      throw new Error('async failure');
-    })).rejects.toThrow('async failure');
+    await expect(
+      coordinator.execute(lease, () => {
+        throw new Error('sync failure');
+      })
+    ).rejects.toThrow('sync failure');
+    await expect(
+      coordinator.execute(lease, async () => {
+        throw new Error('async failure');
+      })
+    ).rejects.toThrow('async failure');
 
     const neverGate = deferred<void>();
     const running = coordinator.execute(lease, () => neverGate.promise);
@@ -532,11 +648,16 @@ describe('DeviceConnectionAuthorityCoordinator', () => {
   });
 
   it('rejects invalid construction and bounded identifiers', async () => {
-    expect(() => new DeviceConnectionAuthorityCoordinator({
-      now: () => Number.NaN,
-    })).toThrowError(expect.objectContaining({
-      code: 'INVALID_DEVICE_CONNECTION_AUTHORITY',
-    }));
+    expect(
+      () =>
+        new DeviceConnectionAuthorityCoordinator({
+          now: () => Number.NaN,
+        })
+    ).toThrowError(
+      expect.objectContaining({
+        code: 'INVALID_DEVICE_CONNECTION_AUTHORITY',
+      })
+    );
 
     const { coordinator } = harness();
     const cases: DeviceConnectionAuthority[] = [

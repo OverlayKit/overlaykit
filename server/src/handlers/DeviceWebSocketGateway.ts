@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
-import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential' with { 'resolution-mode': 'import' };
+import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential' with {
+  'resolution-mode': 'import',
+};
 import { WebSocket, WebSocketServer } from 'ws';
 import type { DeviceCredentialLifecyclePort } from '../auth/DeviceCredentialRuntime';
 import {
@@ -10,12 +12,19 @@ import {
   type DeviceConnectionCloseReason,
   type DeviceConnectionLease,
 } from '../services/DeviceConnectionAuthorityCoordinator';
+import {
+  DeviceAuthorityMonitorError,
+  type DeviceAuthorityInvalidationReason,
+  type DeviceAuthorityMonitorAdmission,
+  type DeviceAuthorityMonitorLease,
+} from '../services/DeviceConnectionAuthorityMonitor';
 import { logger } from '../utils/logger';
 
 export const DEVICE_WEBSOCKET_PATH = '/device';
 export const DEVICE_WEBSOCKET_PROTOCOLS = ['overlaykit.device.v1'] as const;
 
 const DEVICE_REALM = 'overlaykit-device';
+export const DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS = 12_000;
 const BEARER_CREDENTIAL = /^Bearer ([A-Za-z0-9._~+/-]+=*)$/i;
 const DEVICE_PROTOCOL = /^overlaykit\.device\.v([1-9][0-9]*)$/;
 const NOT_READY_MESSAGE = JSON.stringify({
@@ -28,15 +37,24 @@ interface DeviceConnectionCoordinatorPort {
   connect(
     authority: DeviceConnectionAuthority,
     connection: DeviceAuthorityConnection,
+    authorityIsCurrent?: () => boolean
   ): Promise<DeviceConnectionLease>;
+  retire(lease: DeviceConnectionLease, reason: DeviceConnectionCloseReason): Promise<void>;
+}
+
+interface DeviceConnectionAuthorityMonitorPort {
+  isAvailable(): boolean;
+  prepare(authority: DeviceCredentialAuthority): Promise<DeviceAuthorityMonitorAdmission>;
 }
 
 export interface DeviceWebSocketGatewayOptions {
   readonly credentials: Pick<DeviceCredentialLifecyclePort, 'authenticate'>;
   readonly coordinator: DeviceConnectionCoordinatorPort;
+  readonly authorityMonitor: DeviceConnectionAuthorityMonitorPort;
   readonly path?: string;
   readonly supportedProtocols?: ReadonlyArray<string>;
   readonly generateConnectionId?: () => string;
+  readonly closeTimeoutMs?: number;
 }
 
 interface HttpRejection {
@@ -89,9 +107,9 @@ function requestUrl(request: IncomingMessage): URL | null {
 
 function bearerToken(request: IncomingMessage, url: URL): string | null {
   if (
-    url.search.length > 0
-    || rawHeaderCount(request, 'cookie') > 0
-    || rawHeaderCount(request, 'authorization') !== 1
+    url.search.length > 0 ||
+    rawHeaderCount(request, 'cookie') > 0 ||
+    rawHeaderCount(request, 'authorization') !== 1
   ) {
     return null;
   }
@@ -115,7 +133,9 @@ function normalizedProtocols(protocols: ReadonlyArray<string>): ReadonlyArray<st
   if (normalized.some((protocol) => protocolVersion(protocol) < 1)) {
     throw new Error('Device WebSocket protocols must be versioned');
   }
-  return Object.freeze(normalized.sort((left, right) => protocolVersion(right) - protocolVersion(left)));
+  return Object.freeze(
+    normalized.sort((left, right) => protocolVersion(right) - protocolVersion(left))
+  );
 }
 
 function offeredProtocols(request: IncomingMessage): ReadonlySet<string> | null {
@@ -124,9 +144,9 @@ function offeredProtocols(request: IncomingMessage): ReadonlySet<string> | null 
   if (typeof header !== 'string') return null;
   const offered = header.split(',').map((protocol) => protocol.trim());
   if (
-    offered.length === 0
-    || offered.some((protocol) => !protocol)
-    || new Set(offered).size !== offered.length
+    offered.length === 0 ||
+    offered.some((protocol) => !protocol) ||
+    new Set(offered).size !== offered.length
   ) {
     return null;
   }
@@ -135,7 +155,7 @@ function offeredProtocols(request: IncomingMessage): ReadonlySet<string> | null 
 
 function selectProtocol(
   request: IncomingMessage,
-  supportedProtocols: ReadonlyArray<string>,
+  supportedProtocols: ReadonlyArray<string>
 ): string | null {
   const offered = offeredProtocols(request);
   if (!offered) return null;
@@ -189,21 +209,36 @@ function protocolRequired(supportedProtocols: ReadonlyArray<string>): HttpReject
   };
 }
 
-function closeTransport(ws: WebSocket): Promise<void> {
+function closeTransport(ws: WebSocket, timeoutMs: number): Promise<void> {
   if (ws.readyState === WebSocket.CLOSED) return Promise.resolve();
   return new Promise((resolve) => {
-    ws.once('close', () => resolve());
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      if (ws.readyState !== WebSocket.CLOSED) ws.terminate();
+      finish();
+    }, timeoutMs);
+    ws.once('close', finish);
     if (ws.readyState === WebSocket.OPEN) ws.close(1000);
   });
 }
 
-function deviceConnection(ws: WebSocket, id: string): DeviceAuthorityConnection {
+function deviceConnection(
+  ws: WebSocket,
+  id: string,
+  closeTimeoutMs: number
+): DeviceAuthorityConnection {
   let closing: Promise<void> | null = null;
   return Object.freeze({
     id,
     close(reason: DeviceConnectionCloseReason): Promise<void> {
       logger.debug('Retiring device WebSocket transport', { connectionId: id, reason });
-      closing ??= closeTransport(ws);
+      closing ??= closeTransport(ws, closeTimeoutMs);
       return closing;
     },
   });
@@ -214,7 +249,9 @@ export class DeviceWebSocketGateway {
   readonly supportedProtocols: ReadonlyArray<string>;
   private readonly credentials: Pick<DeviceCredentialLifecyclePort, 'authenticate'>;
   private readonly coordinator: DeviceConnectionCoordinatorPort;
+  private readonly authorityMonitor: DeviceConnectionAuthorityMonitorPort;
   private readonly generateConnectionId: () => string;
+  private readonly closeTimeoutMs: number;
   private readonly selectedProtocols = new WeakMap<IncomingMessage, string>();
   private readonly wss: WebSocketServer;
 
@@ -224,11 +261,27 @@ export class DeviceWebSocketGateway {
       throw new Error('Device WebSocket path is invalid');
     }
     this.supportedProtocols = normalizedProtocols(
-      options.supportedProtocols ?? DEVICE_WEBSOCKET_PROTOCOLS,
+      options.supportedProtocols ?? DEVICE_WEBSOCKET_PROTOCOLS
     );
     this.credentials = options.credentials;
     this.coordinator = options.coordinator;
+    this.authorityMonitor = options.authorityMonitor;
+    if (
+      !this.authorityMonitor ||
+      typeof this.authorityMonitor.isAvailable !== 'function' ||
+      typeof this.authorityMonitor.prepare !== 'function'
+    ) {
+      throw new Error('Device authority monitor is required');
+    }
     this.generateConnectionId = options.generateConnectionId ?? randomUUID;
+    this.closeTimeoutMs = options.closeTimeoutMs ?? DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS;
+    if (
+      !Number.isSafeInteger(this.closeTimeoutMs) ||
+      this.closeTimeoutMs <= 0 ||
+      this.closeTimeoutMs > DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS
+    ) {
+      throw new Error('Device transport close timeout is invalid');
+    }
     this.wss = new WebSocketServer({
       noServer: true,
       handleProtocols: (_protocols, request) => this.selectedProtocols.get(request) ?? false,
@@ -250,14 +303,24 @@ export class DeviceWebSocketGateway {
     request: IncomingMessage,
     socket: Duplex,
     head: Buffer,
-    url: URL,
+    url: URL
   ): Promise<void> {
     if (rawHeaderCount(request, 'origin') > 0) {
       rejectUpgrade(socket, ORIGIN_FORBIDDEN);
       return;
     }
+    let monitorAvailable = false;
+    try {
+      monitorAvailable = this.authorityMonitor.isAvailable() === true;
+    } catch {
+      monitorAvailable = false;
+    }
+    if (!monitorAvailable) {
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
+      return;
+    }
 
-    const token = bearerToken(request, url);
+    let token = bearerToken(request, url);
     if (!token) {
       rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
       return;
@@ -272,6 +335,8 @@ export class DeviceWebSocketGateway {
       });
       rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
       return;
+    } finally {
+      token = null;
     }
     if (!credentialAuthority) {
       rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
@@ -283,16 +348,69 @@ export class DeviceWebSocketGateway {
       rejectUpgrade(socket, protocolRequired(this.supportedProtocols));
       return;
     }
-    if (socket.destroyed) return;
+    let monitorAdmission: DeviceAuthorityMonitorAdmission;
+    try {
+      monitorAdmission = await this.authorityMonitor.prepare(credentialAuthority);
+    } catch (error) {
+      if (
+        error instanceof DeviceAuthorityMonitorError &&
+        (error.code === 'DEVICE_AUTHORITY_CHANGED' || error.code === 'DEVICE_AUTHORITY_EXPIRED')
+      ) {
+        rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
+      } else {
+        logger.error('Device authority monitor preparation failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
+      }
+      return;
+    }
+    let monitorCurrent = false;
+    try {
+      monitorCurrent = monitorAdmission.isCurrent() === true;
+    } catch (error) {
+      logger.error('Device authority monitor currency check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        monitorAdmission.abort();
+      } catch {
+        // The admission is already rejected; transport must still fail closed.
+      }
+      rejectUpgrade(socket, AUTHORITY_UNAVAILABLE);
+      return;
+    }
+    if (!monitorCurrent) {
+      try {
+        monitorAdmission.abort();
+      } catch {
+        // The admission is already rejected; transport must still fail closed.
+      }
+      rejectUpgrade(socket, AUTHENTICATION_REQUIRED);
+      return;
+    }
+    if (socket.destroyed) {
+      try {
+        monitorAdmission.abort();
+      } catch {
+        // Socket closure is already the fail-closed boundary.
+      }
+      return;
+    }
 
-    const authority = captureAuthority(credentialAuthority);
+    const authority = captureAuthority(monitorAdmission.authority);
     this.selectedProtocols.set(request, selectedProtocol);
     try {
       this.wss.handleUpgrade(request, socket, head, (ws) => {
         this.selectedProtocols.delete(request);
-        this.accept(ws, authority);
+        this.accept(ws, authority, monitorAdmission);
       });
     } catch (error) {
+      try {
+        monitorAdmission.abort();
+      } catch {
+        // The upgrade failure already prevents authority.
+      }
       this.selectedProtocols.delete(request);
       logger.warn('Device WebSocket upgrade failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -301,9 +419,47 @@ export class DeviceWebSocketGateway {
     }
   }
 
-  private accept(ws: WebSocket, authority: DeviceConnectionAuthority): void {
+  private accept(
+    ws: WebSocket,
+    authority: DeviceConnectionAuthority,
+    monitorAdmission: DeviceAuthorityMonitorAdmission
+  ): void {
     const connectionId = this.generateConnectionId();
-    const connection = deviceConnection(ws, connectionId);
+    const connection = deviceConnection(ws, connectionId, this.closeTimeoutMs);
+    let coordinatorLease: DeviceConnectionLease | null = null;
+    let monitorLease: DeviceAuthorityMonitorLease | null = null;
+    let invalidatedReason: DeviceConnectionCloseReason | null = null;
+
+    const invalidate = (reason: DeviceAuthorityInvalidationReason): void => {
+      invalidatedReason = reason;
+      if (coordinatorLease) {
+        try {
+          void Promise.resolve(this.coordinator.retire(coordinatorLease, reason)).catch((error) => {
+            logger.warn('Device authority retirement failed', {
+              connectionId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+        } catch (error) {
+          logger.warn('Device authority retirement failed', {
+            connectionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      void Promise.resolve(connection.close(reason)).catch(() => undefined);
+    };
+
+    try {
+      monitorLease = monitorAdmission.activate({ invalidate });
+    } catch (error) {
+      logger.warn('Device authority changed during WebSocket upgrade', {
+        connectionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void Promise.resolve(connection.close('authority.changed')).catch(() => undefined);
+      return;
+    }
 
     ws.on('message', () => {
       if (ws.readyState === WebSocket.OPEN) ws.send(NOT_READY_MESSAGE);
@@ -314,18 +470,68 @@ export class DeviceWebSocketGateway {
         error: error.message,
       });
     });
+    ws.once('close', () => {
+      try {
+        monitorLease?.close();
+      } catch {
+        // Transport closure remains authoritative even if monitor cleanup fails.
+      }
+      if (coordinatorLease) {
+        try {
+          void Promise.resolve(
+            this.coordinator.retire(coordinatorLease, invalidatedReason ?? 'authority.rejected')
+          ).catch(() => undefined);
+        } catch {
+          // The transport is already closed and cannot admit more work.
+        }
+      }
+    });
 
-    void this.coordinator.connect(authority, connection).then(
-      () => {
+    let connectionAdmission: Promise<DeviceConnectionLease>;
+    try {
+      connectionAdmission = Promise.resolve(
+        this.coordinator.connect(authority, connection, () => monitorLease?.isCurrent() === true)
+      );
+    } catch (error) {
+      try {
+        monitorLease.close();
+      } catch {
+        // Connection closure below remains the fail-closed boundary.
+      }
+      logger.warn('Device WebSocket authority rejected', {
+        connectionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void Promise.resolve(connection.close('authority.rejected')).catch(() => undefined);
+      return;
+    }
+    void connectionAdmission.then(
+      (lease) => {
+        coordinatorLease = lease;
+        if (invalidatedReason || !monitorLease?.isCurrent()) {
+          const reason = invalidatedReason ?? 'authority.changed';
+          try {
+            void Promise.resolve(this.coordinator.retire(lease, reason)).catch(() => undefined);
+          } catch {
+            // Closing the connection below still removes transport authority.
+          }
+          void Promise.resolve(connection.close(reason)).catch(() => undefined);
+          return;
+        }
         logger.debug('Device WebSocket authority granted without readiness', { connectionId });
       },
       async (error: unknown) => {
+        try {
+          monitorLease?.close();
+        } catch {
+          // Connection closure below remains the fail-closed boundary.
+        }
         logger.warn('Device WebSocket authority rejected', {
           connectionId,
           error: error instanceof Error ? error.message : String(error),
         });
         await Promise.resolve(connection.close('authority.rejected')).catch(() => undefined);
-      },
+      }
     );
   }
 }

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0026",
+  "title": "Device connections require continuously evidenced effective authority",
+  "status": "accepted",
+  "date": "2026-07-21",
+  "supersedes": null,
+  "governs": [
+    "device-connection-effective-authority",
+    "device-authority-monitoring",
+    "device-websocket-admission",
+    "device-websocket-retirement"
+  ],
+  "context": "ADR-0009 bound device credential generations to exact authority, ADR-0016 limited action catalogs to point-in-time discovery, ADR-0021 established one exclusive connection authority retired through linearizable barriers, and ADR-0022 accepted bearer-only non-browser WebSocket admission before readiness. None of those decisions proved that an admitted connection would lose authority after its effective scopes, targets, controls, Show, generation, audience, or expiration changed. Discovery for SDD-022 required the bearer to prove effective permissions before upgrade and every active connection to remain dependent on current server evidence. The human authority accepted a maximum ten-second host detection window during which an undetected stale connection might still execute. Once detected, the connection had to become not_ready immediately, reject queued and new work, allow only already-admitted work to drain, and close its physical transport within twelve additional seconds. Restoration could never revive the old connection. The effective authority identity had to be SHA-256 over a canonical payload containing only schema version, credential and audience identifiers, generation, Show, targets, controls, scopes, and expiration, with deterministic arrays and no bearer, label, or administrative timestamps. Admission had to arm notification observation before rereading authority, remain without authority until that reread succeeded, reject unavailable monitoring with a bearer-independent 503, and reject changed authority during admission with 401. Refutation found that a same-hash notification could falsely renew freshness, that authority could change between WebSocket upgrade and serialized slot installation, and that rejected admissions could poison remembered authority identity. The Slice therefore treats notifications only as revalidation triggers, checks a currency witness at every coordinator admission boundary, and records identity only when the current slot is installed. Hostile evidence demonstrated subscription-read race closure, canonical hashing, hard staleness, polling, irreversible invalidation, linearizable retirement, operation drainage, forced transport closure, natural transport cleanup, and adapter failure containment. The human authority accepted H-022 only for this production-unmounted private TypeScript boundary.",
+  "decision": "A device connection may hold authority only while one private host monitor has fresh positive evidence of the exact effective authority admitted from the credential lifecycle. Effective authority is projected into schema overlaykit-device-connection-authority/v1 and canonicalized with explicit field order: schemaVersion, credentialId, audienceCredentialId, generation, showId, targets, controlIds, scopes, and expiresAt. Targets and scopes use fixed protocol order, control identifiers use code-unit order, duplicate or malformed values fail closed, and SHA-256 identifies the canonical payload. The hash proves consistency, not authenticity. The monitor must never receive or retain the bearer. Before WebSocket upgrade, the host must confirm monitor availability before bearer evaluation, authenticate the bearer, negotiate the device subprotocol, subscribe to authority changes before resolving current authority, and withhold connection authority until the authoritative reread succeeds. Monitor unavailability before admission returns one bearer-independent 503; invalid bearer or authority changed during admission returns 401. A notification never renews freshness by itself, including when it carries the same authority hash; it triggers an authoritative reread. A successful reread is observed at its start time, revalidation is scheduled every five seconds, and no positive observation may remain usable at or beyond ten seconds. Resolver, notification, clock, scheduler, or source uncertainty invalidates fail closed. The coordinator must synchronously check the monitor currency witness before queueing, inside the serialized credential lane, and immediately before installing a slot. Rejected stale admissions cannot mutate remembered credential identity. Once active authority changes, expires, or becomes unavailable, invalidation is irreversible: the exact lease becomes quiescing immediately, queued and new operations are rejected, already-admitted operations may settle, and the transport begins closing. Physical closure must complete or be forcibly terminated within twelve seconds from host detection even when an admitted operation cannot be cancelled; its outcome is then indeterminate and no rollback is claimed. Restored permissions require a new connection. Natural transport closure releases the monitor and retires only its exact lease. This decision accepts only the private monitor, composable gateway integration, coordinator witness and retirement boundary, and hostile unit evidence. The gateway remains unmounted until a separate Slice proves a concrete authority observation source and production lifecycle composition.",
+  "consequences": [
+    "A successfully authenticated device connection can no longer treat its admission-time credential authority as permanently current.",
+    "Canonical authority changes across scopes, targets, controls, Show, generation, audience, or expiration produce a different consistency identity.",
+    "Notification delivery cannot extend authority lifetime without a fresh authoritative read.",
+    "Authority uncertainty becomes unavailable rather than silently preserving the last known grant beyond ten seconds.",
+    "Invalidation immediately removes operation authority while allowing only operations admitted before the barrier to drain.",
+    "A connection that loses authority cannot recover in place even when the same permissions are restored before transport closure.",
+    "A non-cooperative transport is forcibly terminated at the bounded close deadline, but internal operation cancellation or rollback is not inferred.",
+    "Monitor availability is observable without making bearer validity distinguishable during an authority-service outage.",
+    "The accepted evidence does not prove a concrete notification or resolver adapter, production mounting, cross-process propagation, Caddy or TLS behavior, physical network timing, command execution, deltas, hardware state, rendered output, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-connection-authority-is-canonical-and-secret-free",
+      "statement": "A connection authority identity must be SHA-256 over the exact canonical effective-authority payload and must exclude the bearer, sealed verifier, label, and administrative timestamps."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-monitor-subscribes-before-reread",
+      "statement": "Before upgrade authority can be granted, the host must arm authority observation before rereading current effective authority and must reject or invalidate every change observed across that race."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-notifications-do-not-renew-freshness",
+      "statement": "An authority notification, including one with the admitted hash, may trigger revalidation but cannot renew the positive-evidence timestamp without an authoritative reread."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-evidence-has-ten-second-hard-staleness",
+      "statement": "A device connection must fail closed when its last positive authoritative observation reaches ten seconds or when source, resolver, clock, notification, or scheduler evidence becomes unavailable."
+    },
+    {
+      "kind": "rule",
+      "id": "device-admission-rechecks-authority-at-slot-installation",
+      "statement": "The coordinator must recheck the monitor currency witness before queueing, within the serialized credential lane, and immediately before installing the exclusive connection slot."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-invalidation-is-irreversible",
+      "statement": "After host detection of changed, expired, or unavailable authority, the old connection may never regain operation authority; restoration requires a new authenticated connection."
+    },
+    {
+      "kind": "rule",
+      "id": "device-authority-retirement-blocks-new-work-and-bounds-transport",
+      "statement": "Invalidation must quiesce the exact lease immediately, reject queued and new operations, permit only already-admitted operations to settle, and close or forcibly terminate transport within twelve seconds."
+    },
+    {
+      "kind": "rule",
+      "id": "device-continuous-authority-claims-are-bounded",
+      "statement": "Passing monitor evidence may not be represented as a production-mounted authority source, guaranteed cross-process notification delivery, physical network timing, internal operation cancellation, command or delta authority, Caddy or TLS verification, device hardware state, renderer or OBS observation, or operator perception."
+    }
+  ]
+}
