@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0040",
+  "title": "Test the governed Bitfocus Companion adapter boundary",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0018",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0025",
+    "ADR-0031",
+    "ADR-0032",
+    "ADR-0033",
+    "ADR-0034"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 selects a Bitfocus Companion adapter over the vendor-neutral Control API as the first Linux Stream Deck path and excludes hardware-specific behavior from the OverlayKit core runtime.",
+      "evidence": "SPEC-0001 REQ-INT-001 and REQ-INT-002",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted OverlayKit protocol and server contracts make the host the sole authority for device admission, action catalogs, command outcomes, and current visibility state. A consumer may retain the last verified projection but may not originate operational truth.",
+      "evidence": "ADR-0019, ADR-0020, ADR-0022, ADR-0023, ADR-0025, ADR-0031, and ADR-0032",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted durable device identity is an externally pinned Ed25519 DeviceTrustBundle. The WebSocket carrying signed bootstrap, state, and command artifacts cannot establish or replace that trust.",
+      "evidence": "ADR-0033",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The exact npm-packed @overlaykit/protocol implementation supports Node 22 through its public ESM subpaths, while synchronous CommonJS require, Companion loading, adapter behavior, npm publication, and physical hardware remain outside ADR-0034.",
+      "evidence": "ADR-0034 and CHG-0039",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The official Bitfocus TypeScript module template at commit f2c31912a398f4b61706a7323ba7e1074cb56561 declares Node 22, ESM, Companion Module API 2.0, @companion-module/base 2.0.4, and @companion-module/tools 3.0.1. The official @companion-module/host 1.0.1 executes the host-side API 2.0 boundary under Node 22.",
+      "evidence": "bitfocus/companion-module-template-ts commit f2c31912a398f4b61706a7323ba7e1074cb56561 and @companion-module/host 1.0.1 registry metadata observed 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "OverlayKit/companion-module-overlaykit-server does not yet exist and @overlaykit/protocol 0.1.0 is not present in the npm registry. Repository bootstrap, adapter evidence, and registry publication are therefore distinct transitions.",
+      "evidence": "GitHub and npm registry observations on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The adapter repository is a separate public OverlayKit project with its own deterministic governance, history, CI evidence, Apache-2.0 license, canonical Rodrigo Vicente attribution, and preserved Bitfocus MIT notice. It consumes OverlayKit protocol artifacts and does not import server or monorepo source.",
+      "evidence": "Human Doctrine Discovery and approval on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "One Companion module instance controls exactly one Show. Show and action bindings are learned from an admitted signed bootstrap, while bearer credentials and the pinned DeviceTrustBundle are configured inputs and operational snapshots, retry counters, and connection state are not persisted as authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-23 and accepted device-control ADRs",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The first adapter surface has three stable action identifiers, visibility.show, visibility.hide, and visibility.toggle, and projects active, inactive, unknown, disconnected, failed, and unavailable only from accepted server evidence and transport lifecycle facts.",
+      "evidence": "Human Doctrine Discovery and approval on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-031: A separately governed public Node 22 ESM module can load through the official Bitfocus Companion API 2.0 host on Linux, consume the exact digest-pinned npm tarball of @overlaykit/protocol without workspace or repository source access, connect one module instance to one OverlayKit Show, and expose visibility actions and feedback using only signed server evidence without creating a second operational authority.",
+      "evidence": "SDD-031 hypothesis and Slice 1 explicitly approved by Human Doctrine review on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish npm registry publication or provenance, Bitfocus module registry admission, a complete Companion application release, API 2.1 behavior, USB access, a physical Stream Deck key press, rendered button pixels, OBS output truth, operator perception, hostile-network availability, credential recovery, trust rotation, or support outside Linux and the exact tested Node 22 and Companion API 2.0 boundary.",
+      "evidence": "SDD-031 approved Slice 1 boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The separate repository is initialized with clean history and contains its executable constitution, approved local change contract, Apache-2.0 LICENSE, canonical NOTICE and Rodrigo Vicente attribution, and preserved Bitfocus MIT notice before adapter product code is committed.",
+      "verification": "Repository history, governance verification, licensing verifier, and commit signature inspection."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A clean Node 22 installation builds and packages one ESM Companion module against exact Companion Module API 2.0 dependencies, and the official @companion-module/host 1.0.1 loads the compiled entrypoint and exercises its lifecycle and definitions.",
+      "verification": "Engine-strict clean install, TypeScript build, official host integration harness, and Companion module package checks."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The module consumes an exact @overlaykit/protocol npm tarball produced from signed OverlayKit commit 201cd15ceee487b5a305efd2684e52970d5d6c15, verifies independent SHA-256 and SHA-512 identities, resolves only public compiled exports, retains LICENSE and NOTICE, and has no workspace, server-source, or repository-source dependency.",
+      "verification": "Tarball manifest and digest inspection, clean dependency resolution, import graph checks, and licensing verification."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Configuration accepts only the fixed device WebSocket endpoint shape, a Companion secret bearer, and an explicit strict DeviceTrustBundle; invalid trust, missing secret material, URL authority ambiguity, and insecure non-loopback transport without explicit opt-in fail closed before connection.",
+      "verification": "Configuration and transport admission tests with valid and hostile fixtures."
+    },
+    {
+      "id": "SC-005",
+      "statement": "One module instance learns its Show and action bindings only after verified signed bootstrap, emits the required bootstrap acknowledgement, remains not ready until device.ready, and never persists or synthesizes operational state, catalog authority, revision truth, or retry state.",
+      "verification": "Official host lifecycle test and signed bootstrap, acknowledgement, readiness, restart, and hostile-state tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The module exposes visibility.show, visibility.hide, and visibility.toggle plus state feedback for active, inactive, unknown, disconnected, failed, and unavailable. Commands use fresh catalog bindings and expected revisions, while feedback changes only after accepted server deltas, results, snapshots, or transport facts.",
+      "verification": "Action-definition, feedback-definition, command-frame, revision, timeout, reconnect, and signed-state integration tests."
+    },
+    {
+      "id": "SC-007",
+      "statement": "Retryable transport and server failures reconnect with bounded jittered backoff, terminal authorization, trust, protocol, and configuration failures remain closed until explicit reconfiguration or restart, and changing trust immediately retires the old connection.",
+      "verification": "Deterministic scheduler tests and official host integration traces."
+    },
+    {
+      "id": "SC-008",
+      "statement": "Linux CI proves governance, signatures, licensing, clean install, lint, type-check, tests, build, official host loading, and module packaging, while evidence explicitly leaves npm publication, the complete Companion application, physical hardware, button pixels, OBS truth, and operator perception unclaimed.",
+      "verification": "Signed commits, GitHub Actions evidence, produced module archive inspection, and bounded review."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0040 records Discovery facts, accepted H-031, measurable refutation criteria, and unresolved guarantees without claiming that the adapter hypothesis passed.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The parent repository changes only the approved external adapter contract and generated observation manifest; the adapter implementation and its evidence live in the separate repository.",
+      "evidence": "git diff for the CHG-0040 contract commit"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The adapter repository constitution and legal provenance precede adapter product code in signed history, and its initial enforcement is not enabled until the bootstrap workflow and attestation are observable.",
+      "evidence": "Separate repository commit graph, workflow evidence, and ruleset activation sequence."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Review actively attempts to refute H-031 through clean Node 22 installation, exact dependency and tarball identities, official host loading, strict trust and configuration rejection, bootstrap and readiness sequencing, command and feedback authority, reconnect classification, restart behavior, package inspection, and source-boundary checks.",
+      "evidence": "Focused unit, integration, official-host, packaging, and licensing evidence."
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Any bounded inference, implemented status, profile activation, future ADR, registry publication, release, hardware claim, or merge is created only after the human authority reviews the refutation evidence and explicitly accepts the demonstrated result and later authorizes each separate transition.",
+      "evidence": "Future Human Doctrine evidence review and explicit transition authorizations."
+    }
+  ]
+}
