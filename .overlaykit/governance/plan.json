@@ -332,6 +332,14 @@
       "id": "ADR-0033",
       "supersededBy": null,
       "title": "Device authority uses one durable externally pinned signing identity"
+    },
+    {
+      "contentHash": "f42853511bf6fd74ef7dcb2c501673ba1fa2077b2c21a51f41bceaa709d0fae4",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0034",
+      "supersededBy": null,
+      "title": "Protocol package supports Node 22 through packed semantic evidence"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -466,10 +474,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "41f6237b07d4606bdd00510697947168b26f1126a4640ece0efb0002b36d3f61",
-  "profileHash": "3e51241ffd49bbfd668f0e6ab2f8cad736f7316b274489a0db763c23f0a406e8",
+  "planHash": "7f3d570132b2a349137064d583d6d241da4f51e5add2dcaf9dc352c236710066",
+  "profileHash": "2d964a86dc72833f64351e40d4809af12d6431104b74704c44a28a7cbad28e5e",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.29.0",
+  "profileVersion": "2.30.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1772,6 +1780,48 @@
       "kind": "rule",
       "sourceDecision": "ADR-0012",
       "statement": "Every supported protocol entry point must declare explicit types and import targets, and every target must be present in the publication payload."
+    },
+    {
+      "id": "protocol-node-runtime-evidence-uses-exact-major",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "A supported protocol runtime floor must be exercised under its exact Node major rather than inferred from a newer runtime."
+    },
+    {
+      "id": "protocol-node22-claims-exclude-adapter-and-hardware",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "Passing Node 22 protocol evidence may not be presented as npm publication, Companion loading, adapter behavior, server Node 22 support, browser or bundler support, USB access, Stream Deck hardware, rendered output, OBS truth, or operator-perception evidence."
+    },
+    {
+      "id": "protocol-node22-distribution-retains-integrity-and-license",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "The packed Node 22 consumer must independently verify tarball integrity, explicit exports and declarations, the compiled publication allowlist, Apache-2.0 LICENSE, NOTICE, and Rodrigo Vicente attribution."
+    },
+    {
+      "id": "protocol-node22-evidence-is-semantic-and-hostile",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "Node 22 compatibility requires valid and hostile semantic probes for every relied-upon trust, bootstrap, state, catalog, feedback, and command export; import success alone cannot establish compatibility."
+    },
+    {
+      "id": "protocol-node22-evidence-uses-engine-strict-tarball",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "Node 22 compatibility evidence must install the exact npm-packed protocol artifact outside the workspace with engine-strict enabled and must reject workspace links, repository source access, and unpublished entrypoint dependencies."
+    },
+    {
+      "id": "protocol-node22-floor-is-package-local",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "The Node 22 runtime floor applies only to the packed @overlaykit/protocol ESM package and must not be represented as Node 22 support for the OverlayKit application, server, or monorepo."
+    },
+    {
+      "id": "protocol-node22-portability-is-cross-platform",
+      "kind": "rule",
+      "sourceDecision": "ADR-0034",
+      "statement": "The focused packed-consumer evidence must pass on GitHub-hosted Ubuntu, macOS, and Windows under Node 22 while complete repository gates continue under Node 24."
     },
     {
       "id": "protocol-package-claims-are-bounded",
