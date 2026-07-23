@@ -239,8 +239,20 @@ export async function createServerRuntime(
   let deviceCommandSessions: DeviceWebSocketCommandSessionFactory | null = null;
   let deviceBootstrapSequences: ManagedFeedbackSequenceStore | null = null;
   const deviceTargetReadiness = new DeviceTargetReadinessRegistry();
+  if (
+    dependencies.deviceBootstrapSigning
+    && deviceCredentials.signing
+    && dependencies.deviceBootstrapSigning !== deviceCredentials.signing
+  ) {
+    if (ownsDeviceCredentials) await deviceCredentials.close().catch(() => undefined);
+    throw new Error(
+      'Server runtime cannot replace the SQLite device signing authority',
+    );
+  }
+  const deviceBootstrapSigning =
+    dependencies.deviceBootstrapSigning ?? deviceCredentials.signing;
   try {
-    if (dependencies.deviceBootstrapSigning) {
+    if (deviceBootstrapSigning) {
       if (!deviceCredentials.transitionLedger) {
         throw new Error('Audited device bootstrap requires the SQLite transition ledger');
       }
@@ -268,7 +280,7 @@ export async function createServerRuntime(
         production: deviceBootstrapProduction,
         actionCatalog: deviceActionCatalog,
         sequences: deviceBootstrapSequences,
-        signing: dependencies.deviceBootstrapSigning,
+        signing: deviceBootstrapSigning,
         readiness: deviceTargetReadiness,
         onBackgroundError: (error) => logger.error('Device bootstrap session failed', {
           error: error instanceof Error ? error.message : String(error),
@@ -276,7 +288,7 @@ export async function createServerRuntime(
       });
       deviceCommandSessions = new DeviceWebSocketCommandSessionFactory({
         production,
-        signing: dependencies.deviceBootstrapSigning,
+        signing: deviceBootstrapSigning,
       });
     }
   } catch (error) {

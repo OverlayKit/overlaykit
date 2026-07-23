@@ -15,6 +15,7 @@ import { SqliteDeviceCredentialStore } from './SqliteDeviceCredentialStore';
 import type { DeviceAuthorityObservationSource } from '../services/DeviceConnectionAuthorityMonitor';
 import type { DeviceTransitionLedgerPort } from '../services/SqliteDeviceTransitionLedger';
 import type { ProductionStatePersistencePort } from '../services/SqliteProductionStateStore';
+import type { DeviceSigningAuthority } from './SqliteDeviceSigningAuthority';
 
 type DeviceCredentialProtocolModule = typeof import(
   '@overlaykit/protocol/device-credential',
@@ -51,6 +52,7 @@ export interface DeviceCredentialRuntime {
   readonly store: Pick<InitializableDeviceCredentialStore, 'get'>;
   readonly transitionLedger: DeviceTransitionLedgerPort | null;
   readonly productionState: ProductionStatePersistencePort | null;
+  readonly signing: DeviceSigningAuthority | null;
   close(): Promise<void>;
 }
 
@@ -89,6 +91,9 @@ export async function createDeviceCredentialRuntime(
   });
   let transitionLedger = options.transitionLedger ?? null;
   let productionState = options.productionState ?? null;
+  const signing = store instanceof SqliteDeviceCredentialStore
+    ? store.getSigningAuthority()
+    : null;
   if (!transitionLedger && store instanceof SqliteDeviceCredentialStore) {
     try {
       transitionLedger = store.createTransitionLedger();
@@ -107,6 +112,7 @@ export async function createDeviceCredentialRuntime(
     store,
     transitionLedger,
     productionState,
+    signing,
     close: async () => {
       let ledgerError: unknown;
       if (transitionLedger?.getState().activeHostEpochId) {

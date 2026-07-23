@@ -75,6 +75,10 @@
       "types": "./dist/device-state-sync.d.ts",
       "import": "./dist/device-state-sync.js"
     },
+    "./device-trust": {
+      "types": "./dist/device-trust.d.ts",
+      "import": "./dist/device-trust.js"
+    },
     "./device-credential": {
       "types": "./dist/device-credential.d.ts",
       "import": "./dist/device-credential.js"

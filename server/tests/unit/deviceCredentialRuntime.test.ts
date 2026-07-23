@@ -1,4 +1,3 @@
-import { generateKeyPairSync, sign } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -150,14 +149,13 @@ describe('device credential server composition', () => {
     await deviceCredentials.close();
   });
 
-  it('mounts audited bootstrap only with one SQLite ledger and an explicit signer', async () => {
+  it('mounts audited bootstrap with the SQLite ledger and its signing identity', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'overlaykit-runtime-bootstrap-'));
     const deviceCredentials = await createDeviceCredentialRuntime({
       databasePath: path.join(directory, 'authority.sqlite'),
     });
     const auth = new AuthService(new MemoryAuthStore());
     const dataStorage = { init: vi.fn(async () => undefined) } as unknown as Storage;
-    const { privateKey } = generateKeyPairSync('ed25519');
     let sequence = 0;
     const sequences: ManagedFeedbackSequenceStore = {
       init: vi.fn(async () => undefined),
@@ -180,12 +178,6 @@ describe('device credential server composition', () => {
       deviceCredentials,
       deviceActionCatalog: await createDeviceActionCatalogRuntime(),
       deviceBootstrapSequences: sequences,
-      deviceBootstrapSigning: {
-        current: () => ({
-          issuerKeyId: 'server-key-1',
-          sign: (bytes) => sign(null, bytes, privateKey).toString('base64'),
-        }),
-      },
     });
 
     expect(deviceCredentials.transitionLedger).not.toBeNull();
@@ -193,10 +185,33 @@ describe('device credential server composition', () => {
     expect(runtime.production.getSnapshot('show-1', 'preview').revision).toBe(0);
     expect(runtime.deviceBootstrapSessions).not.toBeNull();
     expect(runtime.deviceCommandSessions).not.toBeNull();
+    expect(deviceCredentials.signing).not.toBeNull();
+    expect(deviceCredentials.signing?.current().issuerKeyId)
+      .toBe(deviceCredentials.signing?.trustBundle.issuerKeyId);
     expect(runtime.deviceBootstrapSequences).toBe(sequences);
     expect(sequences.init).toHaveBeenCalledTimes(1);
     await runtime.deviceGateway.shutdown();
     await sequences.close();
+    await deviceCredentials.close();
+  });
+
+  it('rejects replacement of the SQLite signing identity', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'overlaykit-runtime-signer-'));
+    const deviceCredentials = await createDeviceCredentialRuntime({
+      databasePath: path.join(directory, 'authority.sqlite'),
+    });
+    const auth = new AuthService(new MemoryAuthStore());
+    const dataStorage = { init: vi.fn(async () => undefined) } as unknown as Storage;
+
+    await expect(createServerRuntime({
+      auth,
+      dataStorage,
+      deviceCredentials,
+      deviceActionCatalog: await createDeviceActionCatalogRuntime(),
+      deviceBootstrapSigning: {
+        current: () => ({ issuerKeyId: 'replacement', sign: () => 'signature' }),
+      },
+    })).rejects.toThrow('cannot replace the SQLite device signing authority');
     await deviceCredentials.close();
   });
 

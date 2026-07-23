@@ -23,6 +23,7 @@ const PUBLIC_SUBPATHS = [
   '/device-bootstrap',
   '/device-command',
   '/device-state-sync',
+  '/device-trust',
   '/device-credential',
 ] as const;
 
@@ -135,6 +136,7 @@ describe('published protocol package', () => {
       './device-bootstrap',
       './device-command',
       './device-state-sync',
+      './device-trust',
       './device-credential',
     ]);
     for (const target of Object.values(manifest.exports).flatMap((entry) => [
@@ -197,9 +199,13 @@ describe('published protocol package', () => {
       '  observations: feedback.observations,',
       '});',
       "const keys = generateKeyPairSync('ed25519');",
+      "const { buildDeviceTrustBundle, createDeviceTrustSignatureVerifier } = await import('@overlaykit/protocol/device-trust');",
+      "const publicKeySpki = keys.publicKey.export({ format: 'der', type: 'spki' });",
+      'const trustBundle = await buildDeviceTrustBundle(publicKeySpki);',
+      'const trustedVerify = await createDeviceTrustSignatureVerifier(trustBundle);',
       'const payloadBytes = deviceControlFramePayloadBytes({',
       '  schemaVersion: DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,',
-      "  issuerKeyId: 'server-key-1',",
+      '  issuerKeyId: trustBundle.issuerKeyId,',
       '  audienceCredentialId: authenticated.audienceCredentialId,',
       '  sequence: 1,',
       '  baseIssuerKeyId: null,',
@@ -211,8 +217,8 @@ describe('published protocol package', () => {
       'const admitted = await admitDeviceControlFrame(',
       '  payloadBytes,',
       '  signature,',
-      "  { ...authenticated, issuerKeyId: 'server-key-1', lastAcceptedSequence: 0 },",
-      "  (bytes, detached) => verify(null, bytes, keys.publicKey, Buffer.from(detached, 'base64url')),",
+      '  { ...authenticated, issuerKeyId: trustBundle.issuerKeyId, lastAcceptedSequence: 0 },',
+      '  trustedVerify,',
       ');',
       'if (admitted.frame.catalogGeneration !== 1 || admitted.acceptedSequence !== 1) process.exit(1);',
       'const frameState = await reduceDeviceControlFrame(null, frame);',
@@ -322,6 +328,7 @@ describe('published protocol package', () => {
         "import type { DeviceBootstrapAck, DeviceBootstrapSnapshotMessage, DeviceReadyMessage } from '@overlaykit/protocol/device-bootstrap';",
         "import type { DeviceCommandExecute, DeviceCommandResponseMessage } from '@overlaykit/protocol/device-command';",
         "import type { DeviceStateAck, DeviceStateDeltaMessage } from '@overlaykit/protocol/device-state-sync';",
+        "import type { DeviceTrustBundle, DeviceTrustSignatureVerifier } from '@overlaykit/protocol/device-trust';",
         'const lifecycle: typeof DeviceCredentialLifecycle = DeviceCredentialLifecycle;',
         'const store: DeviceCredentialStore | null = null;',
         'const feedback: ServerVisibilityFeedbackProjection | null = null;',
@@ -333,6 +340,8 @@ describe('published protocol package', () => {
         'const commandResponse: DeviceCommandResponseMessage | null = null;',
         'const stateAck: DeviceStateAck | null = null;',
         'const deltaMessage: DeviceStateDeltaMessage | null = null;',
+        'const trustBundle: DeviceTrustBundle | null = null;',
+        'const trustVerifier: DeviceTrustSignatureVerifier | null = null;',
         'void lifecycle;',
         'void store;',
         'void feedback;',
@@ -344,6 +353,8 @@ describe('published protocol package', () => {
         'void commandResponse;',
         'void stateAck;',
         'void deltaMessage;',
+        'void trustBundle;',
+        'void trustVerifier;',
       ].join('\n'),
       'utf8'
     );
