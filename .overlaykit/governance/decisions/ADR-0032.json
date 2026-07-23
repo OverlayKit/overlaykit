@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0032",
+  "title": "Authenticated device commands preserve SQLite and state authority",
+  "status": "accepted",
+  "date": "2026-07-22",
+  "supersedes": null,
+  "governs": [
+    "device-websocket-command-transport",
+    "device-command-canonicalization",
+    "device-command-admission",
+    "device-command-idempotency",
+    "device-command-response-signing",
+    "device-command-target-concurrency",
+    "device-command-lifecycle-retirement"
+  ],
+  "context": "ADR-0025 established one exclusive SQLite production command authority and ADR-0031 established exact signed state evidence after a device connection becomes ready, but neither decision proved that a device-originated WebSocket command could enter the existing authority without making the transport, a response, or device belief authoritative. Discovery for SDD-028 bounded the first command Slice to component.visibility from one authenticated ready non-browser connection, with Show, device principal, audience, credential generation, and authorization derived from that connection; a closed canonical command bound to the target's exact applied state evidence; one ephemeral in-flight lane per target; synchronous new-operation admission inside the existing SQLite transaction; durable exact replay after current authorization; signed unicast historical outcomes; and one shared bounded physical writer with no response acknowledgement or retry. Slice 1 added the versioned command and signed response contracts, a WebSocket command session, lifecycle-first gateway demultiplexing, exact state-evidence projection, a SQLite admission hook, runtime composition, installed-package verification, and focused protocol, session, gateway, authority, restart, and adapter-boundary tests. Refutation exercised oversized, malformed, duplicate-property, extra-field, and ambiguous JSON; stale and mismatched bases; missing readiness; authorization and signer changes; duplicate and conflicting operation identifiers; independent target concurrency, exact in-flight coalescing, and no-queue behavior; SQLite revision races; loss after commit followed by process restart and exact replay; send rejection, unresolved send, timeout, and backpressure; retirement races; lifecycle-message precedence; and attempts to bypass the public runtime boundary. Full local governance and repository checks passed 497 tests, the build passed, and the dependency audit reported zero vulnerabilities. GitHub Actions Constitution run 29972438505 passed validation, observation, and Ubuntu, macOS, and Windows portability for PR 36 at signed head fc2d1604ca5cd820b27011802f5c97b9ff20c4f5. The human authority accepted H-028 only within that tested single-host, authenticated, cooperating runtime and bounded component-visibility failure model.",
+  "decision": "OverlayKit accepts device-originated component.visibility commands only on an authenticated, ready, non-browser connection using the overlaykit.device.v1 subprotocol. The WebSocket adapter is transport only. Show, stable device principal, audience, credential generation, bearer authority, and scopes come from the current connection and may not be overridden by command JSON. A command is a closed versioned JSON object no larger than 16,384 bytes, rejects duplicate properties and unknown fields, and canonicalizes semantic intent independently of object order and insignificant whitespace. It names one operationId, Preview or Program target, component visibility intent, and the exact issuerKeyId, sequence, SHA-256, production revision, and catalog generation last acknowledged as applied for that target. A fresh connection authorization check is required before either a replay or a new operation may be disclosed or executed. An exact committed replay is resolved by the durable SQLite authority before current target readiness and base gates, returns the original historical outcome without reapplication, and may recover a response lost across process restart. Reusing an operationId for different canonical intent is an operation conflict. New operation authority begins only through a synchronous admission callback inside the existing exclusive SQLite production transaction, after exact replay and conflict lookup and immediately before capacity and production-revision evaluation. Before that boundary, retired connection authority, unavailable or stale state evidence, base mismatch, missing scope, unknown control, capacity exhaustion, and unavailable target produce a signed non-durable refusal and do not consume operationId. After admission, a stale production revision produces one durable rejected result. Each connection permits at most one new in-flight operation independently for Preview and Program. An identical in-flight operation coalesces onto the same execution and response; another new operation for that target is refused rather than queued. A durable outcome is returned once as a signed unicast device.command.result containing historical operation identity, canonical intent SHA-256, applied or rejected outcome, result code, command sequence, revision boundary, and replay marker. A pre-admission failure is returned once as a signed unicast device.command.refused with its bounded refusal code. Neither response contains or establishes current component state. Only the signed state lane and its exact applied acknowledgement can advance state truth. Command responses and state messages share the same bounded physical writer, but their relative order creates no semantic dependency. Responses have no acknowledgement or retransmission: failed, unresolved, timed-out, or backpressured delivery closes the connection, and a local three-second unknown is observational evidence only. Connection retirement excludes new admission immediately; an operation already admitted may settle durably, and lifecycle drain never waits for command-response delivery. These guarantees apply only to the cooperating single-host OverlayKit runtime and tested boundary. Take, value controls, cues, batches, macros, Companion or Stream Deck integration, browser command clients, renderer or OBS truth, hardware state, operator perception, multi-host coordination, proxy or TLS behavior, signer custody or distribution, hostile-network liveness, synchronized clocks, and physical abrupt-power durability require separate evidence.",
+  "consequences": [
+    "A device can request one bounded component-visibility transition without acquiring identity, authorization, state, or durable command authority from the WebSocket transport.",
+    "Command admission can reduce responsiveness when current authorization or exact applied target evidence is unavailable because unsupported state transitions fail closed before operation identity is consumed.",
+    "An exact committed operation can recover its original historical result after a lost response and process restart without applying production state a second time.",
+    "Preview and Program can execute independently, but each target intentionally refuses a second new operation while one is in flight instead of accumulating a hidden queue.",
+    "Signed command results prove a historical durable outcome only; device controls must continue to derive active, inactive, unknown, disconnected, and failed feedback from their separate evidence channels.",
+    "Command responses are sent once, so transport uncertainty is recovered by a fresh authenticated connection and exact durable replay rather than response retransmission.",
+    "The shared writer prevents competing socket writes while preserving semantic independence between command outcomes and authoritative state messages.",
+    "The accepted evidence does not authorize other command kinds, browser clients, hardware integration, rendered-output claims, multi-host execution, or guarantees outside the explicit Slice boundary."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-command-websocket-is-transport-only",
+      "statement": "A device WebSocket command adapter may transport requests and signed responses but may not create identity, authorization, state truth, durable command authority, or evidence of physical application."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-context-is-connection-derived",
+      "statement": "Every device command must derive Show, principal, audience, credential generation, bearer authority, and scopes from the current authenticated ready non-browser connection and must reject command fields that attempt to override them."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-json-is-closed-bounded-and-canonical",
+      "statement": "Device command JSON must use the closed versioned contract, remain at or below 16,384 bytes, reject duplicate properties and unknown fields, and derive identity from canonical semantic intent rather than transport bytes, object order, or insignificant whitespace."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-new-admission-requires-exact-state-base",
+      "statement": "A new device command may approach durable admission only when its target has current applied signed state evidence and the request binds the exact issuerKeyId, sequence, SHA-256, production revision, and catalog generation of that evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-new-authority-begins-inside-sqlite",
+      "statement": "New device command authority must begin synchronously inside the exclusive SQLite production transaction after exact replay and conflict lookup and immediately before capacity and production-revision evaluation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-replay-requires-current-authorization",
+      "statement": "An exact committed operation may be disclosed without reapplication and without current target readiness only after fresh connection authorization; conflicting operationId reuse must remain an operation conflict."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-refusal-does-not-consume-operation",
+      "statement": "A failure before SQLite admission must return only a signed bounded non-durable refusal and must not consume operationId or claim a terminal command outcome."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-target-lane-does-not-queue",
+      "statement": "Each device connection may have at most one new in-flight operation per target, may coalesce only an identical in-flight operation, and must refuse rather than queue another new same-target operation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-response-is-signed-historical-unicast",
+      "statement": "Every command result or refusal must be a detached signature over canonical audience-bound payload bytes sent only to the requesting connection, and a durable result may describe only its historical command outcome rather than current state."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-result-never-advances-state-truth",
+      "statement": "Command acceptance, execution, publication, response, delivery, or device belief must never advance target state truth; only exact applied acknowledgement on the signed state lane may do so."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-response-delivery-is-single-attempt",
+      "statement": "A command response must be sent once through the shared bounded physical writer without acknowledgement or retransmission, and failed, unresolved, timed-out, or backpressured delivery must close the connection."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-retirement-stops-new-admission",
+      "statement": "Connection retirement must exclude new command admission immediately while allowing an already admitted operation to settle durably without making lifecycle drain depend on response delivery."
+    },
+    {
+      "kind": "rule",
+      "id": "device-command-claims-are-bounded",
+      "statement": "Passing component-visibility command transport evidence may not be represented as Take, value-control, cue, batch, macro, Companion, Stream Deck, browser-client, renderer, OBS, hardware, operator-perception, multi-host, proxy, TLS, signer-custody, hostile-network, clock-synchronization, or physical-power evidence."
+    }
+  ]
+}

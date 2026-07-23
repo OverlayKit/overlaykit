@@ -107,6 +107,16 @@ export interface DevicePostReadyState {
   readonly targets: ReadonlyArray<DevicePostReadyTargetView>;
 }
 
+export interface DevicePostReadyCommandEvidence {
+  readonly target: ProductionBus;
+  readonly ready: boolean;
+  readonly issuerKeyId: string;
+  readonly sequence: number;
+  readonly sha256: string;
+  readonly productionRevision: number;
+  readonly catalogGeneration: number;
+}
+
 interface DevicePostReadyCoordinatorOptions {
   readonly initialBases: ReadonlyArray<DeviceConfirmedTargetBase>;
   readonly snapshotFactory: DevicePostReadySnapshotFactory;
@@ -394,6 +404,26 @@ export class DevicePostReadySyncCoordinator {
     return !this.requestedChanges.has(target)
       && state.current === null
       && now - state.base.appliedAt < DEVICE_DELTA_ACK_TIMEOUT_MS;
+  }
+
+  getCommandEvidence(target: ProductionBus): DevicePostReadyCommandEvidence | null {
+    const state = this.states.get(target);
+    if (!state || this.phase !== 'ready') return null;
+    return Object.freeze({
+      target,
+      ready: this.isTargetReady(target),
+      issuerKeyId: state.base.identity.issuerKeyId,
+      sequence: state.base.identity.sequence,
+      sha256: state.base.identity.sha256,
+      productionRevision: state.base.state.revision,
+      catalogGeneration: state.base.state.catalogGeneration,
+    });
+  }
+
+  getConfirmedIssuerKeyId(): string | null {
+    if (this.phase !== 'ready') return null;
+    const first = this.states.values().next().value as TargetState | undefined;
+    return first?.base.identity.issuerKeyId ?? null;
   }
 
   getState(): DevicePostReadyState {

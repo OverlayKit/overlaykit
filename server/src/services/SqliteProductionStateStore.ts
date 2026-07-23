@@ -165,6 +165,7 @@ export interface ProductionCommandOrderRecord extends ProductionCommandOrderDocu
 export interface ProductionVisibilityCommandInput {
   readonly intent: ComponentVisibilityIntent;
   readonly authority: ProductionDeviceCommandAuthority;
+  readonly admitNew?: () => void;
 }
 
 export interface ProductionVisibilityCommandCommit {
@@ -1109,7 +1110,12 @@ export class SqliteProductionStateStore implements ProductionStatePersistencePor
     candidate: ProductionVisibilityCommandCandidate
   ): ProductionVisibilityCommandCommit {
     this.assertLoaded();
-    if (!input || typeof input !== 'object' || typeof candidate !== 'function') {
+    if (
+      !input
+      || typeof input !== 'object'
+      || typeof candidate !== 'function'
+      || (input.admitNew !== undefined && typeof input.admitNew !== 'function')
+    ) {
       throw new ProductionStateStoreError(
         'INVALID_PRODUCTION_STATE_STORE',
         'Production visibility command input is invalid'
@@ -1181,6 +1187,14 @@ export class SqliteProductionStateStore implements ProductionStatePersistencePor
           history: null,
           commandOrder: null,
         });
+      }
+
+      if (input.admitNew) {
+        try {
+          input.admitNew();
+        } catch (error) {
+          throw new ProductionCommandNotAdmitted(error);
+        }
       }
 
       this.assertCommandCapacity(database, showId);

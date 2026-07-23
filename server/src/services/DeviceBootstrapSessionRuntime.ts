@@ -32,6 +32,7 @@ import {
 import type { FeedbackSequenceStore } from './FileFeedbackSequenceStore';
 import {
   DevicePostReadySyncCoordinator,
+  type DevicePostReadyCommandEvidence,
   type DevicePostReadyCloseReason,
 } from './DevicePostReadySyncCoordinator';
 import type {
@@ -77,6 +78,8 @@ export interface DeviceBootstrapSession {
   dispose(reason?: 'transport.closed' | 'host.shutdown', graceful?: boolean): Promise<void>;
   isReady(): boolean;
   isTargetReady(target: ProductionBus): boolean;
+  commandEvidence(target: ProductionBus): DevicePostReadyCommandEvidence | null;
+  confirmedIssuerKeyId(): string | null;
 }
 
 export interface DeviceBootstrapSessionCreateOptions {
@@ -149,6 +152,18 @@ class MountedDeviceBootstrapSession implements DeviceBootstrapSession {
     return this.postReadyActivated()
       ? this.postReady()?.isTargetReady(target) ?? false
       : false;
+  }
+
+  commandEvidence(target: ProductionBus): DevicePostReadyCommandEvidence | null {
+    return this.postReadyActivated()
+      ? this.postReady()?.getCommandEvidence(target) ?? null
+      : null;
+  }
+
+  confirmedIssuerKeyId(): string | null {
+    return this.postReadyActivated()
+      ? this.postReady()?.getConfirmedIssuerKeyId() ?? null
+      : null;
   }
 
   async dispose(

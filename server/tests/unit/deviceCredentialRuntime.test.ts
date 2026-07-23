@@ -192,6 +192,7 @@ describe('device credential server composition', () => {
     expect(deviceCredentials.productionState).not.toBeNull();
     expect(runtime.production.getSnapshot('show-1', 'preview').revision).toBe(0);
     expect(runtime.deviceBootstrapSessions).not.toBeNull();
+    expect(runtime.deviceCommandSessions).not.toBeNull();
     expect(runtime.deviceBootstrapSequences).toBe(sequences);
     expect(sequences.init).toHaveBeenCalledTimes(1);
     await runtime.deviceGateway.shutdown();

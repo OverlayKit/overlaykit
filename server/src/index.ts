@@ -56,6 +56,9 @@ import {
 import {
   DeviceTargetReadinessRegistry,
 } from './services/DeviceTargetReadinessRegistry';
+import {
+  DeviceWebSocketCommandSessionFactory,
+} from './services/DeviceWebSocketCommandSession';
 import type { ProductionState as ProtocolProductionState } from '@overlaykit/protocol/production' with {
   'resolution-mode': 'import',
 };
@@ -89,6 +92,7 @@ export interface ServerRuntime {
   deviceAuthorityMonitor: DeviceConnectionAuthorityMonitor;
   deviceGateway: DeviceWebSocketGateway;
   deviceBootstrapSessions: DeviceBootstrapSessionFactory | null;
+  deviceCommandSessions: DeviceWebSocketCommandSessionFactory | null;
   deviceBootstrapSequences: ManagedFeedbackSequenceStore | null;
   deviceTargetReadiness: DeviceTargetReadinessRegistry;
 }
@@ -232,6 +236,7 @@ export async function createServerRuntime(
     }),
   });
   let deviceBootstrapSessions: DeviceBootstrapSessionFactory | null = null;
+  let deviceCommandSessions: DeviceWebSocketCommandSessionFactory | null = null;
   let deviceBootstrapSequences: ManagedFeedbackSequenceStore | null = null;
   const deviceTargetReadiness = new DeviceTargetReadinessRegistry();
   try {
@@ -269,6 +274,10 @@ export async function createServerRuntime(
           error: error instanceof Error ? error.message : String(error),
         }),
       });
+      deviceCommandSessions = new DeviceWebSocketCommandSessionFactory({
+        production,
+        signing: dependencies.deviceBootstrapSigning,
+      });
     }
   } catch (error) {
     await deviceBootstrapSequences?.close().catch(() => undefined);
@@ -283,6 +292,7 @@ export async function createServerRuntime(
       ? {
           bootstrapSessions: deviceBootstrapSessions,
           transitionLedger: deviceCredentials.transitionLedger,
+          ...(deviceCommandSessions ? { commandSessions: deviceCommandSessions } : {}),
         }
       : {}),
     onFatal: dependencies.onAuthorityFatal,
@@ -306,6 +316,7 @@ export async function createServerRuntime(
     deviceAuthorityMonitor,
     deviceGateway,
     deviceBootstrapSessions,
+    deviceCommandSessions,
     deviceBootstrapSequences,
     deviceTargetReadiness,
   };

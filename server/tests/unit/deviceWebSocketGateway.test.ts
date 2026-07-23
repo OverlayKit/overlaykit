@@ -30,6 +30,9 @@ import type {
   DeviceBootstrapSessionFactoryPort,
 } from '../../src/services/DeviceBootstrapSessionRuntime';
 import type {
+  DeviceWebSocketCommandSessionFactoryPort,
+} from '../../src/services/DeviceWebSocketCommandSession';
+import type {
   DeviceConnectionTransitionInput,
   DeviceTransitionLedgerPort,
   DeviceTransitionRecord,
@@ -606,6 +609,8 @@ describe('DeviceWebSocketGateway', () => {
           },
           isReady: () => ready,
           isTargetReady: () => ready,
+          commandEvidence: () => null,
+          confirmedIssuerKeyId: () => (ready ? 'server-key-1' : null),
         };
       }),
     };
@@ -675,6 +680,171 @@ describe('DeviceWebSocketGateway', () => {
     ]);
   });
 
+  it('routes lifecycle acknowledgements before post-ready device commands', async () => {
+    const websocketAuthority: DeviceCredentialAuthority = {
+      ...authority(),
+      targets: ['preview'],
+    };
+    const pending = pendingCoordinator();
+    const execute = vi.fn(async <T>(
+      _lease: DeviceConnectionLease,
+      operation: () => T | Promise<T>,
+    ) => operation());
+    const coordinator = { ...pending, execute };
+    const lifecycleFrames: unknown[] = [];
+    const commandFrames: string[] = [];
+    const commandDispose = vi.fn();
+    const commandSessions: DeviceWebSocketCommandSessionFactoryPort = {
+      create: vi.fn(async ({ transport }) => ({
+        async receiveJson(text) {
+          commandFrames.push(text);
+          await transport.send({
+            schemaVersion: 'overlaykit-device-command-message/v1',
+            type: 'device.command.refused',
+            issuerKeyId: 'server-key-1',
+            sha256: '1'.repeat(64),
+            payloadBase64: btoa('{}'),
+            signature: 'signature',
+          });
+        },
+        dispose: commandDispose,
+      })),
+    };
+    const bootstrapSessions: DeviceBootstrapSessionFactoryPort = {
+      create: vi.fn(async ({ transitions: sessionTransitions, transport }) => {
+        let ready = false;
+        const sha256 = 'e'.repeat(64);
+        return {
+          async start() {
+            await transport.sendSnapshot({
+              schemaVersion: 'overlaykit-device-bootstrap-snapshot/v1',
+              type: 'device.bootstrap.snapshot',
+              target: 'preview',
+              issuerKeyId: 'server-key-1',
+              sequence: 1,
+              sha256,
+              payloadBase64: btoa('snapshot'),
+              signature: 'signature',
+            });
+          },
+          async receive(value) {
+            lifecycleFrames.push(value);
+            const frame = value as Record<string, unknown>;
+            if (frame.mode !== 'bootstrap') {
+              await transport.sendDelta({
+                schemaVersion: 'overlaykit-device-state-delta/v1',
+                type: 'device.state.delta',
+                target: 'preview',
+                issuerKeyId: 'server-key-1',
+                sequence: 3,
+                sha256: '2'.repeat(64),
+                payloadBase64: btoa('{}'),
+                signature: 'signature',
+              });
+              return;
+            }
+            sessionTransitions.commitReady(Date.now(), [{
+              target: 'preview',
+              targetRevision: 1,
+              catalogGeneration: 1,
+              issuerKeyId: 'server-key-1',
+              sequence: 1,
+              sha256,
+              confirmedAt: 1,
+              sentAt: 2,
+              sendConfirmedAt: 3,
+              appliedAt: 4,
+            }]);
+            ready = true;
+            await transport.sendReady({
+              schemaVersion: 'overlaykit-device-ready/v1',
+              type: 'device.ready',
+            });
+          },
+          async dispose() {},
+          isReady: () => ready,
+          isTargetReady: () => ready,
+          commandEvidence: () => null,
+          confirmedIssuerKeyId: () => (ready ? 'server-key-1' : null),
+        };
+      }),
+    };
+    const harness = await startGateway(new DeviceWebSocketGateway({
+      credentials: { authenticate: vi.fn(async () => websocketAuthority) },
+      coordinator,
+      authorityMonitor: authorityMonitorHarness().monitor,
+      transitionLedger: memoryTransitionLedger([]),
+      bootstrapSessions,
+      commandSessions,
+      generateConnectionId: () => 'connection-command-routing',
+    }));
+    harnesses.push(harness);
+    const ws = await openWebSocket(harness.port, 'overlaykit.device.v1', {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    const [, connection] = pending.connect.mock.calls[0];
+    pending.admission.resolve({
+      connectionId: connection.id,
+      authority: pending.connect.mock.calls[0][0],
+    });
+
+    const snapshot = await nextMessage(ws);
+    const readyMessage = nextMessage(ws);
+    ws.send(JSON.stringify({
+      schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
+      type: DEVICE_BOOTSTRAP_ACK_TYPE,
+      mode: 'bootstrap',
+      target: 'preview',
+      issuerKeyId: snapshot.issuerKeyId,
+      sequence: snapshot.sequence,
+      sha256: snapshot.sha256,
+      status: 'applied',
+    }));
+    expect(await readyMessage).toMatchObject({ type: 'device.ready' });
+
+    const serializedOutput: Record<string, unknown>[] = [];
+    ws.on('message', (data) => {
+      serializedOutput.push(JSON.parse(data.toString()) as Record<string, unknown>);
+    });
+    ws.send(JSON.stringify({
+      schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
+      type: DEVICE_BOOTSTRAP_ACK_TYPE,
+      mode: 'delta',
+      target: 'preview',
+      issuerKeyId: 'server-key-1',
+      sequence: 2,
+      sha256: 'f'.repeat(64),
+      status: 'applied',
+    }));
+    const commandText = JSON.stringify({ type: 'device.command.execute' });
+    ws.send(commandText);
+    await waitFor(
+      () => lifecycleFrames.length === 2
+        && commandFrames.length === 1
+        && serializedOutput.length === 2,
+      'Gateway did not demultiplex lifecycle and command frames',
+    );
+
+    expect(lifecycleFrames).toHaveLength(2);
+    expect(commandFrames).toEqual([commandText]);
+    expect(serializedOutput.map(({ type }) => type)).toEqual([
+      'device.state.delta',
+      'device.command.refused',
+    ]);
+    expect(commandSessions.create).toHaveBeenCalledTimes(1);
+    const commandOptions = vi.mocked(commandSessions.create).mock.calls[0][0];
+    expect(await commandOptions.execution.execute(() => 42)).toBe(42);
+    expect(execute).toHaveBeenCalledTimes(1);
+
+    ws.close();
+    await new Promise<void>((resolve) => ws.once('close', () => resolve()));
+    await waitFor(
+      () => commandDispose.mock.calls.length === 1,
+      'Command session was not disposed after transport close',
+    );
+    expect(commandDispose).toHaveBeenCalledTimes(1);
+  });
+
   it('retires authority and closes audit even when session disposal fails', async () => {
     const coordinator = pendingCoordinator();
     const transitions: DeviceConnectionTransitionInput[] = [];
@@ -686,6 +856,8 @@ describe('DeviceWebSocketGateway', () => {
         async dispose() { throw new Error('catalog close failed'); },
         isReady: () => false,
         isTargetReady: () => false,
+        commandEvidence: () => null,
+        confirmedIssuerKeyId: () => null,
       })),
     };
     const harness = await startGateway(new DeviceWebSocketGateway({
@@ -769,6 +941,8 @@ describe('DeviceWebSocketGateway', () => {
       dispose,
       isReady: () => false,
       isTargetReady: () => false,
+      commandEvidence: () => null,
+      confirmedIssuerKeyId: () => null,
     });
     await disposed.promise;
 
@@ -806,6 +980,8 @@ describe('DeviceWebSocketGateway', () => {
           async dispose() {},
           isReady: () => false,
           isTargetReady: () => false,
+          commandEvidence: () => null,
+          confirmedIssuerKeyId: () => null,
         };
       },
     };
@@ -901,6 +1077,8 @@ describe('DeviceWebSocketGateway', () => {
           async dispose() {},
           isReady: () => false,
           isTargetReady: () => false,
+          commandEvidence: () => null,
+          confirmedIssuerKeyId: () => null,
         };
       },
     };

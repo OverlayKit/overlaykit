@@ -67,6 +67,10 @@
       "types": "./dist/device-bootstrap.d.ts",
       "import": "./dist/device-bootstrap.js"
     },
+    "./device-command": {
+      "types": "./dist/device-command.d.ts",
+      "import": "./dist/device-command.js"
+    },
     "./device-state-sync": {
       "types": "./dist/device-state-sync.d.ts",
       "import": "./dist/device-state-sync.js"
