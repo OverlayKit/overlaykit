@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0035",
+  "title": "The governed Companion host adapter preserves OverlayKit authority",
+  "status": "accepted",
+  "date": "2026-07-23",
+  "supersedes": null,
+  "governs": [
+    "external-companion-adapter",
+    "device-control-projection",
+    "protocol-package-consumption",
+    "adapter-evidence-boundary"
+  ],
+  "context": "OverlayKit needed evidence that a separately governed Bitfocus Companion module could consume the public protocol package and expose production controls without copying server code or becoming a second source of operational truth. The experiment was implemented and reviewed in OverlayKit/companion-module-overlaykit-server after CHG-0040 approved the external Slice.",
+  "decision": "Within the exact tested boundary of Node 22 ESM, Companion Module API 2.0, @companion-module/host 1.0.1, Linux CI, and digest-pinned @overlaykit/protocol 0.1.0 from signed OverlayKit commit 201cd15ceee487b5a305efd2684e52970d5d6c15, one separately governed Companion module instance may control exactly one OverlayKit Show. The adapter receives an endpoint, secret bearer, and externally pinned DeviceTrustBundle as explicit inputs; becomes ready only after accepted signed bootstrap, exact acknowledgement, and device.ready; sends visibility.show, visibility.hide, and visibility.toggle commands using admitted bindings and expected revisions; and projects active, inactive, unknown, disconnected, failed, and unavailable only from accepted server evidence or transport facts. The adapter may retain the latest verified projection in memory but does not persist or originate catalogs, production state, command outcomes, revisions, retries, credentials, or trust authority. The implementation, legal provenance, CI, package evidence, and local governance remain authoritative in OverlayKit/companion-module-overlaykit-server. This decision does not establish npm publication, Bitfocus registry admission, complete Companion application behavior, API 2.1, USB access, physical Stream Deck input, rendered button pixels, OBS truth, operator perception, trust rotation, or support outside the exact tested boundary.",
+  "consequences": [
+    "The external module repository is the implementation and evidence authority for the Companion adapter, while OverlayKit remains the protocol and server authority.",
+    "The adapter consumes only the exact public protocol artifact and cannot import monorepo or server source.",
+    "One module instance controls one Show and learns action bindings only from admitted signed bootstrap evidence.",
+    "Command acknowledgements and results do not create production truth; feedback changes only from accepted state evidence or transport lifecycle facts.",
+    "Restart discards adapter operational state and requires a new signed bootstrap sequence.",
+    "The accepted package proves buildability, official host loading, legal provenance, and the bounded adapter behavior without claiming publication or full Companion application behavior.",
+    "A complete Companion application, reproducible LAN environment, visual button evidence, physical hardware, registry admission, or broader platform claim requires a new architectural question and Slice.",
+    "Parent and adapter repositories retain separate governance histories, evidence, release transitions, and merge authorization."
+  ],
+  "policies": []
+}
