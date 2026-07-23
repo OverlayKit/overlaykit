@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0038",
   "title": "Test durable externally pinned device signing identity",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -24,7 +24,8 @@
     "ADR-0028",
     "ADR-0029",
     "ADR-0031",
-    "ADR-0032"
+    "ADR-0032",
+    "ADR-0033"
   ],
   "specifications": ["SPEC-0001"],
   "claims": [
@@ -77,6 +78,12 @@
       "blocking": false
     },
     {
+      "kind": "inference",
+      "statement": "Human review accepted H-029 only for the tested single-host cooperating OverlayKit runtime with one canonical exclusive SQLite database, transactionally initialized and immutable Ed25519 identity, deterministic SPKI-derived public Trust Bundle obtained separately through authenticated Owner authority, and one recovered signer mounted across bootstrap snapshots, post-ready deltas, command results, command refusals, and replay outcomes. The inference is supported by hostile generation, migration, rollback, deletion, corruption, substitution, canonicalization, authorization, signer-divergence, restart, installed-package, compiled-runtime, and WebSocket tests; full local governance, checks, build, licensing and audit; a valid YubiKey-signed experiment commit; and successful Ubuntu, macOS, Windows, validation, and GitHub root-of-trust observation evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-029 refutation evidence and GitHub Actions Constitution run 29978391265",
+      "blocking": false
+    },
+    {
       "kind": "unknown",
       "statement": "This Slice does not establish signing-key rotation or compromise recovery, HSM or operating-system keychain custody, encryption against a compromised host account, hostile out-of-band database writers, physical abrupt-power or dishonest-media durability, copied-database or multi-host exclusion, high availability, network trust-bundle certification, proxy or TLS correctness, hostile-network liveness, Companion, Stream Deck hardware, rendered pixels, OBS output, or operator perception.",
       "evidence": "SDD-029 approved Slice boundary",
@@ -118,7 +125,7 @@
   "definitionOfDone": [
     {
       "id": "DOD-001",
-      "statement": "CHG-0038 records Discovery facts, H-029, measurable refutation criteria, and unresolved guarantees without claiming that the hypothesis passed.",
+      "statement": "CHG-0038 records Discovery facts, H-029, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
       "evidence": "npm run governance:check"
     },
     {
@@ -134,12 +141,12 @@
     {
       "id": "DOD-004",
       "statement": "Governance, focused tests, full repository checks, builds, Apache-2.0 licensing and Rodrigo Vicente attribution, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
-      "evidence": "Future local and GitHub Actions evidence"
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 29978391265"
     },
     {
       "id": "DOD-005",
-      "statement": "Any bounded inference, implemented status, profile activation, and ADR-0033 are created only after the human authority reviews the refutation evidence and explicitly accepts H-029.",
-      "evidence": "Future Human Doctrine evidence review"
+      "statement": "ADR-0033, implemented status, the bounded inference, executable governance rules, and the profile bump are created only after the human authority reviews refutation evidence and explicitly accepts H-029.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0033"
     }
   ]
 }

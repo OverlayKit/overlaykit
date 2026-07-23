@@ -324,6 +324,14 @@
       "id": "ADR-0032",
       "supersededBy": null,
       "title": "Authenticated device commands preserve SQLite and state authority"
+    },
+    {
+      "contentHash": "b4341ecb4daf1fcff5d60a022aad0a5896846e98ceefbbf7028b190787c68189",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0033",
+      "supersededBy": null,
+      "title": "Device authority uses one durable externally pinned signing identity"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -458,10 +466,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "84564731c786b0a627263163cdedd66c5dffad874cb6400ee7a1c6f2bf36e040",
-  "profileHash": "56763e626f5ca5a55524a5ff005705cce85e3349d814d1ba490d3f17da891e17",
+  "planHash": "41f6237b07d4606bdd00510697947168b26f1126a4640ece0efb0002b36d3f61",
+  "profileHash": "3e51241ffd49bbfd668f0e6ab2f8cad736f7316b274489a0db763c23f0a406e8",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.28.0",
+  "profileVersion": "2.29.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1286,6 +1294,36 @@
       "statement": "Server shutdown must synchronously stop new upgrades and device admission before retiring authority, draining only admitted operations, closing credential storage, and forcibly terminating remaining transports within twelve seconds."
     },
     {
+      "id": "device-signing-backup-transfers-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "The SQLite database and backups must be treated as secret signing-authority material, and restoring a backup transfers rather than clones authority, requiring the previous host to be retired before the restored host is used."
+    },
+    {
+      "id": "device-signing-claims-are-single-host-and-restart-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "Passing signing-identity evidence may be represented only as one cooperating process and one canonical SQLite database preserving identity across ordinary process restarts, not as physical-power durability, copied-database exclusion, multi-host authority, rotation, compromise recovery, TLS certification, external-adapter, hardware, renderer, OBS, or operator-perception evidence."
+    },
+    {
+      "id": "device-signing-identity-is-transactionally-created-once",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "A fresh or pre-identity SQLite authority must create and validate exactly one Ed25519 signing identity inside its schema transaction and commit it before signer access or device network exposure."
+    },
+    {
+      "id": "device-signing-public-identity-is-canonical",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "Device public identity must use canonical Ed25519 SubjectPublicKeyInfo DER, derive issuerKeyId as ed25519-sha256- plus unpadded Base64URL SHA-256 of those bytes, and derive fingerprintSha256 as the same digest in lowercase hexadecimal."
+    },
+    {
+      "id": "device-signing-runtime-has-one-recovered-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "Ordinary SQLite-backed startup must recover one signing authority before device connections and mount it across bootstrap snapshots, post-ready deltas, command results, command refusals, and replay outcomes; explicit signer replacement or divergence must fail closed."
+    },
+    {
       "id": "device-sqlite-authority-claims-are-bounded",
       "kind": "rule",
       "sourceDecision": "ADR-0027",
@@ -1332,6 +1370,36 @@
       "kind": "rule",
       "sourceDecision": "ADR-0031",
       "statement": "Send rejection, unresolved send, or bounded backpressure failure must close the connection without consuming target retry or queueing a retransmission whose prior acceptance is unknown."
+    },
+    {
+      "id": "device-trust-acquisition-claim-is-transport-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "Initial Trust Bundle acquisition may claim hostile-network resistance only over loopback or independently verified HTTPS; plaintext Trusted LAN acquisition is an explicit operator assumption rather than network-attacker evidence."
+    },
+    {
+      "id": "device-trust-bundle-is-strict-public-material",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "DeviceTrustBundle v1 must contain only its exact version, Ed25519 algorithm, derived issuer, canonical Base64URL SPKI, and derived fingerprint; consumers must reject unknown fields, aliases, non-canonical encodings, unsupported keys, and mismatched representations."
+    },
+    {
+      "id": "device-trust-is-provisioned-outside-its-websocket",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "OverlayKit URL, one-time bearer, and public Trust Bundle must remain separate configuration values, and a key supplied only by the device WebSocket may not establish or replace trust."
+    },
+    {
+      "id": "device-trust-publication-is-owner-only-and-secret-free",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "Only authenticated Owner authority may retrieve the current non-cacheable Trust Bundle, and that response must contain neither bearer, sealed credential, private key, nor another secret."
+    },
+    {
+      "id": "device-trust-violation-invalidates-the-artifact",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "An issuer mismatch, invalid signature, malformed trust material, or canonical-byte mismatch must invalidate the complete received artifact and may not authorize state, replay, execution, key adoption, or automatic trust recovery."
     },
     {
       "id": "device-truth-change-invalidates-pending-without-retry",
@@ -1494,6 +1562,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "Hardware and third-party controller support integrates through the vendor-neutral Control API and never defines the core production command model."
+    },
+    {
+      "id": "initialized-device-signing-identity-never-regenerates",
+      "kind": "rule",
+      "sourceDecision": "ADR-0033",
+      "statement": "After the signing-identity schema version is initialized, missing, malformed, mismatched, unverifiable, or partial identity state must abort startup explicitly and must never trigger regeneration, substitution, unsigned operation, or silent degradation."
     },
     {
       "id": "law-is-compiled",
