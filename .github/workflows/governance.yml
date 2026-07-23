@@ -215,3 +215,28 @@ jobs:
 
       - name: Test protocol package distribution
         run: npx vitest run protocol/tests/package-distribution.test.ts
+
+  protocol-node22:
+    name: protocol Node 22 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --engine-strict=false --no-audit --no-fund --maxsockets=1
+
+      - name: Test packed protocol in Node 22
+        run: npm run test:node22 --workspace protocol

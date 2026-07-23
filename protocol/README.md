@@ -8,6 +8,9 @@ credentials.
 
 ## Install
 
+Node.js 22 or newer is required for this package. The OverlayKit application
+may require a newer Node.js release.
+
 ```bash
 npm install @overlaykit/protocol
 ```

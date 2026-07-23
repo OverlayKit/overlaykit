@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0034",
+  "title": "Protocol package supports Node 22 through packed semantic evidence",
+  "status": "accepted",
+  "date": "2026-07-23",
+  "supersedes": null,
+  "governs": [
+    "protocol-node-runtime-floor",
+    "protocol-node22-package-consumption",
+    "protocol-node22-semantic-portability",
+    "protocol-distribution-integrity",
+    "protocol-runtime-claim-boundary"
+  ],
+  "context": "ADR-0012 established one compiled ESM implementation distributed through explicit packed exports, while the OverlayKit monorepo and server continued to require Node 24. Discovery for SDD-030 established that the planned separate Bitfocus Companion API 2.0 adapter requires Node 22 and must consume a versioned public @overlaykit/protocol package rather than workspace source or copied validators. Before the Slice, the protocol package itself declared Node 24 or later, so an engine-strict Node 22 consumer rejected the tarball before any semantic compatibility claim could be tested. H-030 asked whether the exact packed implementation could execute its Companion-required public exports under Node 22 without reducing accepted protocol guarantees. Slice 1 lowered only the protocol package engine floor to Node 22, added an exact-major Node 22 lane, installed the npm tarball outside the workspace with engine-strict enabled, rejected workspace links and repository-source dependencies, independently checked tarball shasum and sha512 integrity, inspected the publication allowlist and legal artifacts, imported every required public subpath, resolved TypeScript declarations, and exercised valid and hostile trust, bootstrap, state, catalog, feedback, and command behavior. Refutation included detached-signature and payload substitution, trust-fingerprint mismatch, replay, wrong audience, cross-Show catalog projection, exact three-second staleness, authority-confusing extra fields, duplicate command properties, revision mismatch, and response-hash substitution. The pre-Slice baseline failed under Node 22 because the packed manifest declared Node 24 or later. The accepted Slice passed locally on exact Node v22.23.0, while the unchanged Node 24 repository gates passed 508 tests, all workspace builds, 76 protocol tests, seven licensing tests, formatting, governance, and an audit with zero known vulnerabilities. GitHub Actions Constitution run 30016657244 attempt 2 passed validation, root-of-trust observation, existing Node 24 portability, and the focused Node 22 packed-consumer lane on Ubuntu, macOS, and Windows for PR 38 at signed head 608d5a48df87af0902aa37adfa92409900adde0c. The first macOS check completed every step successfully but remained externally pending in GitHub; rerunning only that job produced an observable completed success without changing the tested head. The human authority accepted H-030 only within this packed protocol package and tested semantic corpus boundary.",
+  "decision": "@overlaykit/protocol declares Node.js 22 or later as its package-local runtime floor. That declaration applies only to the exact compiled ESM package and public exports included in its npm tarball; it does not lower the Node.js 24 requirement of the OverlayKit application, server, or monorepo development environment. Evidence for the Node 22 floor must execute under exact major version 22, install the npm-packed artifact outside the workspace with engine-strict enabled, confirm that the installed package is neither a symbolic workspace link nor dependent on repository source, and import every public subpath required by the intended external adapter. The packed-consumer harness must independently verify npm shasum and sha512 integrity, package metadata, the dist-only publication boundary, explicit export targets, declarations, Apache-2.0 LICENSE, NOTICE, and Rodrigo Vicente attribution. Runtime compatibility requires semantic evidence, not import success alone: canonical trust, bootstrap, device-control frame, state delta, action catalog, signed feedback, and command flows must admit valid artifacts and fail closed for the hostile substitutions, replay, ambiguity, stale evidence, authority mismatch, revision mismatch, and signature failures relied upon by the consumer boundary. The focused Node 22 lane runs on Ubuntu, macOS, and Windows, while the complete Node 24 governance, quality, build, licensing, audit, and portability gates remain authoritative for the repository. Expanding the package runtime range or required public surface requires new exact-runtime packed-consumer evidence. This decision does not establish npm registry publication or provenance, semantic-version compatibility beyond the tested package, Companion process loading or API behavior, adapter configuration or transport, server support below Node 24, browser or bundler behavior, synchronous CommonJS require, Linux USB access, Stream Deck hardware, rendered pixels, OBS truth, or operator perception.",
+  "consequences": [
+    "A separate Node 22 ESM consumer can depend on the packed public protocol implementation without copying OverlayKit protocol validators or importing repository source.",
+    "The protocol package now carries a narrower runtime floor than the complete OverlayKit application, so documentation and tests must distinguish package compatibility from application compatibility.",
+    "Import and type-resolution success are insufficient for runtime-floor changes; accepted evidence includes independent integrity checks and hostile semantic probes through the installed tarball.",
+    "Every pull request that changes the protocol or its packaging runs an additional focused matrix on Ubuntu, macOS, and Windows under exact Node 22.",
+    "The additional matrix increases CI work but makes runtime drift observable before a public package release or external adapter consumption.",
+    "A Companion module may use this result as a protocol prerequisite, but Companion loading, adapter behavior, release packaging, and physical hardware remain unanswered architectural questions.",
+    "The repository and server continue to require Node 24, and no part of this decision permits representing the full OSS application as Node 22 compatible.",
+    "Registry publication, provenance, browser or bundler support, semantic-version policy, and hardware behavior require separate evidence."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "protocol-node22-floor-is-package-local",
+      "statement": "The Node 22 runtime floor applies only to the packed @overlaykit/protocol ESM package and must not be represented as Node 22 support for the OverlayKit application, server, or monorepo."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node-runtime-evidence-uses-exact-major",
+      "statement": "A supported protocol runtime floor must be exercised under its exact Node major rather than inferred from a newer runtime."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node22-evidence-uses-engine-strict-tarball",
+      "statement": "Node 22 compatibility evidence must install the exact npm-packed protocol artifact outside the workspace with engine-strict enabled and must reject workspace links, repository source access, and unpublished entrypoint dependencies."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node22-evidence-is-semantic-and-hostile",
+      "statement": "Node 22 compatibility requires valid and hostile semantic probes for every relied-upon trust, bootstrap, state, catalog, feedback, and command export; import success alone cannot establish compatibility."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node22-distribution-retains-integrity-and-license",
+      "statement": "The packed Node 22 consumer must independently verify tarball integrity, explicit exports and declarations, the compiled publication allowlist, Apache-2.0 LICENSE, NOTICE, and Rodrigo Vicente attribution."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node22-portability-is-cross-platform",
+      "statement": "The focused packed-consumer evidence must pass on GitHub-hosted Ubuntu, macOS, and Windows under Node 22 while complete repository gates continue under Node 24."
+    },
+    {
+      "kind": "rule",
+      "id": "protocol-node22-claims-exclude-adapter-and-hardware",
+      "statement": "Passing Node 22 protocol evidence may not be presented as npm publication, Companion loading, adapter behavior, server Node 22 support, browser or bundler support, USB access, Stream Deck hardware, rendered output, OBS truth, or operator-perception evidence."
+    }
+  ]
+}
