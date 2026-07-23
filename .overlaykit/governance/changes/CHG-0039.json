@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0039",
+  "title": "Test Node 22 protocol package portability",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0018",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0025",
+    "ADR-0031",
+    "ADR-0032",
+    "ADR-0033"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Bitfocus Companion module API 2.0 requires the Node 22 runtime and ESM, while API 2.0 is the accepted minimum adapter target for Companion 4.3 and later.",
+      "evidence": "Bitfocus Companion API 2.0 documentation and Human Doctrine Discovery on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The public @overlaykit/protocol package currently declares Node 24 or later even though it publishes one compiled ESM implementation through explicit subpath exports. That declaration prevents an engine-strict Node 22 consumer from establishing supported compatibility.",
+      "evidence": "protocol/package.json and ADR-0012",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The planned Companion adapter is a separate public repository and must consume an exact packed release of @overlaykit/protocol. Workspace links, repository source imports, copied validators, and adapter-local protocol implementations cannot establish the external-consumer boundary.",
+      "evidence": "Human Doctrine Discovery on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The adapter requires the public production, action-catalog, feedback-authority, visibility-feedback, control-frame, bootstrap, state-sync, command, and trust subpaths. Compatibility must be demonstrated through those public exports rather than inferred from TypeScript compilation or package installation alone.",
+      "evidence": "protocol/package.json, accepted device-control ADRs, and Human Doctrine Discovery on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Trust admission depends on Node Web Crypto SHA-256 and Ed25519 behavior, while bootstrap, state, command, and feedback admission depend on exact canonical bytes, strict object shapes, bounds, ordering, and detached-signature verification. Import success without hostile semantic probes cannot support a compatibility claim.",
+      "evidence": "ADR-0019, ADR-0020, ADR-0031, ADR-0032, ADR-0033, and protocol tests",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "OverlayKit remains the sole protocol authority. Lowering the package engine floor may describe only behavior demonstrated by one clean packed consumer under Node 22 and must not silently fork implementation, weaken rejection behavior, or expand the supported Companion and hardware boundary.",
+      "evidence": "Human Doctrine Discovery on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Any public protocol payload used by the experiment must retain Apache-2.0 licensing, the canonical NOTICE, and Rodrigo Vicente attribution in the packed artifact.",
+      "evidence": "ADR-0018",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-030: The exact packed @overlaykit/protocol implementation can execute its Companion-required public exports under Node 22 with the same accepted valid and hostile behavior observed by the current Node 24 repository suite, allowing the package engine floor to move to Node 22 without reducing protocol guarantees.",
+      "evidence": "SDD-030 hypothesis and Node 22 portability Slice approved by Human Doctrine review on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish a Companion module, Companion process loading, configuration, WebSocket transport, bindings, button feedback, Linux USB access, Stream Deck hardware, rendered pixels, API 2.1 behavior, registry publication, server runtime support below Node 24, browser support, proxy or TLS correctness, hostile-network liveness, or operator perception.",
+      "evidence": "SDD-030 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A clean engine-strict Node 22 ESM consumer installs the exact npm-packed @overlaykit/protocol tarball without workspace links or repository source access and imports every Companion-required public subpath.",
+      "verification": "Temporary external-consumer installation, package resolution inspection, engine-strict install, and public export probes."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The installed Node 22 consumer builds, parses, admits, and rejects canonical trust, bootstrap, state, catalog, feedback, and command fixtures with byte-identical hashes, identities, sequences, revisions, and normalized outputs expected by independent Node crypto derivation.",
+      "verification": "Installed-tarball semantic harness with deterministic valid vectors and independent SHA-256 and Ed25519 checks."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Malformed, ambiguous, substituted, stale, oversized, cross-authority, wrong-target, wrong-audience, wrong-sequence, wrong-revision, and invalid-signature inputs continue to fail closed under Node 22 without accepting aliases or partial artifacts.",
+      "verification": "Hostile mutation corpus executed only through packed public protocol exports."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The packed payload contains only declared distribution files, includes LICENSE and NOTICE, declares Node 22 or later only after the semantic harness passes, and exposes no source, workspace, test, or unpublished entrypoint dependency.",
+      "verification": "npm pack JSON manifest, tarball inspection, package metadata assertions, licensing verifier, and clean-consumer resolution checks."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The focused Node 22 external-consumer harness passes on Ubuntu, macOS, and Windows while the complete Node 24 governance, protocol, repository, build, licensing, and dependency checks remain green.",
+      "verification": "Local checks and GitHub Actions Constitution portability evidence."
+    },
+    {
+      "id": "SC-006",
+      "statement": "Evidence and documentation bound the result to the packed protocol package and explicitly leave Companion host behavior, adapter behavior, hardware, registry publication, and the Node 24 server runtime unclaimed.",
+      "verification": "Change review, evidence review, and bounded governance claims."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0039 records Discovery facts, H-030, measurable refutation criteria, and unresolved guarantees without claiming that the hypothesis passed.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only protocol engine metadata, a clean Node 22 external-consumer harness, focused package documentation if required, and the dedicated portability evidence mechanism.",
+      "evidence": "git diff for CHG-0039"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-030 through engine-strict installation, missing source and workspace access, every required public export, independent cryptographic derivation, hostile semantic mutations, package allowlist inspection, and cross-platform Node 22 execution.",
+      "evidence": "Focused package, external-consumer, distribution, licensing, and portability tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, Apache-2.0 licensing and Rodrigo Vicente attribution, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "Future local and GitHub Actions evidence"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "Any bounded inference, implemented status, profile activation, engine-floor support claim, package release, and future ADR are created only after the human authority reviews the refutation evidence and explicitly accepts H-030.",
+      "evidence": "Future Human Doctrine evidence review"
+    }
+  ]
+}
