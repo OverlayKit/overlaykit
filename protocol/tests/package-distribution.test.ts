@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +35,8 @@ interface PackedFile {
 interface PackResult {
   filename: string;
   files: PackedFile[];
+  integrity: string;
+  shasum: string;
 }
 
 async function runNpm(args: string[], cwd: string) {
@@ -68,6 +71,7 @@ beforeAll(async () => {
       '--ignore-scripts',
       '--no-audit',
       '--no-fund',
+      '--engine-strict',
       path.join(temporaryDirectory, packed.filename),
     ],
     temporaryDirectory
@@ -84,6 +88,11 @@ afterAll(async () => {
 describe('published protocol package', () => {
   it('packs only compiled artifacts and resolves every declared target', async () => {
     const paths = packed.files.map((file) => file.path);
+    const tarballBytes = await readFile(path.join(temporaryDirectory, packed.filename));
+    expect(createHash('sha1').update(tarballBytes).digest('hex')).toBe(packed.shasum);
+    expect(`sha512-${createHash('sha512').update(tarballBytes).digest('base64')}`).toBe(
+      packed.integrity
+    );
     expect(paths.some((file) => file.startsWith('src/'))).toBe(false);
     expect(paths.some((file) => file.startsWith('tests/'))).toBe(false);
     expect(paths).toContain('LICENSE');
@@ -105,14 +114,21 @@ describe('published protocol package', () => {
       exports: Record<string, { types: string; import: string }>;
       publishConfig: { access: string };
       repository: { type: string; url: string; directory: string };
+      workspaces?: unknown;
     };
+    expect(
+      (
+        await lstat(path.join(consumerDirectory, 'node_modules/@overlaykit/protocol'))
+      ).isSymbolicLink()
+    ).toBe(false);
     expect(manifest.files).toEqual(['dist', 'LICENSE', 'NOTICE']);
     expect(manifest.license).toBe('Apache-2.0');
     expect(manifest.author).toEqual({
       name: 'Rodrigo Vicente',
       url: 'https://x.com/rodrigoteamx',
     });
-    expect(manifest.engines.node).toBe('>=24');
+    expect(manifest.engines.node).toBe('>=22');
+    expect(manifest.workspaces).toBeUndefined();
     expect(manifest.publishConfig.access).toBe('public');
     expect(manifest.repository).toEqual({
       type: 'git',
@@ -152,6 +168,10 @@ describe('published protocol package', () => {
     const runtime = [
       `for (const specifier of ${JSON.stringify(specifiers)}) await import(specifier);`,
       "const { generateKeyPairSync, sign, verify } = await import('node:crypto');",
+      'const expectReject = async (label, operation) => {',
+      '  try { await operation(); } catch { return; }',
+      '  throw new Error(`Expected rejection: ${label}`);',
+      '};',
       "const { DeviceCredentialLifecycle, MemoryDeviceCredentialStore } = await import('@overlaykit/protocol/device-credential');",
       'const lifecycle = new DeviceCredentialLifecycle(new MemoryDeviceCredentialStore(), {',
       '  now: () => 1000,',
@@ -199,10 +219,14 @@ describe('published protocol package', () => {
       '  observations: feedback.observations,',
       '});',
       "const keys = generateKeyPairSync('ed25519');",
-      "const { buildDeviceTrustBundle, createDeviceTrustSignatureVerifier } = await import('@overlaykit/protocol/device-trust');",
+      "const { buildDeviceTrustBundle, createDeviceTrustSignatureVerifier, parseDeviceTrustBundle } = await import('@overlaykit/protocol/device-trust');",
       "const publicKeySpki = keys.publicKey.export({ format: 'der', type: 'spki' });",
       'const trustBundle = await buildDeviceTrustBundle(publicKeySpki);',
       'const trustedVerify = await createDeviceTrustSignatureVerifier(trustBundle);',
+      'await expectReject(',
+      "  'trust fingerprint substitution',",
+      "  () => parseDeviceTrustBundle({ ...trustBundle, fingerprintSha256: '0'.repeat(64) }),",
+      ');',
       'const payloadBytes = deviceControlFramePayloadBytes({',
       '  schemaVersion: DEVICE_CONTROL_FRAME_ENVELOPE_VERSION,',
       '  issuerKeyId: trustBundle.issuerKeyId,',
@@ -221,9 +245,69 @@ describe('published protocol package', () => {
       '  trustedVerify,',
       ');',
       'if (admitted.frame.catalogGeneration !== 1 || admitted.acceptedSequence !== 1) process.exit(1);',
+      'if (await trustedVerify(',
+      "  new TextEncoder().encode('substituted frame'),",
+      '  signature,',
+      '  trustBundle.issuerKeyId,',
+      ')) throw new Error("Trust verifier admitted substituted bytes");',
+      'await expectReject(',
+      "  'frame audience substitution',",
+      '  () => admitDeviceControlFrame(',
+      '    payloadBytes,',
+      '    signature,',
+      "    { ...authenticated, issuerKeyId: trustBundle.issuerKeyId, audienceCredentialId: 'other-audience', lastAcceptedSequence: 0 },",
+      '    trustedVerify,',
+      '  ),',
+      ');',
+      'await expectReject(',
+      "  'frame replay',",
+      '  () => admitDeviceControlFrame(',
+      '    payloadBytes,',
+      '    signature,',
+      '    { ...authenticated, issuerKeyId: trustBundle.issuerKeyId, lastAcceptedSequence: 1 },',
+      '    trustedVerify,',
+      '  ),',
+      ');',
       'const frameState = await reduceDeviceControlFrame(null, frame);',
       "const frameView = projectDeviceControl(frameState, { showId: 'show-1', target: 'program', controlId: 'lower-third.visibility' }, 1002);",
       "if (!frameView.available || frameView.buttonState !== 'active') process.exit(1);",
+      "const staleFrameView = projectDeviceControl(frameState, { showId: 'show-1', target: 'program', controlId: 'lower-third.visibility' }, 4001);",
+      "if (staleFrameView.status !== 'stale' || staleFrameView.buttonState !== 'unknown') throw new Error('Frame remained current at the three-second boundary');",
+      'await expectReject(',
+      "  'cross-Show catalog projection',",
+      "  () => projectAuthorizedControlActionCatalog({ showId: 'other-show', capabilities: [] }, authenticated),",
+      ');',
+      "const { CONTROL_FEEDBACK_ENVELOPE_VERSION, admitControlFeedback, controlFeedbackSigningBytes } = await import('@overlaykit/protocol/control-feedback-authority');",
+      'const unsignedFeedback = {',
+      '  schemaVersion: CONTROL_FEEDBACK_ENVELOPE_VERSION,',
+      '  issuerKeyId: trustBundle.issuerKeyId,',
+      '  audienceCredentialId: authenticated.audienceCredentialId,',
+      '  sequence: 2,',
+      '  event: feedback.observations[0],',
+      '};',
+      'const signedFeedback = {',
+      '  ...unsignedFeedback,',
+      "  signature: sign(null, controlFeedbackSigningBytes(unsignedFeedback), keys.privateKey).toString('base64url'),",
+      '};',
+      'const feedbackAuthority = {',
+      '  ...authenticated,',
+      '  issuerKeyId: trustBundle.issuerKeyId,',
+      '  lastAcceptedSequence: 1,',
+      '};',
+      'const admittedFeedback = await admitControlFeedback(',
+      '  signedFeedback,',
+      '  feedbackAuthority,',
+      '  (bytes, detachedSignature) => trustedVerify(bytes, detachedSignature, trustBundle.issuerKeyId),',
+      ');',
+      "if (admittedFeedback.event.value !== 'active' || admittedFeedback.acceptedSequence !== 2) throw new Error('Signed feedback was not admitted');",
+      'await expectReject(',
+      "  'feedback replay',",
+      '  () => admitControlFeedback(',
+      '    signedFeedback,',
+      '    { ...feedbackAuthority, lastAcceptedSequence: 2 },',
+      '    (bytes, detachedSignature) => trustedVerify(bytes, detachedSignature, trustBundle.issuerKeyId),',
+      '  ),',
+      ');',
       "const { buildDeviceBootstrapSnapshotMessage, buildDeviceReadyMessage, parseDeviceBootstrapAck, parseDeviceBootstrapSnapshotMessage } = await import('@overlaykit/protocol/device-bootstrap');",
       'const acknowledgement = parseDeviceBootstrapAck({',
       "  schemaVersion: 'overlaykit-device-state-ack/v1',",
@@ -248,6 +332,10 @@ describe('published protocol package', () => {
       '});',
       'const parsedSnapshot = await parseDeviceBootstrapSnapshotMessage(snapshotMessage);',
       'if (parsedSnapshot.payloadBytes.length !== payloadBytes.length) process.exit(1);',
+      'await expectReject(',
+      "  'bootstrap payload substitution',",
+      "  () => parseDeviceBootstrapSnapshotMessage({ ...snapshotMessage, payloadBase64: btoa('substitution') }),",
+      ');',
       "const { buildDeviceStateDeltaMessage, parseDeviceStateDeltaMessage } = await import('@overlaykit/protocol/device-state-sync');",
       'const deltaMessage = await buildDeviceStateDeltaMessage({',
       "  target: 'program',",
@@ -259,18 +347,36 @@ describe('published protocol package', () => {
       '});',
       'const parsedDelta = await parseDeviceStateDeltaMessage(deltaMessage);',
       "if (parsedDelta.message.type !== 'device.state.delta' || parsedDelta.payloadBytes.length !== payloadBytes.length) process.exit(1);",
+      'await expectReject(',
+      "  'delta authority confusion',",
+      "  () => parseDeviceStateDeltaMessage({ ...deltaMessage, commandResult: 'applied' }),",
+      ');',
       'const ready = buildDeviceReadyMessage();',
       "if (ready.type !== 'device.ready' || 'recordHash' in ready || 'globalSequence' in ready) process.exit(1);",
       "const { buildDeviceCommandRefusedPayload, buildDeviceCommandResponseMessage, parseDeviceCommandExecuteJson, parseDeviceCommandResponseMessage } = await import('@overlaykit/protocol/device-command');",
-      'const command = parseDeviceCommandExecuteJson(JSON.stringify({',
+      'const commandJson = JSON.stringify({',
       "  schemaVersion: 'overlaykit-device-command-execute/v1',",
       "  type: 'device.command.execute',",
       "  operationId: 'operation-1',",
       "  target: 'program',",
       "  basedOn: { issuerKeyId: 'server-key-1', sequence: 2, sha256: snapshotHash, productionRevision: 3, catalogGeneration: 1 },",
       "  intent: { kind: 'component.visibility', componentId: 'lower-third', visible: false, expectedRevision: 3 },",
-      '}));',
+      '});',
+      'const command = parseDeviceCommandExecuteJson(commandJson);',
       "if (command.operationId !== 'operation-1') process.exit(1);",
+      'await expectReject(',
+      "  'duplicate command property',",
+      '  () => parseDeviceCommandExecuteJson(',
+      '    commandJson.replace(\'"operationId":"operation-1"\', \'"operationId":"operation-1","operationId":"other"\'),',
+      '  ),',
+      ');',
+      'await expectReject(',
+      "  'command base mismatch',",
+      '  () => parseDeviceCommandExecuteJson(JSON.stringify({',
+      '    ...command,',
+      '    basedOn: { ...command.basedOn, productionRevision: 4 },',
+      '  })),',
+      ');',
       'const refusedPayload = buildDeviceCommandRefusedPayload({',
       "  schemaVersion: 'overlaykit-device-command-refused/v1',",
       "  type: 'device.command.refused',",
@@ -283,6 +389,10 @@ describe('published protocol package', () => {
       "const commandResponse = await buildDeviceCommandResponseMessage({ payload: refusedPayload, signature: 'detached-signature' });",
       'const parsedCommandResponse = await parseDeviceCommandResponseMessage(commandResponse);',
       "if (parsedCommandResponse.payload.type !== 'device.command.refused') process.exit(1);",
+      'await expectReject(',
+      "  'command response hash substitution',",
+      "  () => parseDeviceCommandResponseMessage({ ...commandResponse, sha256: '0'.repeat(64) }),",
+      ');',
     ].join('\n');
     await expect(
       execFileAsync(process.execPath, ['--input-type=module', '--eval', runtime], {
