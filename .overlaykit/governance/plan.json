@@ -316,6 +316,14 @@
       "id": "ADR-0031",
       "supersededBy": null,
       "title": "Post-ready device state requires exact signed evidence"
+    },
+    {
+      "contentHash": "2b655409749d8c799c97fcfa178ed199e7de539cd4eac79a05f7a7ee80da03ec",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0032",
+      "supersededBy": null,
+      "title": "Authenticated device commands preserve SQLite and state authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -450,10 +458,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "3e9da51830ffbea7ffd187bceef6d498e35d17d83ba6bed31f6becfd6a3af6f9",
-  "profileHash": "35e49c199d2c6c0aa449ee5112972c2388f6113115b861420b61c4c6cd6f9e0e",
+  "planHash": "84564731c786b0a627263163cdedd66c5dffad874cb6400ee7a1c6f2bf36e040",
+  "profileHash": "56763e626f5ca5a55524a5ff005705cce85e3349d814d1ba490d3f17da891e17",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.27.0",
+  "profileVersion": "2.28.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -826,6 +834,84 @@
       "kind": "rule",
       "sourceDecision": "ADR-0016",
       "statement": "HTTP catalog responses must be marked no-store and must not include current value, production revision, credential material, or any claim that a descriptor authorizes future execution."
+    },
+    {
+      "id": "device-command-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Passing component-visibility command transport evidence may not be represented as Take, value-control, cue, batch, macro, Companion, Stream Deck, browser-client, renderer, OBS, hardware, operator-perception, multi-host, proxy, TLS, signer-custody, hostile-network, clock-synchronization, or physical-power evidence."
+    },
+    {
+      "id": "device-command-context-is-connection-derived",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Every device command must derive Show, principal, audience, credential generation, bearer authority, and scopes from the current authenticated ready non-browser connection and must reject command fields that attempt to override them."
+    },
+    {
+      "id": "device-command-json-is-closed-bounded-and-canonical",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Device command JSON must use the closed versioned contract, remain at or below 16,384 bytes, reject duplicate properties and unknown fields, and derive identity from canonical semantic intent rather than transport bytes, object order, or insignificant whitespace."
+    },
+    {
+      "id": "device-command-new-admission-requires-exact-state-base",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "A new device command may approach durable admission only when its target has current applied signed state evidence and the request binds the exact issuerKeyId, sequence, SHA-256, production revision, and catalog generation of that evidence."
+    },
+    {
+      "id": "device-command-new-authority-begins-inside-sqlite",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "New device command authority must begin synchronously inside the exclusive SQLite production transaction after exact replay and conflict lookup and immediately before capacity and production-revision evaluation."
+    },
+    {
+      "id": "device-command-refusal-does-not-consume-operation",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "A failure before SQLite admission must return only a signed bounded non-durable refusal and must not consume operationId or claim a terminal command outcome."
+    },
+    {
+      "id": "device-command-replay-requires-current-authorization",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "An exact committed operation may be disclosed without reapplication and without current target readiness only after fresh connection authorization; conflicting operationId reuse must remain an operation conflict."
+    },
+    {
+      "id": "device-command-response-delivery-is-single-attempt",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "A command response must be sent once through the shared bounded physical writer without acknowledgement or retransmission, and failed, unresolved, timed-out, or backpressured delivery must close the connection."
+    },
+    {
+      "id": "device-command-response-is-signed-historical-unicast",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Every command result or refusal must be a detached signature over canonical audience-bound payload bytes sent only to the requesting connection, and a durable result may describe only its historical command outcome rather than current state."
+    },
+    {
+      "id": "device-command-result-never-advances-state-truth",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Command acceptance, execution, publication, response, delivery, or device belief must never advance target state truth; only exact applied acknowledgement on the signed state lane may do so."
+    },
+    {
+      "id": "device-command-retirement-stops-new-admission",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Connection retirement must exclude new command admission immediately while allowing an already admitted operation to settle durably without making lifecycle drain depend on response delivery."
+    },
+    {
+      "id": "device-command-target-lane-does-not-queue",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "Each device connection may have at most one new in-flight operation per target, may coalesce only an identical in-flight operation, and must refuse rather than queue another new same-target operation."
+    },
+    {
+      "id": "device-command-websocket-is-transport-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0032",
+      "statement": "A device WebSocket command adapter may transport requests and signed responses but may not create identity, authorization, state truth, durable command authority, or evidence of physical application."
     },
     {
       "id": "device-connection-authority-identity-is-immutable",
