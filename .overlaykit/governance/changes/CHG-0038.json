@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0038",
+  "title": "Test durable externally pinned device signing identity",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0018",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0022",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0027",
+    "ADR-0028",
+    "ADR-0029",
+    "ADR-0031",
+    "ADR-0032",
+    "ADR-0033"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Accepted device-frame admission requires one externally pinned issuer, while the current host accepts only an injected signing authority, does not mount one during ordinary startup, and has no accepted key-generation, persistence, distribution, pinning, or rotation mechanism. URL and bearer authentication therefore cannot by themselves prove the origin of signed device state.",
+      "evidence": "ADR-0019, ADR-0020, ADR-0025, server/src/index.ts, and Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires an external consumer to pin a public DeviceTrustBundle obtained through authenticated Owner authority. A key announced only by the same device WebSocket cannot establish trust, trust on first use is prohibited, and no connection may replace or rotate its pinned issuer automatically.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The OSS host must generate one Ed25519 identity exactly once while initializing or migrating the existing exclusive SQLite authority, commit it before any network exposure, and reuse it across process restarts. Once the schema records initialization, a missing, malformed, inconsistent, or unverifiable identity must abort host startup with an explicit reason rather than regenerate or disable signing silently.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The canonical public key is Ed25519 SubjectPublicKeyInfo DER. issuerKeyId is exactly ed25519-sha256- followed by unpadded Base64URL of SHA-256 over those DER bytes. The public bundle also carries canonical Base64URL SPKI and a lowercase hexadecimal SHA-256 fingerprint, and consumers must independently derive and compare every representation before admitting the key.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "OverlayKit URL, one-time device bearer, and public Trust Bundle remain separate configuration values. The bearer is never embedded in the bundle; the bundle contains no private material and remains retrievable by an authenticated Owner. A consumer stores no authority outside its host-provided configuration and must reject an invalid bundle before connecting.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A cryptographic trust violation invalidates the complete received artifact and cannot trigger key adoption, command replay, or automatic trust recovery. Changing pinned trust establishes a new bootstrap boundary and invalidates pending operations; active or inactive state cannot survive as current truth merely because it was last observed before trust failed.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The SQLite database is secret backup material because it contains the private signing identity. Restoring a backup transfers that identity and requires the prior host to be retired; copying the database to concurrently running hosts creates duplicate authority that this single-host Slice cannot detect or legitimize.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-029: One transactionally initialized Ed25519 identity inside the existing exclusive SQLite authority, one deterministic public Trust Bundle, and one mounted signer shared by device bootstrap, delta, result, and refusal issuance can preserve externally verifiable device authority across process restarts without granting trust to the transport that carries signed evidence.",
+      "evidence": "SDD-029 hypothesis and trust-identity Slice approved by Human Doctrine review on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted H-029 only for the tested single-host cooperating OverlayKit runtime with one canonical exclusive SQLite database, transactionally initialized and immutable Ed25519 identity, deterministic SPKI-derived public Trust Bundle obtained separately through authenticated Owner authority, and one recovered signer mounted across bootstrap snapshots, post-ready deltas, command results, command refusals, and replay outcomes. The inference is supported by hostile generation, migration, rollback, deletion, corruption, substitution, canonicalization, authorization, signer-divergence, restart, installed-package, compiled-runtime, and WebSocket tests; full local governance, checks, build, licensing and audit; a valid YubiKey-signed experiment commit; and successful Ubuntu, macOS, Windows, validation, and GitHub root-of-trust observation evidence.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 after SDD-029 refutation evidence and GitHub Actions Constitution run 29978391265",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish signing-key rotation or compromise recovery, HSM or operating-system keychain custody, encryption against a compromised host account, hostile out-of-band database writers, physical abrupt-power or dishonest-media durability, copied-database or multi-host exclusion, high availability, network trust-bundle certification, proxy or TLS correctness, hostile-network liveness, Companion, Stream Deck hardware, rendered pixels, OBS output, or operator perception.",
+      "evidence": "SDD-029 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A fresh or pre-identity SQLite authority creates and commits exactly one valid Ed25519 key pair before signer access or network exposure, and every later process restart recovers the identical issuer without generating replacement material.",
+      "verification": "Fresh initialization, schema migration, transaction fault, restart, raw database, and signer-availability tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A strict DeviceTrustBundle v1 derives one byte-identical issuerKeyId and fingerprint from canonical SPKI DER in the server and a fresh installed @overlaykit/protocol consumer, while malformed, non-canonical, substituted, mismatched, oversized, or unsupported bundles fail closed.",
+      "verification": "Protocol vectors, mutation and bound tests, independent Node crypto derivation, and installed-tarball execution."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Only an authenticated Owner can retrieve the current public Trust Bundle, the response is non-cacheable and contains neither bearer nor private-key material, and credential issuance continues to disclose its bearer only once without embedding it into public trust metadata.",
+      "verification": "Owner, producer, unauthenticated, response-shape, cache-header, token-issuance, and secret-probe HTTP tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Ordinary server startup mounts the recovered signing authority before accepting device connections, and real bootstrap, post-ready delta, command-result, and command-refusal envelopes all name the derived issuer and verify from the separately obtained Trust Bundle without server-internal verification hooks.",
+      "verification": "Mounted runtime and real WebSocket integration tests using only the packed public protocol and Trust Bundle."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Missing initialized key rows, invalid encodings, public-private mismatch, derived-identity mismatch, signature self-test failure, unexpected signer divergence, partial migration, and failed persistence prevent exposure and report an explicit bounded startup failure without silent regeneration.",
+      "verification": "Raw SQLite tampering, injected migration failures, signer substitution, restart, and pre-listen composition tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The accepted evidence demonstrates one cooperating process and one canonical database with process-restart resilience, while copied-database concurrency, physical media, remote trust acquisition, key rotation, and external adapters remain explicitly unclaimed.",
+      "verification": "Exclusive-authority tests, evidence review, documentation assertions, and bounded governance claims."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0038 records Discovery facts, H-029, measurable refutation criteria, the accepted bounded inference, and unresolved guarantees without asserting beyond reviewed evidence.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the public trust-bundle protocol, SQLite signing identity, authenticated Owner publication, production signer composition, bounded documentation, and focused external-consumer and runtime tests.",
+      "evidence": "git diff for CHG-0038"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-029 through partial creation, migration and commit faults, deletion and corruption, key mismatch and substitution, non-canonical encodings, unauthorized publication, signer divergence, restart, concurrent ownership, and consumer bypass attempts.",
+      "evidence": "Focused protocol, SQLite, HTTP, runtime, WebSocket, distribution, and real-process tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, Apache-2.0 licensing and Rodrigo Vicente attribution, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution run 29978391265"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "ADR-0033, implemented status, the bounded inference, executable governance rules, and the profile bump are created only after the human authority reviews refutation evidence and explicitly accepts H-029.",
+      "evidence": "Human Doctrine acceptance on 2026-07-22 and ADR-0033"
+    }
+  ]
+}

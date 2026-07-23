@@ -19,8 +19,15 @@ import {
   SqliteProductionStateStore,
   type SqliteProductionStateStoreOptions,
 } from '../services/SqliteProductionStateStore';
+import {
+  DEVICE_SIGNING_SCHEMA_VERSION,
+  DeviceSigningIdentityError,
+  initializeDeviceSigningIdentitySchema,
+  SqliteDeviceSigningAuthority,
+  type DeviceSigningSchemaOptions,
+} from './SqliteDeviceSigningAuthority';
 
-const SQLITE_SCHEMA_VERSION = 4;
+const SQLITE_SCHEMA_VERSION = DEVICE_SIGNING_SCHEMA_VERSION;
 const MIGRATION_STATE_KEY = 'legacy_json_migration';
 const MIGRATION_NONE = 'none';
 const MIGRATION_IMPORTED_PREFIX = 'imported:';
@@ -145,6 +152,13 @@ function sqliteCauseCode(error: unknown): string | null {
 
 function storeFailure(message: string, error: unknown): DeviceCredentialStoreError {
   if (error instanceof DeviceCredentialStoreError) return error;
+  if (error instanceof DeviceSigningIdentityError) {
+    return new DeviceCredentialStoreError(
+      'INVALID_DEVICE_CREDENTIAL_STORE',
+      error.message,
+      error,
+    );
+  }
   const code = sqliteCauseCode(error);
   const errorCode = (error as { errcode?: unknown })?.errcode;
   const suffix =
@@ -158,6 +172,7 @@ export interface SqliteDeviceCredentialStoreOptions {
   readonly openDatabase?: (databasePath: string) => DatabaseSync;
   readonly archiveLegacyFile?: (source: string, target: string) => Promise<void>;
   readonly beforeCommit?: (phase: 'initialize' | 'create' | 'replace') => void;
+  readonly signing?: Omit<DeviceSigningSchemaOptions, 'previousSchemaVersion'>;
 }
 
 export class SqliteDeviceCredentialStore {
@@ -167,11 +182,13 @@ export class SqliteDeviceCredentialStore {
   private readonly openDatabase: (databasePath: string) => DatabaseSync;
   private readonly archiveLegacyFile: (source: string, target: string) => Promise<void>;
   private readonly beforeCommit: (phase: 'initialize' | 'create' | 'replace') => void;
+  private readonly signing: Omit<DeviceSigningSchemaOptions, 'previousSchemaVersion'>;
   private database: DatabaseSync | null = null;
   private selectStatement: StatementSync | null = null;
   private insertStatement: StatementSync | null = null;
   private replaceStatement: StatementSync | null = null;
   private productionStateStore: SqliteProductionStateStore | null = null;
+  private signingAuthority: SqliteDeviceSigningAuthority | null = null;
 
   constructor(options: SqliteDeviceCredentialStoreOptions = {}) {
     this.databasePath = path.resolve(options.databasePath ?? defaultDatabasePath());
@@ -183,6 +200,7 @@ export class SqliteDeviceCredentialStore {
       options.openDatabase ?? ((databasePath) => new DatabaseSync(databasePath, { timeout: 0 }));
     this.archiveLegacyFile = options.archiveLegacyFile ?? fs.rename;
     this.beforeCommit = options.beforeCommit ?? (() => undefined);
+    this.signing = options.signing ?? {};
   }
 
   async init(): Promise<void> {
@@ -195,6 +213,7 @@ export class SqliteDeviceCredentialStore {
       this.configure(database);
       this.initializeSchema(database, legacyRaw);
       this.assertIntegrity(database);
+      this.signingAuthority = new SqliteDeviceSigningAuthority(database);
       this.database = database;
       this.prepareStatements(database);
       if (legacyRaw !== null) await this.archiveCommittedLegacy(database, legacyRaw);
@@ -205,6 +224,8 @@ export class SqliteDeviceCredentialStore {
       this.selectStatement = null;
       this.insertStatement = null;
       this.replaceStatement = null;
+      this.signingAuthority?.close();
+      this.signingAuthority = null;
       this.database = null;
       try {
         database?.close();
@@ -251,6 +272,16 @@ export class SqliteDeviceCredentialStore {
     });
   }
 
+  getSigningAuthority(): SqliteDeviceSigningAuthority {
+    if (!this.database || !this.signingAuthority) {
+      throw new DeviceCredentialStoreError(
+        'DEVICE_CREDENTIAL_STORE_IO',
+        'SQLite device signing authority is not initialized',
+      );
+    }
+    return this.signingAuthority;
+  }
+
   createProductionStateStore(
     options: Omit<SqliteProductionStateStoreOptions, 'database'> = {}
   ): SqliteProductionStateStore {
@@ -269,11 +300,13 @@ export class SqliteDeviceCredentialStore {
 
   close(): void {
     const database = this.database;
+    this.signingAuthority?.close();
     this.database = null;
     this.selectStatement = null;
     this.insertStatement = null;
     this.replaceStatement = null;
     this.productionStateStore = null;
+    this.signingAuthority = null;
     database?.close();
   }
 
@@ -326,13 +359,13 @@ export class SqliteDeviceCredentialStore {
       initializeProductionStateSchema(database);
       const userVersion = database.prepare('PRAGMA user_version').get() as
         { user_version?: number } | undefined;
-      if ((userVersion?.user_version ?? 0) > SQLITE_SCHEMA_VERSION) {
+      const previousSchemaVersion = userVersion?.user_version ?? 0;
+      if (previousSchemaVersion > SQLITE_SCHEMA_VERSION) {
         throw new DeviceCredentialStoreError(
           'INVALID_DEVICE_CREDENTIAL_STORE',
           'SQLite device credential schema is newer than this host'
         );
       }
-      database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
 
       const current = database
         .prepare('SELECT value FROM authority_metadata WHERE key = ?')
@@ -361,6 +394,11 @@ export class SqliteDeviceCredentialStore {
       } else {
         this.assertLegacyState(current.value ?? '', legacyRaw);
       }
+      initializeDeviceSigningIdentitySchema(database, {
+        ...this.signing,
+        previousSchemaVersion,
+      });
+      database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
       this.beforeCommit('initialize');
       database.exec('COMMIT');
     } catch (error) {

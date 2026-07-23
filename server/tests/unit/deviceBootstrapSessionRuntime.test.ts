@@ -1,4 +1,3 @@
-import { generateKeyPairSync, sign, verify } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -23,6 +22,7 @@ import {
   parseDeviceStateDeltaMessage,
   type DeviceStateDeltaMessage,
 } from '@overlaykit/protocol/device-state-sync';
+import { createDeviceTrustSignatureVerifier } from '@overlaykit/protocol/device-trust';
 import type {
   ProductionBus,
   ProductionSnapshot,
@@ -233,7 +233,8 @@ async function context(
     production.state.program.elements = [element('lower-third')];
   }
   const catalog = new MemoryCatalogGenerations();
-  const keys = generateKeyPairSync('ed25519');
+  const signing = store.getSigningAuthority();
+  const verifySignature = await createDeviceTrustSignatureVerifier(signing.trustBundle);
   const readiness = new DeviceTargetReadinessRegistry();
   const priorReadiness = withExistingReadiness
     ? readiness.register(authority())
@@ -242,12 +243,7 @@ async function context(
     production,
     actionCatalog: await createDeviceActionCatalogRuntime(),
     sequences: new MemorySequences(),
-    signing: {
-      current: () => ({
-        issuerKeyId: 'server-key-1',
-        sign: (bytes) => sign(null, bytes, keys.privateKey).toString('base64'),
-      }),
-    },
+    signing,
     createCatalogGenerations: () => catalog,
     readiness,
   });
@@ -277,7 +273,8 @@ async function context(
     transitions,
     production,
     catalog,
-    keys,
+    signing,
+    verifySignature,
     readiness,
     priorReadiness,
     session,
@@ -301,6 +298,12 @@ describe('DeviceBootstrapSessionRuntime', () => {
     for (const message of current.snapshots) {
       const parsed = await parseDeviceBootstrapSnapshotMessage(message);
       expect(parsed.payloadBytes.byteLength).toBeGreaterThan(0);
+      await expect(current.verifySignature(
+        parsed.payloadBytes,
+        message.signature,
+        message.issuerKeyId,
+      )).resolves.toBe(true);
+      expect(message.issuerKeyId).toBe(current.signing.trustBundle.issuerKeyId);
       await current.session.receive({
         schemaVersion: DEVICE_BOOTSTRAP_ACK_VERSION,
         type: DEVICE_BOOTSTRAP_ACK_TYPE,
@@ -392,12 +395,7 @@ describe('DeviceBootstrapSessionRuntime', () => {
           lastAcceptedSequence,
           acceptedFrameIdentities: accepted,
         },
-        (bytes, signatureValue) => verify(
-          null,
-          bytes,
-          current.keys.publicKey,
-          Buffer.from(signatureValue, 'base64'),
-        ),
+        current.verifySignature,
       );
       expect(admitted.identity).toEqual({
         issuerKeyId: message.issuerKeyId,
@@ -435,12 +433,7 @@ describe('DeviceBootstrapSessionRuntime', () => {
           lastAcceptedSequence,
           acceptedFrameIdentities: accepted,
         },
-        (bytes, signatureValue) => verify(
-          null,
-          bytes,
-          current.keys.publicKey,
-          Buffer.from(signatureValue, 'base64'),
-        ),
+        current.verifySignature,
       );
       const base = applied.get(message.target);
       if (!base) throw new Error('Delta target has no applied bootstrap base');

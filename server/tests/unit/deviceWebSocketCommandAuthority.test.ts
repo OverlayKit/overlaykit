@@ -1,4 +1,3 @@
-import { generateKeyPairSync, sign, verify } from 'crypto';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -9,6 +8,7 @@ import {
   parseDeviceCommandResponseMessage,
   type DeviceCommandResponseMessage,
 } from '@overlaykit/protocol/device-command';
+import { createDeviceTrustSignatureVerifier } from '@overlaykit/protocol/device-trust';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createDeviceCredentialRuntime,
@@ -65,7 +65,10 @@ async function requiredAuthority(
   return authority;
 }
 
-function stateSession(evidence: MutableEvidence): DeviceBootstrapSession {
+function stateSession(
+  evidence: MutableEvidence,
+  issuerKeyId: string,
+): DeviceBootstrapSession {
   return {
     async start() {},
     async receive() {},
@@ -75,13 +78,13 @@ function stateSession(evidence: MutableEvidence): DeviceBootstrapSession {
     commandEvidence: (target) => ({
       target,
       ready: evidence.ready,
-      issuerKeyId: 'issuer-1',
+      issuerKeyId,
       sequence: evidence.sequence,
       sha256: evidence.sha256,
       productionRevision: evidence.productionRevision,
       catalogGeneration: 1,
     }),
-    confirmedIssuerKeyId: () => 'issuer-1',
+    confirmedIssuerKeyId: () => issuerKeyId,
   };
 }
 
@@ -91,6 +94,7 @@ function commandJson(
   productionRevision: number,
   sequence: number,
   sha256: string,
+  issuerKeyId: string,
 ): string {
   return JSON.stringify({
     schemaVersion: DEVICE_COMMAND_EXECUTE_VERSION,
@@ -98,7 +102,7 @@ function commandJson(
     operationId,
     target: 'preview',
     basedOn: {
-      issuerKeyId: 'issuer-1',
+      issuerKeyId,
       sequence,
       sha256,
       productionRevision,
@@ -142,15 +146,20 @@ describe('device WebSocket command SQLite authority', () => {
         expiresAt: Date.now() + 60_000,
       },
     );
-    const keys = generateKeyPairSync('ed25519');
-    const signing = {
-      current: () => ({
-        issuerKeyId: 'issuer-1',
-        sign: (bytes: Uint8Array) => sign(null, bytes, keys.privateKey).toString('base64url'),
-      }),
-    };
+    const signing = first.runtime.signing;
+    if (!signing) throw new Error('SQLite signing authority was not composed');
+    const trustBundle = signing.trustBundle;
+    const verifySignature = await createDeviceTrustSignatureVerifier(trustBundle);
+    const issuerKeyId = trustBundle.issuerKeyId;
     const initialHash = 'a'.repeat(64);
-    const initialCommand = commandJson('lost-response', false, 1, 10, initialHash);
+    const initialCommand = commandJson(
+      'lost-response',
+      false,
+      1,
+      10,
+      initialHash,
+      issuerKeyId,
+    );
     const lostMessages: DeviceCommandResponseMessage[] = [];
     const lostCloses: string[] = [];
     const firstFactory = new DeviceWebSocketCommandSessionFactory({
@@ -164,7 +173,7 @@ describe('device WebSocket command SQLite authority', () => {
         sequence: 10,
         sha256: initialHash,
         productionRevision: 1,
-      }),
+      }, issuerKeyId),
       execution: { execute: async (operation) => operation() },
       transport: {
         send(message) {
@@ -191,16 +200,16 @@ describe('device WebSocket command SQLite authority', () => {
       resultingRevision: 2,
       replayed: false,
     });
-    expect(verify(
-      null,
+    await expect(verifySignature(
       lostResult.payloadBytes,
-      keys.publicKey,
-      Buffer.from(lostMessages[0].signature, 'base64url'),
-    )).toBe(true);
+      lostMessages[0].signature,
+      lostResult.payload.issuerKeyId,
+    )).resolves.toBe(true);
     firstSession.dispose();
     await closeTracked(first.runtime);
 
     const successor = await openAuthority(databasePath);
+    expect(successor.runtime.signing?.trustBundle).toEqual(trustBundle);
     const currentEvidence: MutableEvidence = {
       ready: false,
       sequence: 11,
@@ -211,11 +220,11 @@ describe('device WebSocket command SQLite authority', () => {
     const closes: string[] = [];
     const successorFactory = new DeviceWebSocketCommandSessionFactory({
       production: successor.production,
-      signing,
+      signing: successor.runtime.signing ?? signing,
     });
     const successorSession = await successorFactory.create({
       authority: await requiredAuthority(successor.runtime, issued.token),
-      state: stateSession(currentEvidence),
+      state: stateSession(currentEvidence, issuerKeyId),
       execution: { execute: async (operation) => operation() },
       transport: {
         send: (message) => {
@@ -237,6 +246,11 @@ describe('device WebSocket command SQLite authority', () => {
       resultingRevision: 2,
       replayed: true,
     });
+    await expect(verifySignature(
+      replay.payloadBytes,
+      sent[0].signature,
+      replay.payload.issuerKeyId,
+    )).resolves.toBe(true);
     expect(successor.persistence.readCommandJournal()).toHaveLength(1);
     expect(successor.production.getSnapshot('show-1', 'preview').revision).toBe(2);
 
@@ -247,6 +261,7 @@ describe('device WebSocket command SQLite authority', () => {
       1,
       10,
       initialHash,
+      issuerKeyId,
     ));
     const refused = await parseDeviceCommandResponseMessage(sent[1]);
     expect(refused.payload).toMatchObject({
@@ -254,6 +269,11 @@ describe('device WebSocket command SQLite authority', () => {
       operationId: 'refused-then-admitted',
       reason: 'base_mismatch',
     });
+    await expect(verifySignature(
+      refused.payloadBytes,
+      sent[1].signature,
+      refused.payload.issuerKeyId,
+    )).resolves.toBe(true);
     expect(successor.persistence.readCommandJournal()).toHaveLength(1);
 
     await successorSession.receiveJson(commandJson(
@@ -262,6 +282,7 @@ describe('device WebSocket command SQLite authority', () => {
       2,
       currentEvidence.sequence,
       currentEvidence.sha256,
+      issuerKeyId,
     ));
     const admitted = await parseDeviceCommandResponseMessage(sent[2]);
     expect(admitted.payload).toMatchObject({
@@ -273,6 +294,11 @@ describe('device WebSocket command SQLite authority', () => {
       resultingRevision: 3,
       replayed: false,
     });
+    await expect(verifySignature(
+      admitted.payloadBytes,
+      sent[2].signature,
+      admitted.payload.issuerKeyId,
+    )).resolves.toBe(true);
     expect(successor.persistence.readCommandJournal()).toHaveLength(2);
     expect(successor.production.getSnapshot('show-1', 'preview').revision).toBe(3);
     expect(closes).toEqual([]);

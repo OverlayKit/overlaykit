@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0033",
+  "title": "Device authority uses one durable externally pinned signing identity",
+  "status": "accepted",
+  "date": "2026-07-22",
+  "supersedes": null,
+  "governs": [
+    "device-signing-identity-lifecycle",
+    "device-signing-sqlite-custody",
+    "device-trust-bundle",
+    "device-trust-publication",
+    "device-signer-composition",
+    "device-trust-failure",
+    "device-signing-backup-transfer",
+    "device-signing-claim-boundary"
+  ],
+  "context": "ADR-0019 established signed device-frame admission, ADR-0025 established one exclusive SQLite production authority, ADR-0031 established signed post-ready state evidence, and ADR-0032 established signed device-command outcomes, but the ordinary host still accepted only an injected signer and had no accepted mechanism for generating, persisting, publishing, or externally pinning the corresponding identity. URL and bearer authentication could authenticate a connection without proving the origin of signed state, and a key delivered only by that same WebSocket would make the transport its own trust authority. Discovery for SDD-029 therefore separated OverlayKit URL, one-time bearer, and public trust material; prohibited trust on first use and automatic replacement; placed exactly one Ed25519 identity in the existing exclusive SQLite initialization transaction before network exposure; required later missing, malformed, substituted, or inconsistent material to abort startup; fixed the public identity derivation to SHA-256 over canonical SubjectPublicKeyInfo DER; restricted public bundle retrieval to authenticated Owner authority; and bounded the Slice to one cooperating process, one canonical database, and ordinary process restart. Slice 1 added the strict public DeviceTrustBundle protocol, schema version 5 identity storage with immutable cooperating-writer triggers, startup validation and cryptographic self-test, Owner-only non-cacheable publication, recovered runtime signer composition, compiled-runtime and installed-package verification, and hostile protocol, SQLite, HTTP, runtime, bootstrap, delta, result, refusal, replay, and migration tests. Refutation exercised failed pre-commit creation, schema migration and restart, missing rows, key and derived-identity substitution, malformed and non-canonical encodings, unauthorized publication, secret disclosure probes, signer replacement, closed authority and payload bounds, and independent public verification across restart. Full local governance and repository checks passed 508 tests plus seven licensing tests, all workspace builds passed, and the dependency audit reported zero vulnerabilities. GitHub Actions Constitution run 29978391265 passed validation, evidence recording, outcome enforcement, root-of-trust observation, and Ubuntu, macOS, and Windows portability for PR 37 at signed head 20d1360839ea3eb92b64871b521dc5f8c1779c77. The pull-request attestation step was skipped by event design and remains post-merge evidence. The human authority accepted H-029 only within the tested single-host cooperating-runtime and process-restart boundary.",
+  "decision": "OverlayKit uses exactly one Ed25519 device signing identity stored in the same exclusive SQLite database that owns credentials, production state, audit order, and command history. Fresh initialization or migration from a schema version that predates signing identity creates and validates the key pair inside the schema transaction, commits the identity before signer access or network exposure, and exposes no generated material when that transaction fails. Once schema initialization records the signing-identity version, absence, malformed DER, unsupported algorithm, public-private mismatch, derived issuer or fingerprint mismatch, failed signature self-test, partial migration, or signer divergence must abort host startup explicitly; the host may not regenerate, substitute, disable, or degrade signing silently. The canonical public key is Ed25519 SubjectPublicKeyInfo DER. issuerKeyId is exactly ed25519-sha256- followed by unpadded Base64URL SHA-256 of those bytes, and fingerprintSha256 is the same digest in lowercase hexadecimal. A strict DeviceTrustBundle v1 contains only that algorithm, issuer, canonical Base64URL SPKI, and fingerprint, and a consumer must independently derive and compare every representation before admitting it. OverlayKit URL, one-time device bearer, and Trust Bundle are separate configuration values. The bundle is retrieved through authenticated Owner authority, is non-cacheable, contains no bearer or private material, and must be pinned outside the device WebSocket. A key announced only by the connection carrying signed evidence has no trust authority, and no connection may perform trust on first use, automatic key adoption, replacement, or rotation. Ordinary startup recovers the SQLite identity and mounts its one signing authority across device bootstrap snapshots, post-ready state deltas, command results, command refusals, and replay outcomes before accepting device connections. Every accepted signed artifact must name the exact pinned issuer and verify over its canonical payload bytes; a cryptographic trust violation invalidates that artifact and cannot authorize state, replay, command execution, or automatic recovery. The SQLite database and every backup are secret material because they contain the private signing identity. Restoring a backup transfers the authority and requires retiring the previous host; concurrent copied databases create duplicate authority outside this guarantee. Strong initial bundle acquisition requires loopback or independently verified HTTPS. Plaintext Trusted LAN operation is an explicit operator trust assumption and does not resist an active network attacker. These guarantees apply only to one cooperating OverlayKit process and one canonical SQLite database across ordinary process restarts. Key rotation, compromise recovery, hardware or keychain custody, protection from a compromised host account, hostile database writers, physical abrupt-power or dishonest-media durability, copied-database exclusion, multi-host authority, high availability, TLS or proxy certification, Companion, Stream Deck hardware, rendered output, OBS truth, and operator perception require separate evidence.",
+  "consequences": [
+    "A separately configured consumer can verify that bootstrap, state, and command evidence came from the same persisted OverlayKit device authority across ordinary process restarts without trusting the WebSocket to choose that authority.",
+    "A fresh host creates signing identity before device network exposure, while a failed initialization transaction exposes neither a signer nor a partially accepted identity.",
+    "An initialized host fails closed when its signing material is missing, corrupt, substituted, or inconsistent instead of silently presenting a new identity.",
+    "Owners must distribute and pin the public Trust Bundle separately from the device URL and one-time bearer; this adds an explicit provisioning step but prevents transport-selected trust.",
+    "The SQLite database and backups become secret authority-transfer material and require operational retirement of the prior host after restore.",
+    "Plaintext Trusted LAN provisioning remains usable for OSS deployments only as an explicit operator trust assumption, not as evidence against an active network attacker.",
+    "The accepted identity is intentionally not rotatable or recoverable after compromise until a later Slice establishes a governed replacement boundary.",
+    "The accepted evidence does not prove copied-database exclusion, physical power-loss durability, multi-host coordination, external adapters, hardware feedback, rendered pixels, OBS output, or operator perception."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-signing-identity-is-transactionally-created-once",
+      "statement": "A fresh or pre-identity SQLite authority must create and validate exactly one Ed25519 signing identity inside its schema transaction and commit it before signer access or device network exposure."
+    },
+    {
+      "kind": "rule",
+      "id": "initialized-device-signing-identity-never-regenerates",
+      "statement": "After the signing-identity schema version is initialized, missing, malformed, mismatched, unverifiable, or partial identity state must abort startup explicitly and must never trigger regeneration, substitution, unsigned operation, or silent degradation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-signing-public-identity-is-canonical",
+      "statement": "Device public identity must use canonical Ed25519 SubjectPublicKeyInfo DER, derive issuerKeyId as ed25519-sha256- plus unpadded Base64URL SHA-256 of those bytes, and derive fingerprintSha256 as the same digest in lowercase hexadecimal."
+    },
+    {
+      "kind": "rule",
+      "id": "device-trust-bundle-is-strict-public-material",
+      "statement": "DeviceTrustBundle v1 must contain only its exact version, Ed25519 algorithm, derived issuer, canonical Base64URL SPKI, and derived fingerprint; consumers must reject unknown fields, aliases, non-canonical encodings, unsupported keys, and mismatched representations."
+    },
+    {
+      "kind": "rule",
+      "id": "device-trust-is-provisioned-outside-its-websocket",
+      "statement": "OverlayKit URL, one-time bearer, and public Trust Bundle must remain separate configuration values, and a key supplied only by the device WebSocket may not establish or replace trust."
+    },
+    {
+      "kind": "rule",
+      "id": "device-trust-publication-is-owner-only-and-secret-free",
+      "statement": "Only authenticated Owner authority may retrieve the current non-cacheable Trust Bundle, and that response must contain neither bearer, sealed credential, private key, nor another secret."
+    },
+    {
+      "kind": "rule",
+      "id": "device-signing-runtime-has-one-recovered-authority",
+      "statement": "Ordinary SQLite-backed startup must recover one signing authority before device connections and mount it across bootstrap snapshots, post-ready deltas, command results, command refusals, and replay outcomes; explicit signer replacement or divergence must fail closed."
+    },
+    {
+      "kind": "rule",
+      "id": "device-trust-violation-invalidates-the-artifact",
+      "statement": "An issuer mismatch, invalid signature, malformed trust material, or canonical-byte mismatch must invalidate the complete received artifact and may not authorize state, replay, execution, key adoption, or automatic trust recovery."
+    },
+    {
+      "kind": "rule",
+      "id": "device-signing-backup-transfers-authority",
+      "statement": "The SQLite database and backups must be treated as secret signing-authority material, and restoring a backup transfers rather than clones authority, requiring the previous host to be retired before the restored host is used."
+    },
+    {
+      "kind": "rule",
+      "id": "device-trust-acquisition-claim-is-transport-bounded",
+      "statement": "Initial Trust Bundle acquisition may claim hostile-network resistance only over loopback or independently verified HTTPS; plaintext Trusted LAN acquisition is an explicit operator assumption rather than network-attacker evidence."
+    },
+    {
+      "kind": "rule",
+      "id": "device-signing-claims-are-single-host-and-restart-bounded",
+      "statement": "Passing signing-identity evidence may be represented only as one cooperating process and one canonical SQLite database preserving identity across ordinary process restarts, not as physical-power durability, copied-database exclusion, multi-host authority, rotation, compromise recovery, TLS certification, external-adapter, hardware, renderer, OBS, or operator-perception evidence."
+    }
+  ]
+}

@@ -452,6 +452,21 @@ let successorStore;
 try {
   durableStore = new SqliteDeviceCredentialStore({ databasePath: durableDatabase });
   await durableStore.init();
+  const durableSigning = durableStore.getSigningAuthority();
+  const durableTrust = durableSigning.trustBundle;
+  const trustProtocol = await import('@overlaykit/protocol/device-trust');
+  const verifyDurableSignature = await trustProtocol.createDeviceTrustSignatureVerifier(
+    durableTrust
+  );
+  const signingProbe = new TextEncoder().encode('compiled durable signing authority');
+  const initialSignature = durableSigning.current().sign(signingProbe);
+  if (!await verifyDurableSignature(
+    signingProbe,
+    initialSignature,
+    durableTrust.issuerKeyId
+  )) {
+    throw new Error('Compiled SQLite signer did not match its public Trust Bundle');
+  }
   const durableProduction = new ProductionService(new ChannelManager());
   durableProduction.mountPersistence(durableStore.createProductionStateStore());
   durableProduction.loadPreview('durable-build-show', {
@@ -464,6 +479,17 @@ try {
 
   successorStore = new SqliteDeviceCredentialStore({ databasePath: durableDatabase });
   await successorStore.init();
+  const successorSigning = successorStore.getSigningAuthority();
+  if (
+    JSON.stringify(successorSigning.trustBundle) !== JSON.stringify(durableTrust) ||
+    !await verifyDurableSignature(
+      signingProbe,
+      successorSigning.current().sign(signingProbe),
+      durableTrust.issuerKeyId
+    )
+  ) {
+    throw new Error('Compiled SQLite signer did not preserve identity across restart');
+  }
   const successorProduction = new ProductionService(new ChannelManager());
   const successorPersistence = successorStore.createProductionStateStore();
   successorProduction.mountPersistence(successorPersistence);
@@ -482,5 +508,5 @@ try {
 }
 
 process.stdout.write(
-  '[verify-device-runtime] native ESM authority, durable production, catalog, feedback, bootstrap readiness, and command transport verified\n'
+  '[verify-device-runtime] native ESM authority, durable signing and production, catalog, feedback, bootstrap readiness, and command transport verified\n'
 );

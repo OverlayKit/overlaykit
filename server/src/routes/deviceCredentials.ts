@@ -88,6 +88,21 @@ export function createDeviceCredentialsRouter(
 ): Router {
   const router = Router();
 
+  router.get('/integrations/device-trust', (_req, res) => {
+    if (!runtime.signing) {
+      noStore(res);
+      res.status(503).json({
+        error: {
+          code: 'DEVICE_SIGNING_UNAVAILABLE',
+          message: 'Device signing authority is unavailable',
+        },
+      });
+      return;
+    }
+    noStore(res);
+    res.json({ data: { trustBundle: runtime.signing.trustBundle } });
+  });
+
   router.post('/shows/:showId/integrations/device-credentials', async (req, res) => {
     try {
       if (!(await requireActiveShow(storage, req.params.showId, res))) return;

@@ -207,6 +207,9 @@ describe('SqliteDeviceCredentialStore', () => {
 
     const versionTwo = new DatabaseSync(paths.databasePath);
     versionTwo.exec(`
+      DROP TRIGGER device_signing_identity_no_update;
+      DROP TRIGGER device_signing_identity_no_delete;
+      DROP TABLE device_signing_identity;
       DROP TABLE production_current_snapshots;
       DROP TABLE production_history;
       DROP TABLE production_quarantines;
@@ -227,6 +230,8 @@ describe('SqliteDeviceCredentialStore', () => {
     const upgraded = tracked(paths);
     await upgraded.init();
     await expect(upgraded.get('device-1')).resolves.toMatchObject({ generation: 1 });
+    expect(upgraded.getSigningAuthority().trustBundle.issuerKeyId)
+      .toMatch(/^ed25519-sha256-[A-Za-z0-9_-]{43}$/);
     expect(upgraded.createProductionStateStore().load()).toEqual({
       snapshots: [],
       quarantines: [],
@@ -251,6 +256,9 @@ describe('SqliteDeviceCredentialStore', () => {
 
     const versionThree = new DatabaseSync(paths.databasePath);
     versionThree.exec(`
+      DROP TRIGGER device_signing_identity_no_update;
+      DROP TRIGGER device_signing_identity_no_delete;
+      DROP TABLE device_signing_identity;
       DROP TABLE production_commands;
       DROP TABLE production_command_order;
       DROP TABLE production_command_quarantines;
@@ -263,6 +271,8 @@ describe('SqliteDeviceCredentialStore', () => {
     const upgraded = tracked(paths);
     await upgraded.init();
     await expect(upgraded.get('device-1')).resolves.toMatchObject({ generation: 1 });
+    expect(upgraded.getSigningAuthority().trustBundle.issuerKeyId)
+      .toMatch(/^ed25519-sha256-[A-Za-z0-9_-]{43}$/);
     const upgradedPersistence = upgraded.createProductionStateStore();
     expect(upgradedPersistence.load().snapshots).toEqual([
       expect.objectContaining({ showId: 'show-1', target: 'preview', revision: 1 }),

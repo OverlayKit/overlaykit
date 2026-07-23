@@ -3,7 +3,8 @@
 Shared OverlayKit contracts and deterministic state projections for scenes,
 Preview/Program production, authorized action discovery, control feedback,
 catalog-bound device control frames, strict device bootstrap acknowledgements,
-server-known visibility projection, and device credentials.
+server-known visibility projection, externally pinned device trust, and device
+credentials.
 
 ## Install
 
@@ -41,7 +42,27 @@ Synchronous `require()` is not part of the package contract.
 - `@overlaykit/protocol/device-bootstrap`
 - `@overlaykit/protocol/device-command`
 - `@overlaykit/protocol/device-state-sync`
+- `@overlaykit/protocol/device-trust`
 - `@overlaykit/protocol/device-credential`
+
+## Device Trust
+
+`device-trust` validates a strict public Ed25519 Trust Bundle and returns a
+verifier compatible with signed frame and command admission:
+
+```ts
+import {
+  createDeviceTrustSignatureVerifier,
+  parseDeviceTrustBundle,
+} from '@overlaykit/protocol/device-trust';
+
+const { bundle } = await parseDeviceTrustBundle(configuredTrustBundle);
+const verifySignature = await createDeviceTrustSignatureVerifier(bundle);
+```
+
+The bundle must be obtained through authenticated Owner authority and pinned
+outside the WebSocket carrying signed messages. The package does not implement
+trust on first use or automatic issuer rotation.
 
 ## License and Attribution
 

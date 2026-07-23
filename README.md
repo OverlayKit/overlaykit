@@ -29,7 +29,7 @@ Open Studio and create the local owner account:
 - Studio: http://localhost:5173
 - API health: http://localhost:3000/health
 - Browser/OBS WebSocket: ws://localhost:8080/ws
-- Hardware WebSocket: ws://localhost:8080/device (requires an Owner-issued device bearer)
+- Device WebSocket: ws://localhost:8080/device (requires an Owner-issued device bearer)
 
 Create a Show and save a Scene. In **Production**, load that Scene into Preview, inspect it, and press **Take** to promote the complete snapshot to Program. Runtime operations do not modify the saved Scene.
 
@@ -37,7 +37,37 @@ Components may declare text, number, toggle, selection, and color controls in Ed
 
 Use **Output** to rotate the read-only token and copy the complete OBS browser-source URL. OBS receives Program only; an output credential cannot subscribe to Preview or mutate production.
 
-Preview and Program snapshots currently live in server memory. They survive WebSocket reconnects but reset when the server process restarts. Durable production recovery is intentionally not claimed yet.
+Preview, Program, device command history, credentials, and the device signing
+identity use one exclusive SQLite authority. Committed state and signing identity
+survive an ordinary process restart. Physical power-loss durability and copied
+database coordination are not claimed.
+
+## Device Trust
+
+The first successful SQLite initialization generates one Ed25519 signing
+identity before the server accepts device connections. An authenticated Owner
+can retrieve its public Trust Bundle from:
+
+```text
+GET /api/integrations/device-trust
+```
+
+The OverlayKit URL, one-time device bearer, and public Trust Bundle are separate
+configuration values. A device must pin the bundle and reject any signer that
+does not derive its exact `issuerKeyId`; a key offered only by the device
+WebSocket is not trusted.
+
+Acquire the bundle over loopback or verified HTTPS when hostile-network
+resistance matters. Plaintext Trusted LAN operation relies on the operator's
+explicit assertion that the network is trusted; it does not certify the initial
+bundle against an active network attacker.
+
+`data/device-credentials.sqlite` contains the private signing identity and must
+be backed up as secret material. Restoring that database transfers the identity
+to the restored host, so the previous host must be retired first. Missing or
+corrupt signing material aborts startup instead of generating a replacement.
+Signing-key rotation, compromise recovery, multi-host authority, Companion, and
+physical Stream Deck behavior remain outside the current evidence.
 
 ## Workspaces
 

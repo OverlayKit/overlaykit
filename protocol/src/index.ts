@@ -6,6 +6,7 @@ export * from './device-control-frame.js';
 export * from './device-bootstrap.js';
 export * from './device-command.js';
 export * from './device-state-sync.js';
+export * from './device-trust.js';
 export * from './device-credential.js';
 export * from './element.js';
 export * from './messages.js';

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { parseDeviceTrustBundle } from '@overlaykit/protocol/device-trust';
 import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { createDeviceCredentialCryptoOptions } from '../../src/auth/DeviceCredentialCrypto';
@@ -98,11 +99,28 @@ describe('Owner device credential HTTP lifecycle', () => {
     const agent = request.agent(app);
 
     await request(app)
+      .get('/api/integrations/device-trust')
+      .set('Origin', ORIGIN)
+      .expect(401);
+    await request(app)
       .post('/api/shows/show-1/integrations/device-credentials')
       .set('Origin', ORIGIN)
       .send({})
       .expect(401);
     await agent.post('/api/auth/setup').set('Origin', ORIGIN).send(OWNER).expect(201);
+    const trust = await agent
+      .get('/api/integrations/device-trust')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(trust.headers['cache-control']).toContain('no-store');
+    expect(trust.headers.pragma).toBe('no-cache');
+    expect(trust.body.data.trustBundle).toEqual(runtime.signing?.trustBundle);
+    await expect(parseDeviceTrustBundle(trust.body.data.trustBundle)).resolves.toMatchObject({
+      bundle: runtime.signing?.trustBundle,
+    });
+    expect(JSON.stringify(trust.body)).not.toContain('private');
+    expect(JSON.stringify(trust.body)).not.toContain('ok_device_');
+    expect(JSON.stringify(trust.body)).not.toContain('sealedSecret');
     await agent
       .post('/api/shows/show-1/integrations/device-credentials')
       .send({})
@@ -213,6 +231,9 @@ describe('Owner device credential HTTP lifecycle', () => {
     });
     app.use(requireRole('owner'), createDeviceCredentialsRouter(storage, runtime));
 
+    await request(app)
+      .get('/integrations/device-trust')
+      .expect(403);
     await request(app)
       .post('/shows/show-1/integrations/device-credentials')
       .send({})
