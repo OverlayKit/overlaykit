@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0037",
+  "title": "Test authenticated WebSocket device command transport",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0015",
+    "ADR-0017",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0021",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0024",
+    "ADR-0025",
+    "ADR-0026",
+    "ADR-0027",
+    "ADR-0028",
+    "ADR-0029",
+    "ADR-0030",
+    "ADR-0031"
+  ],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Discovery authorizes an authenticated ready non-browser device WebSocket to submit component.visibility commands for its connection-bound Show, stable device principal, exact Preview or Program target, canonical control identifier, and current scope. The WebSocket is transport only and cannot create identity, authorization, production truth, state truth, or command authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A command names operationId, target, one component visibility intent, and the exact applied state base consisting of issuerKeyId, sequence, SHA-256, production revision, and catalog generation. Show, principal, credential generation, bearer, and audience are derived from the authenticated connection rather than accepted from command JSON.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Discovery requires a closed versioned JSON command contract no larger than 16,384 bytes. Semantic object order and insignificant JSON whitespace do not alter identity, duplicate properties and unknown fields are invalid, operationId is between one and 100 characters, and canonical intent identity excludes bearer, transport, request time, and credential generation.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "New authority begins only at synchronous admission inside the existing exclusive SQLite production command transaction, after exact replay and conflict lookup and immediately before capacity and revision evaluation. Readiness or base failure before that boundary returns a non-durable refusal and does not consume operationId; a revision race after admission commits one durable rejected result.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "An identical committed operation may be disclosed only after fresh connection authorization and returns its original historical result without reapplication even when its target currently lacks fresh state evidence. Reuse with another canonical intent is an operation conflict, and reconnect recovery repeats authentication, bootstrap, readiness, and the exact original semantic operation rather than creating a recovery command.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Each connection permits one new in-flight operation independently for Preview and Program and does not queue new commands. An identical in-flight operation coalesces onto one execution and one response; another new operation for that target is refused as not_ready, while an already committed exact replay may still resolve through durable authority.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Durable terminal outcomes use signed unicast device.command.result messages containing only operationId, canonical durable intent SHA-256, applied or rejected outcome, result code, command sequence, revision boundaries, and replayed. They contain no current state, snapshot, rendered content, active or inactive assertion, or response time; current state remains exclusively on the signed state lane.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Non-admission uses a signed unicast device.command.refused message with only not_ready, base_mismatch, not_authorized, operation_conflict, capacity_exhausted, or target_unavailable. A refusal is not durable terminal command evidence and does not authorize automatic retry; only an uncertain lost response permits replay of the exact same operationId and intent.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Command responses are detached signatures over canonical payload bytes under the current state issuer and exact audience. They are sent once through the same bounded physical WebSocket writer as state messages with no response acknowledgement or retransmission; failed, unresolved, or backpressured delivery closes the connection, while the three-second unknown is local observational evidence only.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "State acknowledgements remain lifecycle messages and are demultiplexed before commands. Result and state-delta order has no semantic dependency, connection retirement excludes new admission immediately, an operation admitted before retirement settles durably, and lifecycle drain never waits for response delivery.",
+      "evidence": "Human Doctrine Discovery on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-028: An authenticated ready WebSocket adapter with state-bound canonical commands, ephemeral per-target coalescing, and signed unicast responses can execute component visibility through the existing SQLite authority while preserving durable idempotency and reconnect recovery without creating transport or state authority.",
+      "evidence": "SDD-028 hypothesis and component visibility command Slice approved by Human Doctrine review on 2026-07-22",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish Take, value controls, cues, batches, macros, Companion or Stream Deck integration, hardware state, operator perception, renderer or OBS output truth, browser command clients, multi-host coordination, proxy or TLS behavior, signer custody or distribution, hostile-network liveness, synchronized clocks, or physical abrupt-power durability.",
+      "evidence": "SDD-028 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Equivalent valid command JSON produces one canonical command and intent identity, while oversize, malformed, duplicate, extra, non-JSON-whitespace, invalid-base, and unsupported-intent frames fail closed without execution.",
+      "verification": "Protocol canonicalization, ambiguity, size, schema, and hostile parser tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A ready authorized command crosses the connection lease and exact state-base gates inside existing SQLite authority, commits exactly once, publishes only after commit, and emits one signed terminal result without current state.",
+      "verification": "Mounted command-session, real SQLite authority, signature-byte, revision, journal, and publication tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A response lost after commit can be recovered after process restart by replaying the exact authorized operation; the journal and production revision do not advance again and the response identifies the original command sequence and revision boundary as replayed.",
+      "verification": "Deliberate post-commit transport failure, SQLite restart, exact replay, journal count, and state revision test."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Readiness, base, scope, control, capacity, and target failures do not consume a new operation identity, while an admitted stale target revision commits one durable rejected result and conflicting operation reuse cannot disclose or mutate unsupported state.",
+      "verification": "Refusal-to-admission retry, stale-revision, authorization, capacity, target, and operation-conflict tests with raw journal inspection."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Preview and Program lanes remain independent, identical in-flight commands coalesce to one execution and response, new same-target commands are not queued, and lifecycle retirement prevents authority from beginning after its synchronous admission barrier.",
+      "verification": "Concurrent lane, coalescence, no-queue, coordinator lease, retirement, and admission-race tests."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The gateway routes every state acknowledgement through lifecycle handling before command handling, serializes state and command output through one bounded writer, and closes on malformed command, signer change, send failure, unresolved send, backpressure, or authority loss without treating a result as state evidence.",
+      "verification": "Real WebSocket demultiplexing and transport tests plus command-session protocol, signer, timeout, and close tests."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0037 records Discovery facts, H-028, measurable refutation criteria, and unresolved guarantees without an acceptance inference or premature architectural decision.",
+      "evidence": "npm run governance:check"
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Slice changes only the shared command protocol, WebSocket command session and gateway composition, exact readiness evidence projection, SQLite admission hook, installed-package/runtime verification, and focused tests for component visibility.",
+      "evidence": "git diff for CHG-0037"
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Review actively attempts to refute H-028 through malformed and ambiguous JSON, stale bases, missing readiness, authorization loss, concurrent commands, duplicate and conflicting operation IDs, revision races, response loss, restart replay, signer rotation, transport timeout, backpressure, lifecycle races, and adapter bypass.",
+      "evidence": "Focused protocol, command-session, SQLite authority, coordinator, gateway, distribution, and runtime tests"
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, focused tests, full repository checks, builds, licensing, dependency audit, and Linux, macOS, and Windows portability evidence pass for the Slice.",
+      "evidence": "npm run governance:check, focused tests, npm run check, npm run build, npm audit, and GitHub Actions Constitution evidence"
+    },
+    {
+      "id": "DOD-005",
+      "statement": "The successor ADR, implemented status, bounded inference, governance rule, and profile bump are created only after the human authority reviews refutation evidence and explicitly accepts H-028.",
+      "evidence": "Future Human Doctrine acceptance and successor ADR"
+    }
+  ]
+}

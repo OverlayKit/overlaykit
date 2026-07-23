@@ -61,6 +61,7 @@ export interface ProductionIntentAuthorization {
 
 export interface ProductionDeviceIntentAuthorization extends ProductionIntentAuthorization {
   readonly deviceAuthority: ProductionDeviceCommandAuthority;
+  readonly admitNewCommand?: () => void;
 }
 
 export type ProductionRecoveryMode = 'restore' | 'reset';
@@ -857,6 +858,9 @@ export class ProductionService {
         {
           intent,
           authority: authorization.deviceAuthority,
+          ...(authorization.admitNewCommand
+            ? { admitNew: authorization.admitNewCommand }
+            : {}),
         },
         (current, committedAt) => {
           this.assertTargetAvailable(intent.showId, intent.target);

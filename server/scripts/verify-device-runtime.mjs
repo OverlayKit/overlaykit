@@ -21,6 +21,9 @@ const bootstrapRuntimePath = fileURLToPath(
 const bootstrapIssuerRuntimePath = fileURLToPath(
   new URL('../dist/services/DeviceBootstrapSnapshotIssuer.js', import.meta.url)
 );
+const commandRuntimePath = fileURLToPath(
+  new URL('../dist/services/DeviceWebSocketCommandSession.js', import.meta.url)
+);
 const channelManagerPath = fileURLToPath(
   new URL('../dist/services/ChannelManager.js', import.meta.url)
 );
@@ -35,6 +38,7 @@ const compiledCatalog = await readFile(catalogRuntimePath, 'utf8');
 const compiledFeedback = await readFile(feedbackRuntimePath, 'utf8');
 const compiledBootstrap = await readFile(bootstrapRuntimePath, 'utf8');
 const compiledBootstrapIssuer = await readFile(bootstrapIssuerRuntimePath, 'utf8');
+const compiledCommand = await readFile(commandRuntimePath, 'utf8');
 const protocolSpecifier = '@overlaykit/protocol/device-credential';
 const catalogProtocolSpecifier = '@overlaykit/protocol/control-action-catalog';
 const feedbackProtocolSpecifiers = [
@@ -46,6 +50,7 @@ const bootstrapIssuerProtocolSpecifiers = [
   '@overlaykit/protocol/device-control-frame',
   '@overlaykit/protocol/control-visibility-feedback',
 ];
+const commandProtocolSpecifier = '@overlaykit/protocol/device-command';
 
 if (!new RegExp(`import\\(['\"]${protocolSpecifier}['\"]\\)`).test(compiled)) {
   throw new Error('Compiled device runtime does not preserve native dynamic import');
@@ -113,11 +118,25 @@ for (const specifier of bootstrapIssuerProtocolSpecifiers) {
   }
 }
 
+const commandImportsProtocol =
+  compiledCommand.includes(`import('${commandProtocolSpecifier}')`) ||
+  compiledCommand.includes(`import("${commandProtocolSpecifier}")`);
+const commandRequiresProtocol =
+  compiledCommand.includes(`require('${commandProtocolSpecifier}')`) ||
+  compiledCommand.includes(`require("${commandProtocolSpecifier}")`);
+if (!commandImportsProtocol) {
+  throw new Error('Compiled command session does not preserve native dynamic import');
+}
+if (commandRequiresProtocol) {
+  throw new Error('Compiled command session rewrites the ESM protocol import to require');
+}
+
 const { createDeviceCredentialRuntime } = require(runtimePath);
 const { createDeviceActionCatalogRuntime } = require(catalogRuntimePath);
 const { createDeviceFeedbackIssuerRuntime } = require(feedbackRuntimePath);
 const { createDeviceBootstrapReadinessCoordinator } = require(bootstrapRuntimePath);
 const { createDeviceBootstrapSnapshotIssuer } = require(bootstrapIssuerRuntimePath);
+const { DeviceWebSocketCommandSessionFactory } = require(commandRuntimePath);
 const { ChannelManager } = require(channelManagerPath);
 const { ProductionService } = require(productionServicePath);
 const { SqliteDeviceCredentialStore } = require(sqliteCredentialStorePath);
@@ -355,6 +374,77 @@ if (
   );
 }
 
+let commandResponse = null;
+const commandSession = await new DeviceWebSocketCommandSessionFactory({
+  production: {
+    executeDeviceVisibilityCommand(_intent, authorization) {
+      authorization.admitNewCommand();
+      throw new Error('A not-ready command must not reach execution');
+    },
+  },
+  signing: {
+    current: () => ({
+      issuerKeyId: 'build-server-key',
+      sign: () => 'detached-signature',
+    }),
+  },
+}).create({
+  authority,
+  state: {
+    start: async () => undefined,
+    receive: async () => undefined,
+    dispose: async () => undefined,
+    isReady: () => true,
+    isTargetReady: () => false,
+    commandEvidence: (target) => ({
+      target,
+      ready: false,
+      issuerKeyId: 'build-server-key',
+      sequence: 2,
+      sha256: bootstrapEmission.sha256,
+      productionRevision: 1,
+      catalogGeneration: 1,
+    }),
+    confirmedIssuerKeyId: () => 'build-server-key',
+  },
+  execution: { execute: (operation) => operation() },
+  transport: {
+    send: (message) => {
+      commandResponse = message;
+    },
+    close: () => undefined,
+  },
+});
+await commandSession.receiveJson(JSON.stringify({
+  schemaVersion: 'overlaykit-device-command-execute/v1',
+  type: 'device.command.execute',
+  operationId: 'build-operation',
+  target: 'preview',
+  basedOn: {
+    issuerKeyId: 'build-server-key',
+    sequence: 2,
+    sha256: bootstrapEmission.sha256,
+    productionRevision: 1,
+    catalogGeneration: 1,
+  },
+  intent: {
+    kind: 'component.visibility',
+    componentId: 'build',
+    visible: false,
+    expectedRevision: 1,
+  },
+}));
+const commandProtocol = await import('@overlaykit/protocol/device-command');
+const admittedCommandResponse = await commandProtocol.parseDeviceCommandResponseMessage(
+  commandResponse
+);
+if (
+  admittedCommandResponse.payload.type !== 'device.command.refused' ||
+  admittedCommandResponse.payload.reason !== 'not_ready'
+) {
+  throw new Error('Compiled command session did not emit the bounded signed refusal');
+}
+
 const durableDirectory = await mkdtemp(join(tmpdir(), 'overlaykit-build-production-'));
 const durableDatabase = join(durableDirectory, 'authority.sqlite');
 let durableStore;
@@ -392,5 +482,5 @@ try {
 }
 
 process.stdout.write(
-  '[verify-device-runtime] native ESM authority, durable production, catalog, feedback, and bootstrap readiness verified\n'
+  '[verify-device-runtime] native ESM authority, durable production, catalog, feedback, bootstrap readiness, and command transport verified\n'
 );
