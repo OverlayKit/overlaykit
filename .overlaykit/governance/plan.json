@@ -340,6 +340,14 @@
       "id": "ADR-0034",
       "supersededBy": null,
       "title": "Protocol package supports Node 22 through packed semantic evidence"
+    },
+    {
+      "contentHash": "a9c2c0e20dcb571f3d405a700d40f0637309d1949a010c8c6be315072c1da412",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0035",
+      "supersededBy": null,
+      "title": "The governed Companion host adapter preserves OverlayKit authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -474,10 +482,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "7f3d570132b2a349137064d583d6d241da4f51e5add2dcaf9dc352c236710066",
-  "profileHash": "2d964a86dc72833f64351e40d4809af12d6431104b74704c44a28a7cbad28e5e",
+  "planHash": "70f0f14c985cd9ac543770c2bf3174ec124d0154bba1d46a2e46387abe6c35c5",
+  "profileHash": "56836b9f6153c2bdeaede1a355acbeb88e030e35b9edd11152c538295cbc1eab",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.30.0",
+  "profileVersion": "2.31.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",

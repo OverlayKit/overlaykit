@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0040",
   "title": "Test the governed Bitfocus Companion adapter boundary",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -25,7 +25,8 @@
     "ADR-0031",
     "ADR-0032",
     "ADR-0033",
-    "ADR-0034"
+    "ADR-0034",
+    "ADR-0035"
   ],
   "specifications": [
     "SPEC-0001"
@@ -63,8 +64,8 @@
     },
     {
       "kind": "fact",
-      "statement": "OverlayKit/companion-module-overlaykit-server does not yet exist and @overlaykit/protocol 0.1.0 is not present in the npm registry. Repository bootstrap, adapter evidence, and registry publication are therefore distinct transitions.",
-      "evidence": "GitHub and npm registry observations on 2026-07-23",
+      "statement": "OverlayKit/companion-module-overlaykit-server was bootstrapped with clean signed history, deterministic governance, Apache-2.0 licensing, canonical Rodrigo Vicente attribution, and the preserved Bitfocus MIT notice before the adapter implementation. @overlaykit/protocol 0.1.0 remains consumed as an exact digest-pinned tarball rather than a registry claim.",
+      "evidence": "OverlayKit/companion-module-overlaykit-server signed history, governance manifest, LICENSE, NOTICE, THIRD_PARTY_NOTICES.md, and protocol-lock.json observed 2026-07-23",
       "blocking": false
     },
     {
@@ -89,6 +90,12 @@
       "kind": "assumption",
       "statement": "H-031: A separately governed public Node 22 ESM module can load through the official Bitfocus Companion API 2.0 host on Linux, consume the exact digest-pinned npm tarball of @overlaykit/protocol without workspace or repository source access, connect one module instance to one OverlayKit Show, and expose visibility actions and feedback using only signed server evidence without creating a second operational authority.",
       "evidence": "SDD-031 hypothesis and Slice 1 explicitly approved by Human Doctrine review on 2026-07-23",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "H-031 is supported within the exact tested external-repository boundary: Node 22 ESM, Companion Module API 2.0, @companion-module/host 1.0.1, digest-pinned @overlaykit/protocol 0.1.0 from signed OverlayKit commit 201cd15ceee487b5a305efd2684e52970d5d6c15, one Show per module instance, three visibility actions, six evidence-bound feedback states, fail-closed configuration and trust, signed bootstrap readiness, bounded expiry and reconnect behavior, no persisted operational authority, legal provenance, and Ubuntu GitHub Actions. The evidence does not establish npm publication, Bitfocus registry admission, the complete Companion application, USB or physical hardware, rendered button pixels, OBS truth, operator perception, trust rotation, or broader platform support.",
+      "evidence": "Human Doctrine acceptance on 2026-07-23; OverlayKit/companion-module-overlaykit-server ADR-0003 and CHG-0002; signed merge 71f499856c3ddfabb4f70ed17786fc33fa8f3db6; protected-main validation and attestation in run 30042472493",
       "blocking": false
     },
     {
@@ -143,28 +150,28 @@
   "definitionOfDone": [
     {
       "id": "DOD-001",
-      "statement": "CHG-0040 records Discovery facts, accepted H-031, measurable refutation criteria, and unresolved guarantees without claiming that the adapter hypothesis passed.",
-      "evidence": "npm run governance:check"
+      "statement": "CHG-0040 records Discovery facts, accepted H-031, measurable refutation criteria, bounded inference, and unresolved guarantees after separate human evidence acceptance.",
+      "evidence": "CHG-0040, ADR-0035, and Human Doctrine evidence acceptance on 2026-07-23."
     },
     {
       "id": "DOD-002",
-      "statement": "The parent repository changes only the approved external adapter contract and generated observation manifest; the adapter implementation and its evidence live in the separate repository.",
-      "evidence": "git diff for the CHG-0040 contract commit"
+      "statement": "The parent repository changes only the external adapter contract, accepted ADR, active profile, bounded documentation, and deterministic generated artifacts; adapter implementation and primary evidence remain in the separate repository.",
+      "evidence": "Acceptance diff for CHG-0040 and ADR-0035."
     },
     {
       "id": "DOD-003",
-      "statement": "The adapter repository constitution and legal provenance precede adapter product code in signed history, and its initial enforcement is not enabled until the bootstrap workflow and attestation are observable.",
-      "evidence": "Separate repository commit graph, workflow evidence, and ruleset activation sequence."
+      "statement": "The adapter repository constitution and legal provenance precede adapter product code in signed history, and repository enforcement was enabled only after bootstrap workflow and attestation evidence became observable.",
+      "evidence": "OverlayKit/companion-module-overlaykit-server signed commit graph, bootstrap run 30024898975, and ruleset activation evidence."
     },
     {
       "id": "DOD-004",
       "statement": "Review actively attempts to refute H-031 through clean Node 22 installation, exact dependency and tarball identities, official host loading, strict trust and configuration rejection, bootstrap and readiness sequencing, command and feedback authority, reconnect classification, restart behavior, package inspection, and source-boundary checks.",
-      "evidence": "Focused unit, integration, official-host, packaging, and licensing evidence."
+      "evidence": "46 governance tests, 21 module tests, official @companion-module/host 1.0.1 loading, licensing and package verification, zero-high runtime audit, signed merge 71f499856c3ddfabb4f70ed17786fc33fa8f3db6, and protected-main run 30042472493."
     },
     {
       "id": "DOD-005",
-      "statement": "Any bounded inference, implemented status, profile activation, future ADR, registry publication, release, hardware claim, or merge is created only after the human authority reviews the refutation evidence and explicitly accepts the demonstrated result and later authorizes each separate transition.",
-      "evidence": "Future Human Doctrine evidence review and explicit transition authorizations."
+      "statement": "ADR-0035, implemented status, bounded inference, and profile activation occur only after human evidence acceptance; parent merge, registry publication, release, complete Companion behavior, and hardware claims remain separately authorized future transitions.",
+      "evidence": "Human Doctrine evidence acceptance on 2026-07-23, ADR-0035, and the still-draft parent pull request."
     }
   ]
 }

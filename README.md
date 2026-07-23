@@ -66,8 +66,10 @@ bundle against an active network attacker.
 be backed up as secret material. Restoring that database transfers the identity
 to the restored host, so the previous host must be retired first. Missing or
 corrupt signing material aborts startup instead of generating a replacement.
-Signing-key rotation, compromise recovery, multi-host authority, Companion, and
-physical Stream Deck behavior remain outside the current evidence.
+Signing-key rotation, compromise recovery, multi-host authority, the complete
+Companion application, and physical Stream Deck behavior remain outside the
+current evidence. The separately governed Companion API 2.0 host adapter is
+maintained in `OverlayKit/companion-module-overlaykit-server`.
 
 ## Workspaces
 
