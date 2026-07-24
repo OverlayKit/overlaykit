@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0036",
+  "title": "Public command correlation is separate from production authority",
+  "status": "accepted",
+  "date": "2026-07-23",
+  "supersedes": null,
+  "governs": [
+    "device-command-result-correlation",
+    "public-command-intent-identity",
+    "production-command-authority-boundary",
+    "external-device-consumers"
+  ],
+  "context": "The public device protocol defines deviceCommandIntentBytes as the canonical identity that an external consumer can independently reconstruct for an admitted device command. The server instead exposed its internal productionVisibilityIntentHash as intentSha256 on signed device.command.result payloads. That internal hash includes production-authority fields outside the public command document, so a conforming Companion consumer correctly rejected otherwise valid results as unrelated to its request.",
+  "decision": "For every signed device.command.result, intentSha256 is SHA-256 over deviceCommandIntentBytes of the exact admitted public request. This public correlation identity never replaces or authorizes the internal productionVisibilityIntentHash used for durable admission, replay, journal integrity, revision enforcement, and target-history validation. Signed device.command.refused payloads remain correlated by SHA-256 over the exact deviceCommandExecuteBytes request. External consumers must continue to verify signature, audience, operation identity, canonical intent correlation, and accepted state evidence independently; a result or acknowledgement alone does not create production state. This decision is supported for the exact tested OverlayKit snapshot 31a4ffef8de98e0b7c409874aacf07be12079459 and the supplemental Companion 4.3.3 two-Ubuntu-container lab. It does not establish canonical two-machine Linux LAN behavior, physical Stream Deck input or pixels, USB support, OBS output truth, publication, release, or support outside the tested runtime boundary.",
+  "consequences": [
+    "Independent consumers can reconstruct and verify the public identity carried by a signed command result without access to server internals.",
+    "Production authority continues to derive and validate its separate internal intent hash and never accepts the public correlation digest as an authority token.",
+    "Applied, revision-conflict, and replayed outcomes for the same admitted request expose the same public canonical intent identity.",
+    "Refused commands retain their existing request-byte correlation contract.",
+    "Command results and acknowledgements remain non-authoritative for visible state; feedback transitions still require accepted signed state evidence or transport facts.",
+    "A three-second authority deadline degrades feedback to unknown, and evidence that arrives after that deadline cannot restore state without a fresh authoritative sequence.",
+    "Cold-start runtime verification uses a bounded wall-clock deadline because fixed event-loop turn counts cannot prove asynchronous module readiness.",
+    "The supplemental container laboratory remains regression evidence; canonical LAN and physical hardware claims require a separate accepted Slice."
+  ],
+  "policies": []
+}

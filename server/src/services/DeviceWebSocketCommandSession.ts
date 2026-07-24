@@ -365,7 +365,7 @@ class MountedDeviceWebSocketCommandSession implements DeviceWebSocketCommandSess
         issuerKeyId,
         audienceCredentialId: this.authority.audienceCredentialId,
         operationId: request.operationId,
-        intentSha256: outcome.intentHash,
+        intentSha256: sha256(this.protocol.deviceCommandIntentBytes(request)),
         outcome: outcome.status,
         resultCode: outcome.resultCode,
         commandSequence: outcome.globalSequence,

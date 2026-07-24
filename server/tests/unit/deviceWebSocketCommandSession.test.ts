@@ -1,7 +1,11 @@
+import { createHash } from 'node:crypto';
 import type { DeviceCredentialAuthority } from '@overlaykit/protocol/device-credential';
 import {
   DEVICE_COMMAND_EXECUTE_TYPE,
   DEVICE_COMMAND_EXECUTE_VERSION,
+  deviceCommandExecuteBytes,
+  deviceCommandIntentBytes,
+  parseDeviceCommandExecuteJson,
   parseDeviceCommandResponseMessage,
   type DeviceCommandResponseMessage,
 } from '@overlaykit/protocol/device-command';
@@ -27,6 +31,10 @@ function deferred<T>(): Deferred<T> {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+function sha256(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 function authority(): DeviceCredentialAuthority {
@@ -66,6 +74,14 @@ function command(
       expectedRevision: 4,
     },
   });
+}
+
+function commandIntentSha256(value: string): string {
+  return sha256(deviceCommandIntentBytes(parseDeviceCommandExecuteJson(value)));
+}
+
+function commandRequestSha256(value: string): string {
+  return sha256(deviceCommandExecuteBytes(parseDeviceCommandExecuteJson(value)));
 }
 
 function outcome(
@@ -199,6 +215,9 @@ describe('DeviceWebSocketCommandSession', () => {
     });
     expect(Object.keys(parsed.payload)).not.toContain('state');
     expect(mounted.signingBytes[0]).toEqual(parsed.payloadBytes);
+    expect(parsed.payload).toMatchObject({
+      intentSha256: commandIntentSha256(command()),
+    });
   });
 
   it('refuses a new command without invoking durable authority when its base is not current', async () => {
@@ -211,6 +230,7 @@ describe('DeviceWebSocketCommandSession', () => {
       type: 'device.command.refused',
       operationId: 'operation-1',
       reason: 'not_ready',
+      requestSha256: commandRequestSha256(command()),
     });
     expect(mounted.closes).toEqual([]);
   });
@@ -227,6 +247,7 @@ describe('DeviceWebSocketCommandSession', () => {
       type: 'device.command.result',
       operationId: 'operation-1',
       replayed: true,
+      intentSha256: commandIntentSha256(command()),
     });
   });
 
@@ -320,6 +341,7 @@ describe('DeviceWebSocketCommandSession', () => {
       type: 'device.command.result',
       outcome: 'rejected',
       resultCode: 'TARGET_REVISION_CONFLICT',
+      intentSha256: commandIntentSha256(command()),
       expectedRevision: 4,
       previousRevision: 7,
       resultingRevision: 7,
