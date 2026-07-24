@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0041",
+  "title": "Test public device command result correlation",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0007",
+    "ADR-0008",
+    "ADR-0009",
+    "ADR-0012",
+    "ADR-0013",
+    "ADR-0015",
+    "ADR-0016",
+    "ADR-0018",
+    "ADR-0019",
+    "ADR-0020",
+    "ADR-0022",
+    "ADR-0023",
+    "ADR-0025",
+    "ADR-0031",
+    "ADR-0032",
+    "ADR-0033",
+    "ADR-0034",
+    "ADR-0035",
+    "ADR-0036"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "The public device-command protocol defines deviceCommandIntentBytes as the canonical external identity of a device command intent and exposes intentSha256 on signed device.command.result payloads.",
+      "evidence": "protocol/src/device-command.ts and protocol/tests/device-command.test.ts at protected main commit 24e978cfa8e41dd5e1f9c410a4e69c7964bb71ca",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The separately governed Companion adapter records SHA-256 over deviceCommandIntentBytes for each pending operation and fails terminally when a signed result with the same operationId carries a different intentSha256.",
+      "evidence": "OverlayKit/companion-module-overlaykit-server src/runtime.ts, tests/device-fixture.ts, and ADR-0003 observed 2026-07-24",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "DeviceWebSocketCommandSession currently sends the internal productionVisibilityIntentHash as the public result intentSha256. That internal canonical document has a different schemaVersion and includes showId, so it cannot equal SHA-256 over deviceCommandIntentBytes for the same logical command.",
+      "evidence": "server/src/services/DeviceWebSocketCommandSession.ts, server/src/services/SqliteProductionStateStore.ts, and direct canonical hash comparison observed 2026-07-24",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A full Companion 4.3.3 integration run admitted signed bootstrap and inactive state, sent visibility.show, received a valid signed applied result and active delta, then closed with WebSocket code 1008 because the result did not match the public pending intent identity.",
+      "evidence": "Supplemental H-034 run h034-2026-07-24T00-57-51-982Z-b97b9969 and Companion error Command response does not match its request",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The internal production intent hash remains necessary for durable command admission, replay, journal integrity, and target-history validation and must not be replaced by an external correlation identity inside the production authority.",
+      "evidence": "ADR-0023, ADR-0025, server/src/services/SqliteProductionStateStore.ts, and durable production command tests",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "H-035: A device command result can expose SHA-256 over the exact public deviceCommandIntentBytes received from the device while the server independently retains and validates its internal productionVisibilityIntentHash, allowing an external consumer to correlate the signed result without weakening production authority, replay, refusal, revision, or state-evidence guarantees.",
+      "evidence": "H-035 correlation Slice explicitly approved by Human Doctrine review on 2026-07-23 America/Mexico_City (2026-07-24 UTC)",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "H-035 is supported within the exact tested boundary. Signed applied, revision-conflict, and replayed results correlate to SHA-256 over public deviceCommandIntentBytes while the production authority retains its independent internal intent hash; refusals retain exact request-byte correlation; the packed external consumer accepts the corrected result; and Companion 4.3.3 projects show, hide, toggle, active, inactive, unknown, disconnected, failed, and unavailable from accepted server evidence or transport facts. A result without timely state evidence degrades to unknown within three seconds, stale late evidence cannot restore state, and recovery requires a fresh authoritative sequence after reconnect and bootstrap.",
+      "evidence": "Human Doctrine acceptance on 2026-07-23 America/Mexico_City; exact OverlayKit snapshot 31a4ffef8de98e0b7c409874aacf07be12079459; supplemental H-034 run h034-2026-07-24T02-57-46-654Z-156128c6 with nine causal receipts, all ten semantic assertions, eight matching public SHA-256 correlations, Companion Satellite captures, successful verifier, and deterministic cleanup",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This Slice does not establish a new protocol version, npm publication, Bitfocus registry admission, API 2.1 behavior, physical Stream Deck input, USB support, rendered hardware pixels, OBS output truth, operator perception, hostile-network availability, trust rotation, or support outside the exact tested runtime boundary.",
+      "evidence": "H-035 approved Slice boundary",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Every signed device.command.result carries intentSha256 equal to SHA-256 over deviceCommandIntentBytes of the exact admitted request, including applied, revision-conflict, and replayed outcomes.",
+      "verification": "Device WebSocket command-session tests parse the signed response through public protocol exports and independently compare the canonical request intent digest."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The production command authority continues to derive, persist, replay, and validate its internal productionVisibilityIntentHash without accepting the public correlation hash as production authority.",
+      "verification": "Existing and focused SQLite production command, replay, journal, and target-history tests."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Signed device.command.refused payloads remain correlated by SHA-256 over the exact canonical deviceCommandExecuteBytes request, and malformed, substituted, cross-operation, or cross-audience responses continue to fail closed.",
+      "verification": "Protocol, command-session, and hostile response correlation tests."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The fix changes only producer-side external result correlation and focused evidence; it does not weaken signature verification, audience binding, operation identity, revision checks, state authority, or the Companion consumer.",
+      "verification": "Scope diff, protocol tests, server tests, external module tests, and security review."
+    },
+    {
+      "id": "SC-005",
+      "statement": "A clean supplemental Companion 4.3.3 H-034 run keeps the device connection open after visibility.show, admits the signed active delta, and projects authoritative ACTIVE feedback within three seconds.",
+      "verification": "H-034 proxy correlation receipts, Companion Satellite observations, signed server evidence, monotonic timing, and actual Companion UI capture."
+    },
+    {
+      "id": "SC-006",
+      "statement": "The complete H-034 scenario demonstrates show, hide, toggle and active, inactive, unknown, disconnected, failed, and unavailable feedback with deterministic cleanup, while canonical two-node Linux LAN evidence remains separately required.",
+      "verification": "H-034 semantic assertions, six state receipts, captures, run verifier, and post-run resource audit."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0041 records the observed incompatibility, approved H-035, measurable refutation criteria, and unresolved guarantees before product code changes.",
+      "evidence": "Governance diff and npm run governance:check."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Review first demonstrates the producer-consumer mismatch with a failing cross-boundary assertion, then applies the smallest producer correction without changing public payload shape or internal production identity.",
+      "evidence": "Focused failing and passing DeviceWebSocketCommandSession test and scope diff."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Refutation covers applied, rejected, replayed, refused, wrong-hash, wrong-operation, wrong-audience, internal journal, state-delta, and external Companion paths.",
+      "evidence": "Protocol, server, durable command, Companion module, and H-034 integration evidence."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, builds, dependency audit, package checks, H-034 verification, and deterministic resource cleanup pass for the exact Slice source.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, Companion module checks, H-034 run manifest, and cleanup receipt."
+    },
+    {
+      "id": "DOD-005",
+      "statement": "An ADR, implemented status, bounded inference, and profile activation are created only after the human authority reviews the refutation evidence and explicitly accepts H-035; commits, pushes, merges, publication, and release remain separate authorized transitions.",
+      "evidence": "Human Doctrine evidence acceptance on 2026-07-23, ADR-0036, CHG-0041, and profile 2.32.0."
+    }
+  ]
+}

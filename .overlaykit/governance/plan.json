@@ -348,6 +348,14 @@
       "id": "ADR-0035",
       "supersededBy": null,
       "title": "The governed Companion host adapter preserves OverlayKit authority"
+    },
+    {
+      "contentHash": "92d1f0acae97b231036b964189bec34759a17f4c16b04c2a9bb6e4c651ef17b9",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0036",
+      "supersededBy": null,
+      "title": "Public command correlation is separate from production authority"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -482,10 +490,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "70f0f14c985cd9ac543770c2bf3174ec124d0154bba1d46a2e46387abe6c35c5",
-  "profileHash": "56836b9f6153c2bdeaede1a355acbeb88e030e35b9edd11152c538295cbc1eab",
+  "planHash": "874a38386694624a51d48938f561d499a98bd17871e6f78e98d0ea7072068166",
+  "profileHash": "88de16ce779c5159a4f53af5287dce3fa9272ce9dfddbd4b7601d22ae2e2bf86",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.31.0",
+  "profileVersion": "2.32.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",

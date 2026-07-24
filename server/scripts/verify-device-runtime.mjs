@@ -52,6 +52,15 @@ const bootstrapIssuerProtocolSpecifiers = [
 ];
 const commandProtocolSpecifier = '@overlaykit/protocol/device-command';
 
+async function waitForCondition(condition, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return true;
+}
+
 if (!new RegExp(`import\\(['\"]${protocolSpecifier}['\"]\\)`).test(compiled)) {
   throw new Error('Compiled device runtime does not preserve native dynamic import');
 }
@@ -319,10 +328,7 @@ const bootstrap = await createDeviceBootstrapReadinessCoordinator({
   },
 });
 await bootstrap.start();
-for (let attempt = 0; attempt < 100 && !bootstrapEmission; attempt += 1) {
-  await new Promise((resolve) => setImmediate(resolve));
-}
-if (!bootstrapEmission) {
+if (!(await waitForCondition(() => bootstrapEmission !== null, 10_000))) {
   throw new Error('Compiled bootstrap readiness runtime did not emit a snapshot');
 }
 const frameProtocol = await import('@overlaykit/protocol/device-control-frame');
@@ -351,8 +357,8 @@ await bootstrap.acknowledge({
   sha256: bootstrapEmission.sha256,
   status: 'applied',
 });
-for (let attempt = 0; attempt < 100 && !bootstrap.isReady(); attempt += 1) {
-  await new Promise((resolve) => setImmediate(resolve));
+if (!(await waitForCondition(() => bootstrap.isReady(), 10_000))) {
+  throw new Error('Compiled bootstrap readiness runtime did not become ready');
 }
 
 if (
