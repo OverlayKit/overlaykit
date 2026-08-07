@@ -10,6 +10,9 @@
   },
   "workspaces": [
     "protocol",
+    "visual-protocol",
+    "visual-compiler",
+    "visual-target-overlaykit",
     "shared",
     "shared/ui",
     "tools/governance",
