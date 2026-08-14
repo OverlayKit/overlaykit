@@ -58,7 +58,8 @@
     "governance:observe:github": "npm run observe:github --workspace @overlaykit/governance-host --",
     "governance:verify:signatures": "npm run verify:signatures --workspace @overlaykit/governance-host --",
     "governance:ruleset:plan": "npm run ruleset:plan --workspace @overlaykit/governance-host --",
-    "governance:ruleset:apply": "npm run ruleset:apply --workspace @overlaykit/governance-host --"
+    "governance:ruleset:apply": "npm run ruleset:apply --workspace @overlaykit/governance-host --",
+    "proof:visual": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/visualPreviewRendering.test.ts"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5",

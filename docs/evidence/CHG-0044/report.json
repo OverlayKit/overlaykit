@@ -1,0 +1,114 @@
+{
+  "browserVersion": "151.0.7922.137",
+  "renderer": "client/ProductionView.vue + shared/ElementRenderer.vue",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "surfaces": [
+    {
+      "surface": "broadcast.overlay",
+      "showId": "visual-proof-broadcast-overlay",
+      "programHash": "720c1334cdfa2ca406f814ce24c4ce9f95a0f7648e849e5455f117cbbd833294",
+      "bundleHash": "21c1fa0a743570d3feaee21b76a2e3a4f6fcf5b89422e0e365c8f72b6a690454",
+      "receiptHash": "459edec876894fcbbc5ce2945254c18c66b3141c84eb0df6057bbc854891de95",
+      "previewRevision": 1,
+      "programRevision": 0,
+      "safeArea": {
+        "x": 64,
+        "y": 64,
+        "width": 1792,
+        "height": 952
+      },
+      "criticalText": {
+        "name": {
+          "left": 110,
+          "top": 910.90625,
+          "right": 487.921875,
+          "bottom": 955,
+          "width": 377.921875,
+          "height": 44.09375,
+          "text": "Rodrigo Vicente"
+        },
+        "role": {
+          "left": 110,
+          "top": 963,
+          "right": 487.921875,
+          "bottom": 988,
+          "width": 377.921875,
+          "height": 25,
+          "text": "Arquitecto de software"
+        }
+      },
+      "stage": {
+        "left": 0,
+        "top": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "screenshot": "broadcast-overlay.png",
+      "pixels": {
+        "width": 1920,
+        "height": 1080,
+        "totalPixels": 2073600,
+        "visiblePixels": 49560,
+        "opaquePixels": 4675,
+        "transparentPixels": 2024040,
+        "colorCount": 348,
+        "screenshotHash": "e0ded7dc955865f67013c96f5f381fe35bc7c1d2025559a50b5d71ccdd929808"
+      }
+    },
+    {
+      "surface": "presentation.slide",
+      "showId": "visual-proof-presentation-slide",
+      "programHash": "511d3765fe2df8f1400c9c8b407fd02acda83fdc1a39bf6923926039a9046d1a",
+      "bundleHash": "e1abf571e2b5cb0c2d6e4048280aa479a02cc6797d64657c441d1924023891b7",
+      "receiptHash": "0e867d1c13c68251a487dcabdd7b5197b68a3740c2ab4b1618640f2626b86f04",
+      "previewRevision": 1,
+      "programRevision": 0,
+      "safeArea": {
+        "x": 64,
+        "y": 64,
+        "width": 1792,
+        "height": 952
+      },
+      "criticalText": {
+        "name": {
+          "left": 485,
+          "top": 473.21875,
+          "right": 1435,
+          "bottom": 543.765625,
+          "width": 950,
+          "height": 70.546875,
+          "text": "Rodrigo Vicente"
+        },
+        "role": {
+          "left": 485,
+          "top": 567.765625,
+          "right": 1435,
+          "bottom": 606.765625,
+          "width": 950,
+          "height": 39,
+          "text": "Arquitecto de software"
+        }
+      },
+      "stage": {
+        "left": 0,
+        "top": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "screenshot": "presentation-slide.png",
+      "pixels": {
+        "width": 1920,
+        "height": 1080,
+        "totalPixels": 2073600,
+        "visiblePixels": 2073600,
+        "opaquePixels": 2073600,
+        "transparentPixels": 0,
+        "colorCount": 472,
+        "screenshotHash": "eb2179353efa5e222d47f7560a9fed61570e259d95f35e8ccf6c95531fd0e3b4"
+      }
+    }
+  ]
+}
