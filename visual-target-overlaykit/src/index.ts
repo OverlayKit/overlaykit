@@ -8,14 +8,29 @@ import {
   type DomProgramArtifact,
   type RecipeId,
   type ResolvedVisualProgram,
+  type SemanticBinding,
   VisualProtocolError,
   compilationReceiptHash,
   visualSha256,
 } from '@overlaykit/visual-protocol';
 
-export const OVERLAYKIT_VISUAL_TARGET_VERSION = '0.1.0' as const;
+export const OVERLAYKIT_VISUAL_TARGET_VERSION = '0.2.0' as const;
 
-export type OverlayKitDomProgramArtifact = DomProgramArtifact<Scene, OverlayKitCueGraph>;
+export type OverlayKitPreviewScene = Omit<Scene, 'variables'>;
+
+export interface OverlayKitDomProgramArtifact extends DomProgramArtifact<
+  OverlayKitPreviewScene,
+  OverlayKitCueGraph
+> {
+  readonly bindingPlan: ReadonlyArray<SemanticBinding>;
+}
+
+export type OverlayKitBindingValue = string | number | boolean;
+
+export interface OverlayKitPreviewCandidate {
+  readonly scene: OverlayKitPreviewScene;
+  readonly variables: Variables;
+}
 
 export interface OverlayKitCueGraph {
   readonly cues: ReadonlyArray<{
@@ -27,6 +42,148 @@ export interface OverlayKitCueGraph {
       readonly durationMs?: number;
     }>;
   }>;
+}
+
+const BINDING_PATH_SEGMENT = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const FORBIDDEN_BINDING_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function bindingSegments(binding: SemanticBinding): ReadonlyArray<string> {
+  const segments = binding.source.split('.');
+  if (
+    segments.length === 0 ||
+    segments.some(
+      (segment) => !BINDING_PATH_SEGMENT.test(segment) || FORBIDDEN_BINDING_SEGMENTS.has(segment)
+    )
+  ) {
+    throw new VisualProtocolError(
+      'UNSAFE_VISUAL_BINDING_SOURCE',
+      `Visual binding ${binding.id} has an unsafe source path`
+    );
+  }
+  return segments;
+}
+
+function bindingValue(value: unknown, bindingId: string): OverlayKitBindingValue {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  throw new VisualProtocolError(
+    'INVALID_VISUAL_BINDING_VALUE',
+    `Visual binding ${bindingId} requires a string, boolean, or finite number`
+  );
+}
+
+function assignBindingValue(
+  variables: Record<string, unknown>,
+  binding: SemanticBinding,
+  value: OverlayKitBindingValue
+): void {
+  const segments = bindingSegments(binding);
+  let current = variables;
+  for (const segment of segments.slice(0, -1)) {
+    if (Object.prototype.hasOwnProperty.call(current, segment)) {
+      if (!isPlainRecord(current[segment])) {
+        throw new VisualProtocolError(
+          'VISUAL_BINDING_PATH_COLLISION',
+          `Visual binding ${binding.id} collides with another source path`
+        );
+      }
+    } else {
+      current[segment] = {};
+    }
+    current = current[segment] as Record<string, unknown>;
+  }
+
+  const leaf = segments[segments.length - 1];
+  if (Object.prototype.hasOwnProperty.call(current, leaf)) {
+    throw new VisualProtocolError(
+      'VISUAL_BINDING_PATH_COLLISION',
+      `Visual binding ${binding.id} collides with another source path`
+    );
+  }
+  current[leaf] = value;
+}
+
+function assertArtifactIdentity(artifact: OverlayKitDomProgramArtifact): void {
+  const meta = artifact.scene.meta;
+  const expectedEvidenceRef = `compilation:${compilationReceiptHash(artifact.manifest)}`;
+  if (
+    artifact.target !== DOM_PROGRAM_TARGET ||
+    artifact.programHash !== artifact.manifest.programHash ||
+    artifact.bundle.bundleHash !== artifact.manifest.bundleHash ||
+    meta?.programHash !== artifact.programHash ||
+    meta?.bundleHash !== artifact.bundle.bundleHash ||
+    meta?.evidenceRef !== expectedEvidenceRef
+  ) {
+    throw new VisualProtocolError(
+      'VISUAL_ARTIFACT_IDENTITY_MISMATCH',
+      'OverlayKit visual artifact identities do not agree'
+    );
+  }
+}
+
+export function prepareOverlayKitPreviewCandidate(
+  artifact: OverlayKitDomProgramArtifact,
+  bindingValues: Readonly<Record<string, unknown>>
+): OverlayKitPreviewCandidate {
+  assertArtifactIdentity(artifact);
+  if (!Array.isArray(artifact.bindingPlan) || !isPlainRecord(bindingValues)) {
+    throw new VisualProtocolError(
+      'INVALID_VISUAL_BINDING_PLAN',
+      'OverlayKit Preview admission requires a binding plan and value record'
+    );
+  }
+
+  const bindings = new Map<string, SemanticBinding>();
+  for (const binding of artifact.bindingPlan) {
+    if (!binding.id || bindings.has(binding.id)) {
+      throw new VisualProtocolError(
+        'INVALID_VISUAL_BINDING_PLAN',
+        'Visual binding identifiers must be non-empty and unique'
+      );
+    }
+    bindingSegments(binding);
+    bindings.set(binding.id, binding);
+  }
+
+  for (const bindingId of Object.keys(bindingValues)) {
+    if (!bindings.has(bindingId)) {
+      throw new VisualProtocolError(
+        'UNKNOWN_VISUAL_BINDING_VALUE',
+        `Visual binding value ${bindingId} is not declared by the artifact`
+      );
+    }
+  }
+
+  const variables: Record<string, unknown> = {};
+  for (const binding of artifact.bindingPlan) {
+    if (!Object.prototype.hasOwnProperty.call(bindingValues, binding.id)) {
+      throw new VisualProtocolError(
+        'MISSING_VISUAL_BINDING_VALUE',
+        `Visual binding ${binding.id} requires a value`
+      );
+    }
+    assignBindingValue(variables, binding, bindingValue(bindingValues[binding.id], binding.id));
+  }
+
+  const scene = cloneJson(artifact.scene) as Scene;
+  delete scene.variables;
+  return {
+    scene: scene as OverlayKitPreviewScene,
+    variables: variables as Variables,
+  };
 }
 
 function animation(name: string, duration: number): Animation {
@@ -41,21 +198,12 @@ function animation(name: string, duration: number): Animation {
   };
 }
 
-function subjectVariables(program: ResolvedVisualProgram): Variables {
-  return Object.fromEntries(
-    program.bindings.map((binding) => [
-      binding.path.replace(/^subject\./u, 'subject_'),
-      `{{${binding.source}}}`,
-    ]),
-  );
-}
-
 function bindingTemplate(program: ResolvedVisualProgram, path: string): string {
   const binding = program.bindings.find((candidate) => candidate.path === path);
   if (!binding) {
     throw new VisualProtocolError(
       'MISSING_VISUAL_BINDING',
-      `Resolved program is missing required binding ${path}`,
+      `Resolved program is missing required binding ${path}`
     );
   }
   return `{{${binding.source}}}`;
@@ -163,14 +311,14 @@ function elementsFor(program: ResolvedVisualProgram): ReadonlyArray<ElementNode>
   const recipes = recipeIds(program);
   if (recipes.includes('broadcast.lower-third')) return lowerThird(program);
   if (
-    recipes.includes('presentation.title-card')
-    && recipes.includes('presentation.profile-card')
+    recipes.includes('presentation.title-card') &&
+    recipes.includes('presentation.profile-card')
   ) {
     return presentationCard(program);
   }
   throw new VisualProtocolError(
     'UNSUPPORTED_OVERLAYKIT_RECIPE',
-    'Only announce-person lower-third and presentation card recipes are implemented',
+    'Only announce-person lower-third and presentation card recipes are implemented'
   );
 }
 
@@ -215,7 +363,10 @@ function bundleFor(program: ResolvedVisualProgram): CompiledVisualBundle {
   };
 }
 
-function receiptFor(program: ResolvedVisualProgram, bundle: CompiledVisualBundle): CompilationReceipt {
+function receiptFor(
+  program: ResolvedVisualProgram,
+  bundle: CompiledVisualBundle
+): CompilationReceipt {
   return {
     schemaVersion: VISUAL_PROTOCOL_VERSION,
     compilerVersion: OVERLAYKIT_VISUAL_TARGET_VERSION,
@@ -230,12 +381,12 @@ function receiptFor(program: ResolvedVisualProgram, bundle: CompiledVisualBundle
 }
 
 export function compileOverlayKitDomProgram(
-  program: ResolvedVisualProgram,
+  program: ResolvedVisualProgram
 ): OverlayKitDomProgramArtifact {
   if (program.composition.primitive !== 'identity.announce-person') {
     throw new VisualProtocolError(
       'UNSUPPORTED_VISUAL_PRIMITIVE',
-      'Only identity.announce-person is supported in the MVP target',
+      'Only identity.announce-person is supported in the MVP target'
     );
   }
 
@@ -243,11 +394,10 @@ export function compileOverlayKitDomProgram(
   const bundle = bundleFor(program);
   const manifest = receiptFor(program, bundle);
   const receiptHash = compilationReceiptHash(manifest);
-  const scene: Scene = {
+  const scene: OverlayKitPreviewScene = {
     id: `scene_${program.id}`,
     name: `Visual Program ${program.id}`,
     elements: [...elements],
-    variables: subjectVariables(program),
     orientation: 'landscape',
     meta: {
       visualProgramId: program.id,
@@ -266,6 +416,7 @@ export function compileOverlayKitDomProgram(
     target: DOM_PROGRAM_TARGET,
     scene,
     bundle,
+    bindingPlan: Object.freeze(program.bindings.map((binding) => Object.freeze({ ...binding }))),
     timeline: cueGraphFor(program),
     manifest,
     programHash: program.programHash,

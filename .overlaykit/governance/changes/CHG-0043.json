@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0043",
+  "title": "Test explicit visual binding and Preview admission",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005", "ADR-0006", "ADR-0029", "ADR-0030"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex is the source-producing agent for CHG-0043 under human principal @rodrigoteamx. The 2026-08-14 directive to merge CHG-0042 and proceed to the previously identified Preview successor authorizes this bounded investigation, but does not authorize automatic Take, Program mutation, an accepted visual constitution, or a claim of perceptual quality.",
+      "evidence": "AGENTS.md, the 2026-08-14 user directive 'dale merge y a lo que sigue', and the preceding handoff that named Preview admission as the successor objective.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0042 merged through PR 41 at commit 4ea1481dc41ad3432174996b8242956aa5e6741e, and protected-main Constitution run 31845198735 completed governance, signed identity, quality, build, evidence attestation, root-of-trust observation, Node 22, and three-platform portability successfully.",
+      "evidence": "GitHub PR 41, merge commit 4ea1481dc41ad3432174996b8242956aa5e6741e, and GitHub Actions run 31845198735 observed on 2026-08-14.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "OverlayKit already exposes a generic authenticated POST /api/shows/:showId/production/preview route that supplies Scene and variables separately to ProductionService.loadPreview; adding another Preview endpoint is not required to test the compiler-host boundary.",
+      "evidence": "server/src/routes/production.ts and server/src/services/ProductionService.ts at commit 4ea1481dc41ad3432174996b8242956aa5e6741e.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The CHG-0042 OverlayKit target emits Scene.variables, while the server Scene schema forbids that property and expects variables as a separate argument. A direct compile, lower and loadPreview probe failed with VALIDATION_ERROR at #/additionalProperties; removing Scene.variables and providing concrete nested binding values admitted Preview at revision one while Program remained empty at revision zero and compilation metadata was preserved.",
+      "evidence": "visual-target-overlaykit/src/index.ts, protocol/src/element.ts, server/src/validation/schemas/scene.schema.json, ProductionService.loadPreview, and the two direct compiled-boundary probes executed on 2026-08-14 against commit 4ea1481dc41ad3432174996b8242956aa5e6741e.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "ResolvedVisualProgram declares semantic bindings, but OverlayKitDomProgramArtifact currently omits that binding plan and contains templates whose source paths require a concrete runtime variable bag before the existing renderer can display person values.",
+      "evidence": "visual-protocol/src/index.ts, visual-compiler/src/index.ts, visual-target-overlaykit/src/index.ts, shared/utils/interpolate.ts, and shared/components/ElementRenderer.vue.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The minimal refutable successor is an explicit target-side Preview candidate boundary that carries the declared binding plan, separates host Scene from runtime variables, binds only exact declared values, and proves admission through the existing ProductionService. UI, a new HTTP route, screenshots, and Program publication must follow only after this boundary passes.",
+      "evidence": "Governed-discovery reorder check on 2026-08-14, the failing direct admission probe, the successful manually separated probe, ADR-0004 Preview/Program authority, and ADR-0005 target authority.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A target-local OverlayKitPreviewCandidate with a Scene that omits variables, a separate recursive variable bag derived from exact binding identifiers, and fail-closed validation for missing, unknown, unsafe, colliding, or non-finite values is sufficient to prove that compiled announce-person artifacts can enter Preview without changing server product code.",
+      "evidence": "The existing loadPreview(scene, variables) signature, SemanticBinding records, server Scene validation, and the successful manual separation probe; focused tests are the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether admitted scenes render acceptably, fit declared safe areas, behave correctly under animation timing, satisfy viewport and perceptual review, or constitute production-ready visual language remains unknown after CHG-0043.",
+      "evidence": "CHG-0043 intentionally stops at deterministic binding and host admission and does not produce browser screenshots or human visual acceptance.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether the legacy live design-system path should be replaced, deprecated, compatibility-gated, or used to carry compiled bundle tokens remains unresolved and is not evidence required by this slice.",
+      "evidence": "CHG-0042 and CHG-0043 leave server/src/routes/designSystem.ts and ChannelManager design-system behavior unchanged.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "OverlayKitDomProgramArtifact exposes an immutable copy of the resolved semantic binding plan, and its host Scene omits the protocol-only variables property while preserving program, bundle, receipt, timeline, and evidence identities.",
+      "verification": "Target package type-check and focused artifact-shape, immutability, deterministic hash, and metadata tests."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A pure prepareOverlayKitPreviewCandidate boundary accepts values only for exact declared binding identifiers, creates the nested variable paths referenced by emitted templates, does not mutate the artifact or caller input, and rejects missing, unknown, duplicate, unsafe, colliding, undefined, object, and non-finite values.",
+      "verification": "Focused positive and hostile binding tests in visual-target-overlaykit."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Real broadcast.overlay and presentation.slide programs compile, lower, bind, and load through the existing ProductionService so Preview revisions advance with concrete subject values and preserved compilation metadata while Program remains at revision zero with no Scene.",
+      "verification": "Cross-package integration test against ProductionService.loadPreview for both surfaces."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Runtime binding values do not rewrite programHash, bundleHash, CompilationReceipt, decision evidence, or constitution references, and input insertion order does not change the admitted variable projection.",
+      "verification": "Canonical identity and reordered binding-input assertions."
+    },
+    {
+      "id": "SC-005",
+      "statement": "No ProductionService implementation, production route, persistence authority, WebSocket handler, renderer, Studio, Editor, Panel, saved Scene, Take, Program, or live design-system behavior changes in this slice.",
+      "verification": "Path-scoped diff plus governance, quality, build, and licensing gates."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0043 records human authority, the failing direct admission fact, the governed-discovery reorder, the minimal hypothesis, measurable criteria, and unresolved guarantees before product implementation.",
+      "evidence": "This schema-valid change contract and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The target adapter gains only the binding-plan and Preview-candidate boundary required to cross the existing host contract, with no second Preview API and no ambient publication authority.",
+      "evidence": "Target source and dependency diff."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Refutation covers direct CHG-0042 incompatibility, both surfaces, exact binding completeness, hostile path and value shapes, immutability, deterministic identities, host Scene validation, Preview-only mutation, and Program non-mutation.",
+      "evidence": "Focused target and ProductionService integration tests."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit, and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, focused tests, and git diff --check."
+    }
+  ]
+}
