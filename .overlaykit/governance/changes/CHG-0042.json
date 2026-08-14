@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0042",
+  "title": "Stage the first visual language protocol boundary",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0006",
+    "ADR-0029",
+    "ADR-0030"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex is the source-producing agent for CHG-0042 under human principal @rodrigoteamx. The agent cannot approve a visual language, grant Program publication authority, create an accepted ADR or SPEC, or reinterpret design evidence as active visual law.",
+      "evidence": "AGENTS.md, compiled governance plan 874a38386694624a51d48938f561d499a98bd17871e6f78e98d0ea7072068166, accepted ADR-0003 through ADR-0006, accepted ADR-0029 and ADR-0030, and the model-visible architecture direction.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The active product specification already requires saved Scene source documents to remain distinct from Preview and Program runtime snapshots, Take to atomically promote complete Preview to Program, every runtime mutation to name Preview or Program, and runtime edits not to mutate saved Scene source without explicit save-back.",
+      "evidence": "SPEC-0001 requirements REQ-DOM-002, REQ-RUN-001, REQ-RUN-002, REQ-RUN-003 and REQ-RUN-004 in the compiled governance plan.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current protocol package already exposes separate subpaths for element, scene, production, control catalogs and device contracts, while ElementNode and Scene are sufficient DOM Protocol target shapes for a first visual target.",
+      "evidence": "protocol/package.json exports, protocol/src/element.ts, protocol/src/scene.ts and protocol/src/production.ts at commit 9a5585de196ff972993c7ff81bf9c1461c47eaae.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The current server design-system route accepts tokens and broadcasts a live design system through ChannelManager, while ProductionService clears channel design-system state when synchronizing production snapshots. CHG-0042 does not alter that legacy behavior.",
+      "evidence": "server/src/routes/designSystem.ts, server/src/services/ChannelManager.ts, server/src/services/ProductionService.ts and scope diff for this change.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The minimal refutable slice is not an LLM, editor mode, live design-system replacement, or Program mutation. It is a pure target-neutral visual contract plus deterministic OverlayKit target lowering that can prove dependency direction and output identity without touching production authority.",
+      "evidence": "Governed-discovery reorder analysis, ADR-0004 Preview/Program host boundary, ADR-0005 target authority boundary, ADR-0029 commit-before-publication authority, and the existing protocol subpath split.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A first VisualIntent task announce-person, two VisualContextFacts surfaces broadcast.overlay and presentation.slide, one TeamX identity profile, four temporal verbs establish, reveal, hold and dismiss, and three recipe identifiers are enough to refute whether the semantic compiler boundary can produce target DOM scenes without making OverlayKit the designer.",
+      "evidence": "The model-visible architecture direction names that exact MVP boundary; the implementation and tests are the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "The first target adapter can emit a DomProgramArtifact whose Scene.meta carries only verifiable compilation references and whose Scene and ElementNode payloads use existing protocol types without requiring server persistence, Preview loading, Take receipts, WebSocket messages, CSS injection or renderer changes.",
+      "evidence": "protocol/src/element.ts Scene.meta support, protocol/src/production.ts Preview/Program separation, and ADR-0004 runtime isolation.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether the generated scenes render acceptably, fit every safe area, satisfy perceptual review, or provide a production-ready visual constitution remains unknown. CHG-0042 does not create an accepted Visual Governance plane.",
+      "evidence": "No screenshot, viewport probe, perceptual review, visual pack signing, or production Preview/Program run is part of this slice.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether live design-system updates should be replaced, deprecated or compatibility-gated remains unresolved. CHG-0042 only establishes the compiler-side bundle boundary and records that Program must not be modified ambiently by future visual bundles.",
+      "evidence": "Existing design-system route remains unchanged and no migration or compatibility policy is implemented here.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A local visual-protocol package defines VisualIntent, VisualContextFacts, CompiledVisualConstitution, VisualPlan, ResolvedVisualProgram, DomProgramArtifact, CompilationReceipt and related typed primitives without importing OverlayKit production, renderer, server or UI modules.",
+      "verification": "Inspect package dependencies, TypeScript imports, and package exports."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A local visual-target-overlaykit package lowers only the implemented announce-person resolved program into existing Scene and ElementNode protocol types and imports only visual-protocol plus @overlaykit/protocol/element and @overlaykit/protocol/scene.",
+      "verification": "Inspect package.json dependencies and TypeScript import graph."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The same announce-person intent resolves differently for broadcast.overlay and presentation.slide while preserving the same identity profile, constitution references, programHash, bundleHash and explanation records.",
+      "verification": "Run focused tests that assert lower-third versus title-card/profile-card recipe selection and deterministic artifact hashes."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The emitted Scene.meta contains visualProgramId, programHash, intentRef, profileRef, constitutionRef, compilerVersion and evidenceRef references, but not the complete active constitution or direct CSS authority.",
+      "verification": "Focused target tests inspect the emitted scene metadata and bundle boundary."
+    },
+    {
+      "id": "SC-005",
+      "statement": "No ProductionService, ChannelManager, WebSocket handler, design-system route, renderer component, Studio, Editor, Panel, client or saved Scene behavior changes in this slice.",
+      "verification": "Path-scoped diff and existing governance, quality and build gates."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0042 records the visual-language boundary hypothesis, facts, assumptions, unknowns and exclusions before product implementation.",
+      "evidence": "This schema-valid change contract and deterministic manifest binding."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The first visual protocol and target packages build, type-check and test as local workspaces without changing production runtime code.",
+      "evidence": "Workspace build, type-check, tests and scope diff."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The implementation remains a compiler boundary proof: no LLM path, no live CSS mutation, no Preview loading endpoint, no Program mutation and no new accepted visual constitution.",
+      "evidence": "Package imports, tests, unchanged server/UI/runtime paths and CHG-0042 claims."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, test and build gates pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build and git diff --check."
+    }
+  ]
+}
