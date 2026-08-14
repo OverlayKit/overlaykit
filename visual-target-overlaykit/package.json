@@ -1,6 +1,6 @@
 {
   "name": "@overlaykit/visual-target-overlaykit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OverlayKit DOM Protocol target lowering for resolved visual programs.",
   "type": "module",
   "license": "Apache-2.0",

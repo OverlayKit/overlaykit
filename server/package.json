@@ -32,6 +32,9 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
+    "@overlaykit/visual-compiler": "0.1.0",
+    "@overlaykit/visual-protocol": "0.1.0",
+    "@overlaykit/visual-target-overlaykit": "0.2.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/node": "^24.0.0",
