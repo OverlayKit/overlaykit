@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0044",
+  "title": "Observe compiled Preview pixels in the real renderer",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005", "ADR-0006", "ADR-0029", "ADR-0030"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex is the source-producing agent for CHG-0044 under human principal @rodrigoteamx. The 2026-08-14 directive to merge CHG-0043 and proceed authorizes this bounded visual observation slice, but it does not authorize automatic Take, Program mutation, a new production route, or a claim of human visual acceptance.",
+      "evidence": "AGENTS.md, the 2026-08-14 user directive 'okay dale merge y a lo que sigue', and the preceding handoff that named real rendering and screenshot evidence as the successor objective.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0043 merged through PR 42 at bd405d6a652ea637d971f7cd0e2c1f7592c77800. Protected-main Constitution run 31849238658 and the local post-merge governance, 518-test quality, build and zero-vulnerability audit gates succeeded on 2026-08-14.",
+      "evidence": "GitHub PR 42, merge commit bd405d6a652ea637d971f7cd0e2c1f7592c77800, GitHub Actions run 31849238658, and the post-merge commands executed from synchronized main.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The production client already renders Production snapshots through the canonical ProductionView and ElementRenderer, interpolates nested variable paths, and fits a fixed 1920 by 1080 landscape stage to the browser source. It accepts Preview snapshots over subscribe.production without requiring a new render implementation.",
+      "evidence": "client/src/components/ProductionView.vue, shared/components/ElementRenderer.vue, shared/utils/interpolate.ts, and client/src/modules/ws/WebSocketAdapter.ts at bd405d6a652ea637d971f7cd0e2c1f7592c77800.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The repository has no current Playwright, Puppeteer, screenshot, or pixel-analysis dependency or browser-rendering test. Google Chrome is installed in the local environment and in the official GitHub-hosted Ubuntu 24.04 runner image, while Playwright documents the supported chrome channel for controlling branded Chrome.",
+      "evidence": "Repository dependency inventory on 2026-08-14, /usr/bin/google-chrome, https://playwright.dev/docs/browsers, and https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The first visual evidence should observe the declared 1920 by 1080 design space through the real client renderer before adding production transport, UI or responsive variants. Generic desktop and mobile screenshots would test scaling policy rather than the visual contexts compiled by CHG-0042 and would not answer the current renderer question.",
+      "evidence": "Governed-discovery reorder check on 2026-08-14, VisualContextFacts used by the compiler integration, the fixed-stage ProductionView implementation, and SPEC-0001 AC-011.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A controlled WebSocket that supplies an actual ProductionService Preview snapshot to the unmodified production client is sufficient to refute renderer compatibility without granting the harness server-route, authentication, persistence, Take or Program authority.",
+      "evidence": "CHG-0043 already proves compile-to-ProductionService admission; ProductionView consumes the same ProductionSnapshot shape from production.subscription.confirmed; a focused browser test is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether the rendered lower third and presentation card are visually excellent, brand-correct, legible under every capture condition, appropriately animated, accessible, or acceptable to a human producer remains unknown after automated pixel and geometry evidence.",
+      "evidence": "CHG-0044 measures only deterministic browser output, concrete interpolation, nonblank pixels, transparency and declared safe-area containment; human perceptual approval is intentionally separate.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether authenticated REST admission, the production WebSocket handler, OBS token behavior, arbitrary browser-source dimensions, portrait contexts, and live design-system mutation preserve the same result remains untested by this controlled transport slice.",
+      "evidence": "The minimal harness intentionally replaces network authentication and the production WebSocket server with a controlled snapshot source and tests only the two currently compiled landscape surfaces.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The proof resolves real broadcast.overlay and presentation.slide programs, lowers and binds them through the OverlayKit target, admits them through ProductionService Preview, and verifies Program stays at revision zero with no Scene.",
+      "verification": "Focused Node assertions in the browser proof for both surfaces."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The unmodified ProductionView and canonical ElementRenderer receive each real Preview snapshot through a controlled production.subscription.confirmed WebSocket message and render at the declared 1920 by 1080 landscape design space in branded Chrome.",
+      "verification": "Playwright-driven browser observation using the real client Vite entrypoint and a test-owned WebSocket server."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Each rendered surface contains the concrete person name and role, contains no unresolved interpolation placeholder, exposes a 1920 by 1080 stage at scale one, and keeps both critical text bounding boxes within the declared safe area.",
+      "verification": "Browser DOM text, stage geometry, placeholder and bounding-box assertions recorded in the proof report."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Each screenshot has observable nonblank pixel variation; the broadcast overlay retains substantial transparent area while the presentation slide paints the complete frame.",
+      "verification": "PNG alpha, visible-pixel and color-variation analysis with surface-specific thresholds."
+    },
+    {
+      "id": "SC-005",
+      "statement": "The proof emits reviewable PNGs and a JSON report bound to the program, bundle, receipt and screenshot hashes, while production source, routes, Studio, saved Scenes, Take and Program behavior remain unchanged.",
+      "verification": "Generated CHG-0044 evidence plus a path-scoped diff and existing full governance gates."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0044 records authority, the governed-discovery reorder, the browser boundary hypothesis, measurable refutation criteria, evidence limits and deferred decisions before implementation.",
+      "evidence": "This schema-valid change contract and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A focused browser proof uses a supported Playwright Chrome channel, an isolated Vite instance, a controlled WebSocket, actual compiler and ProductionService boundaries, and no product-only test hook.",
+      "evidence": "Browser proof source, exact development dependencies and focused execution."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Both visual surfaces produce PNG and structured evidence for identity, interpolation, stage geometry, safe areas, transparency, visible pixels and Program non-mutation, without elevating automated observations to human approval.",
+      "evidence": "CHG-0044 proof report, PNGs and focused assertions."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, formatting, lint, type-check, focused and full tests, build, dependency audit, clean installation and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, npm ci, focused visual proof, Prettier and git diff --check."
+    }
+  ]
+}
