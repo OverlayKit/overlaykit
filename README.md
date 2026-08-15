@@ -37,6 +37,11 @@ Components may declare text, number, toggle, selection, and color controls in Ed
 
 Use **Output** to select a Show, rotate its read-only token, and copy the complete OBS browser-source URL. The active output credential receives only that Show's Program; it cannot subscribe to another Show or Preview, mutate production, or remain connected after rotation.
 
+For LAN or Internet exposure, keep the server listeners on loopback and follow the
+[secure Output proxy guide](docs/deployment/secure-output-proxy.md). Newly issued URLs keep the
+credential in a client-side fragment and authenticate only after WSS opens. Legacy URLs containing
+`?token=` must be rotated after upgrading.
+
 Preview, Program, device command history, credentials, and the device signing
 identity use one exclusive SQLite authority. Committed state and signing identity
 survive an ordinary process restart. Physical power-loss durability and copied

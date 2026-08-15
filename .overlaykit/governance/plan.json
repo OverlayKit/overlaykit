@@ -356,6 +356,14 @@
       "id": "ADR-0036",
       "supersededBy": null,
       "title": "Public command correlation is separate from production authority"
+    },
+    {
+      "contentHash": "e0cc10914683612096e6d401e21025b2ce55f302c774c243f50c2c67acf472ea",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0037",
+      "supersededBy": null,
+      "title": "Output credentials cross proxy boundaries only inside the WebSocket protocol"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -490,10 +498,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "874a38386694624a51d48938f561d499a98bd17871e6f78e98d0ea7072068166",
-  "profileHash": "88de16ce779c5159a4f53af5287dce3fa9272ce9dfddbd4b7601d22ae2e2bf86",
+  "planHash": "f131de08ce38966641fc72b0871b4949faf1318b1afd8ecfc4357c01e901dfa9",
+  "profileHash": "a7f163be70ca4446d4fc0b9beffa14abb825ae945118576fbd6733aa9cf0e76e",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.32.0",
+  "profileVersion": "2.33.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1648,6 +1656,30 @@
       "statement": "A component exposes operator capabilities through typed control definitions rather than inferred variables or arbitrary implementation access."
     },
     {
+      "id": "output-authentication-precedes-subscription",
+      "kind": "rule",
+      "sourceDecision": "ADR-0037",
+      "statement": "An Output connection must authenticate through one bounded application message before it may subscribe, ping, mutate, or receive production state."
+    },
+    {
+      "id": "output-bearer-is-not-a-request-target",
+      "kind": "rule",
+      "sourceDecision": "ADR-0037",
+      "statement": "OverlayKit-generated Output page and WebSocket request targets must not contain an Output bearer; query-string Output authentication is rejected."
+    },
+    {
+      "id": "output-reconnect-reestablishes-current-authority",
+      "kind": "rule",
+      "sourceDecision": "ADR-0037",
+      "statement": "Every reconnect must authenticate the page-held credential before restoring subscriptions, so an old credential cannot inherit later ambient authority."
+    },
+    {
+      "id": "output-websocket-defaults-to-page-origin",
+      "kind": "rule",
+      "sourceDecision": "ADR-0037",
+      "statement": "Absent an explicit endpoint, the browser output must derive /ws from its page origin and select WSS whenever the page uses HTTPS."
+    },
+    {
       "id": "partial-execution-is-explicit",
       "kind": "rule",
       "sourceDecision": "ADR-0006",
@@ -1862,6 +1894,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0012",
       "statement": "The public protocol runtime must be compiled from its TypeScript source as one ESM implementation accompanied by declarations."
+    },
+    {
+      "id": "proxy-evidence-is-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0037",
+      "statement": "Local TLS termination and branded-browser evidence must not be represented as real OBS, public PKI, external proxy, hostile-network, network-loss, capture-quality, or operator-perception evidence."
     },
     {
       "id": "public-license-claims-are-consistent",
