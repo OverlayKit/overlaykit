@@ -17,8 +17,6 @@ export interface ServerConfig {
   sessionTtlMs: number;
   cookieSecure: 'auto' | 'always' | 'never';
   trustProxy?: number | boolean;
-  sslCertPath?: string;
-  sslKeyPath?: string;
 }
 
 function parseEnv(key: string, defaultValue?: string): string | undefined {
@@ -73,8 +71,6 @@ export const config: ServerConfig = {
   sessionTtlMs: parseInt(parseEnv('SESSION_TTL_MS', '43200000') || '43200000', 10),
   cookieSecure: parseCookieSecure(parseEnv('COOKIE_SECURE', 'auto')),
   trustProxy: parseTrustProxy(parseEnv('TRUST_PROXY')),
-  sslCertPath: parseEnv('SSL_CERT_PATH'),
-  sslKeyPath: parseEnv('SSL_KEY_PATH'),
 };
 
 export function validateConfig(): void {

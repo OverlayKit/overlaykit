@@ -23,6 +23,7 @@ export default defineConfig({
     // (In prod, VITE_API_URL absolutizes these in SoundManager, or they're same-origin.)
     proxy: {
       '/sounds': { target: 'http://localhost:3000', changeOrigin: true },
+      '/ws': { target: 'ws://localhost:8080', ws: true },
     },
   },
   build: {

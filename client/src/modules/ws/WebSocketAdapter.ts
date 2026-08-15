@@ -25,7 +25,7 @@ export class WebSocketAdapter {
   private subscribedChannels: Set<string> = new Set();
   private productionSubscriptions: Map<string, { showId: string; bus: 'preview' | 'program' }> = new Map();
 
-  constructor(url: string) {
+  constructor(url: string, private readonly bootstrapMessage?: WsMessage) {
     this.url = url;
   }
 
@@ -49,6 +49,9 @@ export class WebSocketAdapter {
           this.setState('connected');
           this.reconnectAttempts = 0;
           this.startHeartbeat();
+          if (this.bootstrapMessage) {
+            this.ws?.send(JSON.stringify(this.bootstrapMessage));
+          }
           // Restore subscriptions after a (re)connect. Empty on first connect;
           // on reconnect this re-subscribes the overlay so it keeps receiving updates.
           this.resubscribeAll();

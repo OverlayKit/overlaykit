@@ -57,6 +57,11 @@ import { useRoute } from 'vue-router';
 import { useChannelStore } from '../store/channels';
 import { useVariablesStore } from '../store/variables';
 import { WebSocketAdapter } from '../modules/ws/WebSocketAdapter';
+import {
+  outputAuthenticationMessage,
+  outputTokenFromFragment,
+  resolveWebSocketEndpoint,
+} from '../outputTransport';
 import { soundManager } from '@overlaykit/renderer/services/SoundManager';
 import { injectMotionPatterns } from '@overlaykit/renderer/services/motionPatterns';
 import { logger } from '../utils/logger';
@@ -72,7 +77,6 @@ interface QueryParams {
   hideStatus?: string;
   hideWatermark?: string;
   autoConnect?: string;
-  token?: string;
   readOnly?: string;
 }
 
@@ -117,11 +121,12 @@ const channelStore = useChannelStore();
 const variablesStore = useVariablesStore();
 
 // State
-const rawOutputToken = new URLSearchParams(location.search).get('token');
-const rawWsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
-const authenticatedWsUrl = new URL(rawWsUrl);
-if (rawOutputToken) authenticatedWsUrl.searchParams.set('token', rawOutputToken);
-const wsAdapter = new WebSocketAdapter(authenticatedWsUrl.toString());
+const rawOutputToken = outputTokenFromFragment(location.hash);
+const rawWsUrl = resolveWebSocketEndpoint(import.meta.env.VITE_WS_URL, location);
+const wsAdapter = new WebSocketAdapter(
+  rawWsUrl,
+  rawOutputToken ? outputAuthenticationMessage(rawOutputToken) : undefined,
+);
 const connectionState = ref<'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'>(
   'disconnected'
 );
@@ -166,7 +171,6 @@ const params = computed<QueryParams>(() => ({
   hideStatus: route.query.hideStatus as string | undefined,
   hideWatermark: route.query.hideWatermark as string | undefined,
   autoConnect: route.query.autoConnect as string | undefined,
-  token: route.query.token as string | undefined,
   readOnly: route.query.readOnly as string | undefined,
 }));
 
@@ -174,7 +178,11 @@ const isTransparent = computed(() => params.value.transparent === 'true');
 const hideStatus = computed(() => params.value.hideStatus === 'true');
 const hideWatermark = computed(() => params.value.hideWatermark === 'true');
 const autoConnect = computed(() => params.value.autoConnect !== 'false');
-const readOnlyOutput = computed(() => Boolean(params.value.token) || params.value.readOnly === 'true');
+const readOnlyOutput = computed(() => (
+  Boolean(rawOutputToken)
+  || new URLSearchParams(location.search).has('token')
+  || params.value.readOnly === 'true'
+));
 
 const channelId = computed(() => params.value.channel || 'main');
 const productionShowId = computed(() => params.value.show || '');
@@ -271,7 +279,7 @@ onUnmounted(() => {
 // Methods
 async function connectWebSocket(): Promise<void> {
   try {
-    logger.info('Connecting to WebSocket', { url: import.meta.env.VITE_WS_URL });
+    logger.info('Connecting to WebSocket', { url: rawWsUrl });
 
     await wsAdapter.connect();
 

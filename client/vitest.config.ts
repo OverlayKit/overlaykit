@@ -4,6 +4,9 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __DEV__: true,
+  },
   resolve: {
     alias: {
       '@overlaykit/renderer': path.resolve(__dirname, '../shared'),

@@ -19,13 +19,23 @@ function routeKey(channelId: string): string {
   return channelKey(DEFAULT_TENANT_ID, channelId);
 }
 
+export const OUTPUT_AUTHENTICATION_TIMEOUT_MS = 5_000;
+const MAX_OUTPUT_TOKEN_LENGTH = 128;
+
+export interface WebSocketHandlerOptions {
+  outputAuthenticationTimeoutMs?: number;
+}
+
 export function setupWebSocketHandler(
   wss: WSServer,
   auth: AuthService,
   allowedOrigins: string[] = [],
   production: ProductionService = productionService,
+  options: WebSocketHandlerOptions = {},
 ): () => void {
   const originAllowlist = new Set(allowedOrigins);
+  const outputAuthenticationTimeoutMs =
+    options.outputAuthenticationTimeoutMs ?? OUTPUT_AUTHENTICATION_TIMEOUT_MS;
   const outputConnections = new Set<WebSocket>();
   const unsubscribeOutputCredentialChanges = auth.onOutputCredentialChanged(() => {
     for (const socket of outputConnections) {
@@ -46,22 +56,54 @@ export function setupWebSocketHandler(
       return;
     }
 
-    const access = authenticateConnection(req, auth);
+    let access = authenticateSessionConnection(req, auth);
+    let authenticationTimeout: ReturnType<typeof setTimeout> | null = null;
     if (!access) {
-      ws.close(1008, 'Authentication required');
-      return;
+      authenticationTimeout = setTimeout(() => {
+        authenticationTimeout = null;
+        ws.close(1008, 'Authentication required');
+      }, outputAuthenticationTimeoutMs);
+      authenticationTimeout.unref();
     }
-    if (access.kind === 'output') outputConnections.add(ws);
 
-    logger.debug('WebSocket client connected', { clientIp, access: access.kind });
+    logger.debug('WebSocket client connected', {
+      clientIp,
+      access: access?.kind ?? 'pending',
+    });
 
     const subscriptions = new Set<string>();
 
     ws.on('message', (data: Buffer) => {
       try {
         const message: unknown = JSON.parse(data.toString());
+        if (!access) {
+          if (!isOutputAuthenticationMessage(message)) {
+            ws.close(1008, 'Output authentication required');
+            return;
+          }
+          const authority = auth.authenticateOutputToken(message.token);
+          if (!authority) {
+            ws.close(1008, 'Output authentication failed');
+            return;
+          }
+          if (authenticationTimeout) {
+            clearTimeout(authenticationTimeout);
+            authenticationTimeout = null;
+          }
+          access = { kind: 'output', user: null, showId: authority.showId };
+          outputConnections.add(ws);
+          ws.send(JSON.stringify({
+            type: 'authentication.confirmed',
+            access: 'output',
+          } satisfies ServerMessage));
+          return;
+        }
         handleClientMessage(ws, message as ClientMessage, subscriptions, access, production);
       } catch (error) {
+        if (!access) {
+          ws.close(1008, 'Output authentication required');
+          return;
+        }
         if (error instanceof ProductionError) {
           sendErrorMessage(ws, error.code, error.message);
           return;
@@ -72,6 +114,8 @@ export function setupWebSocketHandler(
     });
 
     ws.on('close', () => {
+      if (authenticationTimeout) clearTimeout(authenticationTimeout);
+      authenticationTimeout = null;
       logger.debug('WebSocket client disconnected', { clientIp });
       for (const key of subscriptions) {
         channelManager.unsubscribe(key, ws);
@@ -87,15 +131,24 @@ export function setupWebSocketHandler(
   return dispose;
 }
 
-function authenticateConnection(req: IncomingMessage, auth: AuthService): WebSocketAccess | null {
-  const url = new URL(req.url || '/', 'http://localhost');
-  const outputToken = url.searchParams.get('token');
-  const output = auth.authenticateOutputToken(outputToken);
-  if (output) return { kind: 'output', user: null, showId: output.showId };
-
+function authenticateSessionConnection(
+  req: IncomingMessage,
+  auth: AuthService,
+): WebSocketAccess | null {
   const sessionToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
   const session = auth.authenticateSession(sessionToken);
   return session ? { kind: 'studio', user: session.user } : null;
+}
+
+function isOutputAuthenticationMessage(
+  value: unknown,
+): value is Extract<ClientMessage, { type: 'authenticate.output' }> {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as { type?: unknown; token?: unknown };
+  return message.type === 'authenticate.output'
+    && typeof message.token === 'string'
+    && message.token.length > 0
+    && message.token.length <= MAX_OUTPUT_TOKEN_LENGTH;
 }
 
 function handleClientMessage(
@@ -111,6 +164,9 @@ function handleClientMessage(
   }
 
   switch (message.type) {
+    case 'authenticate.output':
+      sendErrorMessage(ws, 'ALREADY_AUTHENTICATED', 'Connection is already authenticated');
+      break;
     case 'subscribe':
       if (access.kind === 'output') {
         sendErrorMessage(ws, 'FORBIDDEN', 'Output credentials may subscribe only to Program');

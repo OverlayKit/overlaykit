@@ -195,12 +195,14 @@ describe('local security boundary', () => {
       auth,
       [ORIGIN],
       new ProductionService(new ChannelManager(), { allowEphemeral: true }),
+      { outputAuthenticationTimeoutMs: 50 },
     );
     await new Promise<void>((resolve) => wsServer!.once('listening', () => resolve()));
     const port = (wsServer.address() as AddressInfo).port;
 
-    const anonymous = new WebSocket(`ws://127.0.0.1:${port}`, [], { origin: ORIGIN });
+    const anonymous = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
     const anonymousClose = new Promise<number>((resolve) => anonymous.once('close', resolve));
+    anonymous.send(JSON.stringify({ type: 'ping' }));
     expect(await anonymousClose).toBe(1008);
 
     const studio = await openWebSocket(`ws://127.0.0.1:${port}`, {
@@ -212,9 +214,44 @@ describe('local security boundary', () => {
     expect((await pong).type).toBe('pong');
     studio.close();
 
-    const ws = await openWebSocket(`ws://127.0.0.1:${port}?token=${encodeURIComponent(output.token)}`, {
+    const legacyQuery = await openWebSocket(
+      `ws://127.0.0.1:${port}?token=${encodeURIComponent(output.token)}`,
+      { origin: ORIGIN },
+    );
+    const legacyQueryClose = new Promise<number>((resolve) => legacyQuery.once('close', resolve));
+    legacyQuery.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'program' }));
+    expect(await legacyQueryClose).toBe(1008);
+
+    const malformed = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
+    const malformedClose = new Promise<number>((resolve) => malformed.once('close', resolve));
+    malformed.send(JSON.stringify({ type: 'authenticate.output', token: '' }));
+    expect(await malformedClose).toBe(1008);
+
+    const oversized = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
+    const oversizedClose = new Promise<number>((resolve) => oversized.once('close', resolve));
+    oversized.send(JSON.stringify({ type: 'authenticate.output', token: 'x'.repeat(129) }));
+    expect(await oversizedClose).toBe(1008);
+
+    const late = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
+    expect(await new Promise<number>((resolve) => late.once('close', resolve))).toBe(1008);
+
+    const ws = await openWebSocket(`ws://127.0.0.1:${port}`, {
       origin: ORIGIN,
     });
+    const authenticated = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'authenticate.output', token: output.token }));
+    expect(await authenticated).toMatchObject({
+      type: 'authentication.confirmed',
+      access: 'output',
+    });
+
+    const repeatedAuthentication = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'authenticate.output', token: output.token }));
+    expect(await repeatedAuthentication).toMatchObject({
+      type: 'error',
+      code: 'ALREADY_AUTHENTICATED',
+    });
+
     const legacyDenied = nextMessage(ws);
     ws.send(JSON.stringify({ type: 'subscribe', channelId: 'show-1' }));
     expect(await legacyDenied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
@@ -246,17 +283,26 @@ describe('local security boundary', () => {
     const replacement = await auth.rotateOutputToken(owner.session.user, 'show-1');
     expect(await retired).toBe(1008);
 
-    const rejectedOldToken = new WebSocket(
-      `ws://127.0.0.1:${port}?token=${encodeURIComponent(output.token)}`,
-      [],
-      { origin: ORIGIN },
-    );
-    expect(await new Promise<number>((resolve) => rejectedOldToken.once('close', resolve))).toBe(1008);
+    const rejectedOldToken = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
+    const rejectedOldTokenClose = new Promise<number>((resolve) => {
+      rejectedOldToken.once('close', resolve);
+    });
+    rejectedOldToken.send(JSON.stringify({
+      type: 'authenticate.output',
+      token: output.token,
+    }));
+    expect(await rejectedOldTokenClose).toBe(1008);
 
-    const current = await openWebSocket(
-      `ws://127.0.0.1:${port}?token=${encodeURIComponent(replacement.token)}`,
-      { origin: ORIGIN },
-    );
+    const current = await openWebSocket(`ws://127.0.0.1:${port}`, { origin: ORIGIN });
+    const currentAuthenticated = nextMessage(current);
+    current.send(JSON.stringify({
+      type: 'authenticate.output',
+      token: replacement.token,
+    }));
+    expect(await currentAuthenticated).toMatchObject({
+      type: 'authentication.confirmed',
+      access: 'output',
+    });
     const currentSubscription = nextMessage(current);
     current.send(JSON.stringify({
       type: 'subscribe.production',
