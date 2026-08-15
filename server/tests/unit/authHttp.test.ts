@@ -79,9 +79,10 @@ describe('local security boundary', () => {
 
   it('protects product APIs, enforces origin, and supports the owner lifecycle', async () => {
     const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
+    const dataStorage = new TestStorage();
     const agent = request.agent(createApp({
       auth,
-      dataStorage: new TestStorage(),
+      dataStorage,
       production,
     }));
 
@@ -90,6 +91,7 @@ describe('local security boundary', () => {
     expect(health.body).not.toHaveProperty('channels');
     await agent.get('/api/shows').expect(401);
     await agent.get('/api/collections').expect(401);
+    await agent.post('/api/auth/output-token').send({ showId: 'show-1' }).expect(401);
     await agent.post('/api/auth/setup').send(OWNER).expect(403);
 
     const setup = await agent.post('/api/auth/setup').set('Origin', ORIGIN).send(OWNER).expect(201);
@@ -104,6 +106,23 @@ describe('local security boundary', () => {
       .expect(201);
     expect(created.body.data.name).toBe('Friday Broadcast');
     const showId = created.body.data.id as string;
+    await agent.post('/api/auth/output-token').set('Origin', ORIGIN).send({}).expect(400);
+    await agent
+      .post('/api/auth/output-token')
+      .set('Origin', ORIGIN)
+      .send({ showId: 'missing-show' })
+      .expect(404);
+    const output = await agent
+      .post('/api/auth/output-token')
+      .set('Origin', ORIGIN)
+      .send({ showId })
+      .expect(201);
+    expect(output.body.data).toMatchObject({ showId });
+    expect(output.body.data.token).toMatch(/^ok_output_/);
+    expect((await agent.get('/api/auth/status').expect(200)).body.data.output).toMatchObject({
+      configured: true,
+      showId,
+    });
     const sourceScene = {
       id: 'opening',
       name: 'Opening',
@@ -155,6 +174,11 @@ describe('local security boundary', () => {
     await agent.get('/api/shows').expect(200);
     await agent.delete(`/api/shows/${created.body.data.id}`).set('Origin', ORIGIN).expect(200);
     expect((await agent.get('/api/shows').expect(200)).body.data).toEqual([]);
+    await agent
+      .post('/api/auth/output-token')
+      .set('Origin', ORIGIN)
+      .send({ showId })
+      .expect(404);
 
     await agent.post('/api/auth/logout').set('Origin', ORIGIN).expect(204);
     await agent.get('/api/shows').expect(401);
@@ -164,7 +188,7 @@ describe('local security boundary', () => {
 
   it('accepts a rotating output token over WebSocket and keeps it read-only', async () => {
     const owner = await auth.setup(OWNER);
-    const output = await auth.rotateOutputToken(owner.session.user);
+    const output = await auth.rotateOutputToken(owner.session.user, 'show-1');
     wsServer = new WebSocketServer({ port: 0 });
     setupWebSocketHandler(
       wsServer,
@@ -199,6 +223,10 @@ describe('local security boundary', () => {
     ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'preview' }));
     expect(await previewDenied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
 
+    const crossShowDenied = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-2', bus: 'program' }));
+    expect(await crossShowDenied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
+
     const subscribed = nextMessage(ws);
     ws.send(JSON.stringify({ type: 'subscribe.production', showId: 'show-1', bus: 'program' }));
     expect(await subscribed).toMatchObject({
@@ -213,7 +241,34 @@ describe('local security boundary', () => {
       payload: { channelId: 'show-1', scene: { id: 'scene-1', name: 'Scene', elements: [] } },
     }));
     expect(await denied).toMatchObject({ type: 'error', code: 'FORBIDDEN' });
-    ws.close();
+
+    const retired = new Promise<number>((resolve) => ws.once('close', resolve));
+    const replacement = await auth.rotateOutputToken(owner.session.user, 'show-1');
+    expect(await retired).toBe(1008);
+
+    const rejectedOldToken = new WebSocket(
+      `ws://127.0.0.1:${port}?token=${encodeURIComponent(output.token)}`,
+      [],
+      { origin: ORIGIN },
+    );
+    expect(await new Promise<number>((resolve) => rejectedOldToken.once('close', resolve))).toBe(1008);
+
+    const current = await openWebSocket(
+      `ws://127.0.0.1:${port}?token=${encodeURIComponent(replacement.token)}`,
+      { origin: ORIGIN },
+    );
+    const currentSubscription = nextMessage(current);
+    current.send(JSON.stringify({
+      type: 'subscribe.production',
+      showId: 'show-1',
+      bus: 'program',
+    }));
+    expect(await currentSubscription).toMatchObject({
+      type: 'production.subscription.confirmed',
+      showId: 'show-1',
+      bus: 'program',
+    });
+    current.close();
   });
 
   it('does not retain a WebSocket subscription rejected by target quarantine', async () => {

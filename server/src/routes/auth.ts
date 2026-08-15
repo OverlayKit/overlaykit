@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { AuthService } from '../auth/AuthService';
 import { AuthError } from '../auth/AuthService';
+import type { Storage } from '../storage';
 import {
   clearSessionCookie,
   requireRole,
@@ -25,6 +26,7 @@ function sendError(res: Response, error: unknown): void {
 export function createAuthRouter(
   auth: AuthService,
   cookieSecure: CookieSecureMode,
+  storage: Storage,
 ): Router {
   const router = Router();
 
@@ -76,7 +78,21 @@ export function createAuthRouter(
     requireRole('owner'),
     async (req: Request, res: Response) => {
       try {
-        const token = await auth.rotateOutputToken(req.authSession!.user);
+        const showId = typeof req.body?.showId === 'string' ? req.body.showId.trim() : '';
+        if (!showId || showId.length > 100) {
+          res.status(400).json({
+            error: { code: 'INVALID_SHOW_ID', message: 'A valid Show is required' },
+          });
+          return;
+        }
+        const show = await storage.getShow(showId);
+        if (!show || show.archivedAt !== null) {
+          res.status(404).json({
+            error: { code: 'SHOW_NOT_FOUND', message: 'Show not found' },
+          });
+          return;
+        }
+        const token = await auth.rotateOutputToken(req.authSession!.user, showId);
         res.status(201).json({ data: token });
       } catch (error) {
         sendError(res, error);

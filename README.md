@@ -35,7 +35,7 @@ Create a Show and save a Scene. In **Production**, load that Scene into Preview,
 
 Components may declare text, number, toggle, selection, and color controls in Editor. Production renders only that declared catalog. Applying a control creates a new Preview revision; Program remains unchanged until **Take**.
 
-Use **Output** to rotate the read-only token and copy the complete OBS browser-source URL. OBS receives Program only; an output credential cannot subscribe to Preview or mutate production.
+Use **Output** to select a Show, rotate its read-only token, and copy the complete OBS browser-source URL. The active output credential receives only that Show's Program; it cannot subscribe to another Show or Preview, mutate production, or remain connected after rotation.
 
 Preview, Program, device command history, credentials, and the device signing
 identity use one exclusive SQLite authority. Committed state and signing identity

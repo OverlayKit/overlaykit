@@ -33,6 +33,16 @@ export interface AuthServiceOptions {
   now?: () => number;
 }
 
+export interface OutputCredentialAuthority {
+  showId: string;
+}
+
+export interface OutputCredentialStatus {
+  configured: boolean;
+  showId: string | null;
+  updatedAt: string | null;
+}
+
 export class AuthError extends Error {
   constructor(
     public readonly code: string,
@@ -113,6 +123,7 @@ export class AuthService {
   private readonly sessionTtlMs: number;
   private readonly now: () => number;
   private setupInProgress = false;
+  private readonly outputCredentialListeners = new Set<() => void>();
 
   constructor(
     private readonly store: AuthStore,
@@ -204,34 +215,47 @@ export class AuthService {
     if (token) this.sessions.delete(digest(token));
   }
 
-  async rotateOutputToken(user: AuthenticatedUser): Promise<{
+  async rotateOutputToken(user: AuthenticatedUser, requestedShowId: unknown): Promise<{
     token: string;
+    showId: string;
     updatedAt: string;
   }> {
     if (!user.roles.includes('owner')) {
       throw new AuthError('FORBIDDEN', 403, 'Owner role required');
     }
+    const showId = typeof requestedShowId === 'string' ? requestedShowId.trim() : '';
+    if (showId.length === 0 || showId.length > 100) {
+      throw new AuthError('INVALID_SHOW_ID', 400, 'A valid Show is required');
+    }
     const token = OUTPUT_TOKEN_PREFIX + randomBytes(32).toString('base64url');
     const updatedAt = new Date(this.now()).toISOString();
-    const state = this.requireState();
-    state.outputTokenDigest = digest(token);
-    state.outputTokenUpdatedAt = updatedAt;
-    await this.store.save(state);
-    return { token, updatedAt };
+    const nextState = structuredClone(this.requireState());
+    nextState.outputCredential = { digest: digest(token), showId, updatedAt };
+    await this.store.save(nextState);
+    this.state = nextState;
+    for (const listener of this.outputCredentialListeners) listener();
+    return { token, showId, updatedAt };
   }
 
-  verifyOutputToken(token: string | null | undefined): boolean {
-    if (!token || !token.startsWith(OUTPUT_TOKEN_PREFIX)) return false;
-    const stored = this.requireState().outputTokenDigest;
-    return stored !== null && safeDigestEqual(stored, digest(token));
+  authenticateOutputToken(token: string | null | undefined): OutputCredentialAuthority | null {
+    if (!token || !token.startsWith(OUTPUT_TOKEN_PREFIX)) return null;
+    const stored = this.requireState().outputCredential;
+    if (!stored || !safeDigestEqual(stored.digest, digest(token))) return null;
+    return { showId: stored.showId };
   }
 
-  outputTokenStatus(): { configured: boolean; updatedAt: string | null } {
-    const state = this.requireState();
+  outputTokenStatus(): OutputCredentialStatus {
+    const output = this.requireState().outputCredential;
     return {
-      configured: state.outputTokenDigest !== null,
-      updatedAt: state.outputTokenUpdatedAt,
+      configured: output !== null,
+      showId: output?.showId ?? null,
+      updatedAt: output?.updatedAt ?? null,
     };
+  }
+
+  onOutputCredentialChanged(listener: () => void): () => void {
+    this.outputCredentialListeners.add(listener);
+    return () => this.outputCredentialListeners.delete(listener);
   }
 
   private requireState(): LocalAuthState {

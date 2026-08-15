@@ -24,8 +24,20 @@ export function setupWebSocketHandler(
   auth: AuthService,
   allowedOrigins: string[] = [],
   production: ProductionService = productionService,
-): void {
+): () => void {
   const originAllowlist = new Set(allowedOrigins);
+  const outputConnections = new Set<WebSocket>();
+  const unsubscribeOutputCredentialChanges = auth.onOutputCredentialChanged(() => {
+    for (const socket of outputConnections) {
+      socket.close(1008, 'Output credential retired');
+    }
+    outputConnections.clear();
+  });
+  const dispose = (): void => {
+    unsubscribeOutputCredentialChanges();
+    outputConnections.clear();
+  };
+  wss.once('close', dispose);
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress || 'unknown';
     const origin = req.headers.origin;
@@ -39,6 +51,7 @@ export function setupWebSocketHandler(
       ws.close(1008, 'Authentication required');
       return;
     }
+    if (access.kind === 'output') outputConnections.add(ws);
 
     logger.debug('WebSocket client connected', { clientIp, access: access.kind });
 
@@ -64,18 +77,21 @@ export function setupWebSocketHandler(
         channelManager.unsubscribe(key, ws);
       }
       subscriptions.clear();
+      outputConnections.delete(ws);
     });
 
     ws.on('error', (error: Error) => {
       logger.error('WebSocket error', { error: error.message });
     });
   });
+  return dispose;
 }
 
 function authenticateConnection(req: IncomingMessage, auth: AuthService): WebSocketAccess | null {
   const url = new URL(req.url || '/', 'http://localhost');
   const outputToken = url.searchParams.get('token');
-  if (auth.verifyOutputToken(outputToken)) return { kind: 'output', user: null };
+  const output = auth.authenticateOutputToken(outputToken);
+  if (output) return { kind: 'output', user: null, showId: output.showId };
 
   const sessionToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
   const session = auth.authenticateSession(sessionToken);
@@ -203,8 +219,12 @@ function handleProductionSubscribe(
     sendErrorMessage(ws, 'INVALID_PRODUCTION_SUBSCRIPTION', 'showId and bus are required');
     return;
   }
-  if (access.kind === 'output' && bus !== 'program') {
-    sendErrorMessage(ws, 'FORBIDDEN', 'Output credentials cannot subscribe to Preview');
+  if (access.kind === 'output' && (bus !== 'program' || showId !== access.showId)) {
+    sendErrorMessage(
+      ws,
+      'FORBIDDEN',
+      'Output credentials may subscribe only to their authorized Program',
+    );
     return;
   }
   const key = productionRouteKey(showId, bus);

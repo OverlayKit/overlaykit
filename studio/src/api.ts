@@ -20,7 +20,7 @@ export interface AuthStatus {
   setupRequired: boolean;
   authenticated: boolean;
   session: Session | null;
-  output?: { configured: boolean; updatedAt: string | null };
+  output?: { configured: boolean; showId: string | null; updatedAt: string | null };
 }
 
 export interface Show {

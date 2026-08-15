@@ -12,8 +12,7 @@ export function emptyAuthState(): LocalAuthState {
   return {
     schemaVersion: LOCAL_AUTH_SCHEMA_VERSION,
     owner: null,
-    outputTokenDigest: null,
-    outputTokenUpdatedAt: null,
+    outputCredential: null,
   };
 }
 
