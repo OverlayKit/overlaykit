@@ -36,11 +36,27 @@ describe('AuthService', () => {
     });
     await auth.init();
     const owner = await auth.setup(OWNER);
-    const first = await auth.rotateOutputToken(owner.session.user);
-    const second = await auth.rotateOutputToken(owner.session.user);
+    const first = await auth.rotateOutputToken(owner.session.user, 'show-1');
+    const second = await auth.rotateOutputToken(owner.session.user, 'show-2');
 
-    expect(auth.verifyOutputToken(first.token)).toBe(false);
-    expect(auth.verifyOutputToken(second.token)).toBe(true);
+    expect(auth.authenticateOutputToken(first.token)).toBeNull();
+    expect(auth.authenticateOutputToken(second.token)).toEqual({ showId: 'show-2' });
+    expect(auth.outputTokenStatus()).toEqual({
+      configured: true,
+      showId: 'show-2',
+      updatedAt: second.updatedAt,
+    });
+    await expect(auth.rotateOutputToken(owner.session.user, ' ')).rejects.toMatchObject({
+      code: 'INVALID_SHOW_ID',
+      status: 400,
+    });
+    await expect(auth.rotateOutputToken({
+      ...owner.session.user,
+      roles: ['producer'],
+    }, 'show-2')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      status: 403,
+    });
 
     now += 60_001;
     expect(auth.authenticateSession(owner.token)).toBeNull();

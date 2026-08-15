@@ -1,4 +1,5 @@
-export const LOCAL_AUTH_SCHEMA_VERSION = 'overlaykit-local-auth/v1' as const;
+export const LEGACY_LOCAL_AUTH_SCHEMA_VERSION = 'overlaykit-local-auth/v1' as const;
+export const LOCAL_AUTH_SCHEMA_VERSION = 'overlaykit-local-auth/v2' as const;
 
 export type StudioRole = 'owner' | 'producer' | 'designer';
 
@@ -24,8 +25,11 @@ export interface StoredLocalUser {
 export interface LocalAuthState {
   schemaVersion: typeof LOCAL_AUTH_SCHEMA_VERSION;
   owner: StoredLocalUser | null;
-  outputTokenDigest: string | null;
-  outputTokenUpdatedAt: string | null;
+  outputCredential: {
+    digest: string;
+    showId: string;
+    updatedAt: string;
+  } | null;
 }
 
 export interface AuthenticatedUser {
@@ -40,7 +44,6 @@ export interface AuthenticatedSession {
   expiresAt: string;
 }
 
-export interface WebSocketAccess {
-  kind: 'studio' | 'output';
-  user: AuthenticatedUser | null;
-}
+export type WebSocketAccess =
+  | { kind: 'studio'; user: AuthenticatedUser }
+  | { kind: 'output'; user: null; showId: string };

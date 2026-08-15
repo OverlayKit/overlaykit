@@ -151,7 +151,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
     standardHeaders: true,
     legacyHeaders: false,
   }));
-  app.use('/api', createAuthRouter(auth, config.cookieSecure));
+  app.use('/api', createAuthRouter(auth, config.cookieSecure, dataStorage));
   app.use('/api', requireSession(auth));
   if (deviceCredentials) {
     app.use(

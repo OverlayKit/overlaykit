@@ -1,0 +1,50 @@
+{
+  "browserVersion": "151.0.7922.137",
+  "renderer": "client/ProductionView.vue + shared/ElementRenderer.vue",
+  "authority": {
+    "showId": "output-authority-show",
+    "crossShowProgramDenied": true,
+    "previewDenied": true,
+    "retiredConnectionCloseCode": 1008,
+    "oldTokenReconnectDenied": true,
+    "retiredClientReceivedSecondProgram": false
+  },
+  "firstTake": {
+    "operationId": "chg-0045-take-1",
+    "previewRevision": 1,
+    "programRevisionBefore": 0,
+    "programRevisionAfter": 1,
+    "programHash": "96283b07f4fd73fa09bf373e91333d5f3d30358f2034325d14200d319cc8c324",
+    "bundleHash": "21c1fa0a743570d3feaee21b76a2e3a4f6fcf5b89422e0e365c8f72b6a690454",
+    "receiptHash": "765290e4846802d9f04ac4fa6a1ede652a951d0e464c1222831f172de47bfd02"
+  },
+  "screenshots": {
+    "beforeTake": {
+      "file": "program-before-take.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 0,
+        "opaquePixels": 0,
+        "transparentPixels": 2073600,
+        "colorCount": 0,
+        "screenshotHash": "0f919687ec4cc34670b2c0e7c0dfe85748582612a9b1d953662fad9fcb3f8cb6"
+      }
+    },
+    "afterTake": {
+      "file": "program-after-take.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 49560,
+        "opaquePixels": 4675,
+        "transparentPixels": 2024040,
+        "colorCount": 348,
+        "screenshotHash": "e0ded7dc955865f67013c96f5f381fe35bc7c1d2025559a50b5d71ccdd929808"
+      }
+    }
+  },
+  "secondTakeVisibleOnlyWithReplacementCredential": true,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  }
+}

@@ -9,23 +9,40 @@ const props = defineProps<{ show?: Show }>();
 const shows = ref<Show[]>([]);
 const selectedShowId = ref(props.show?.id || '');
 const outputToken = ref('');
+const issuedShowId = ref('');
 const copied = ref(false);
 const rotating = ref(false);
-const outputUrl = computed(() => outputToken.value && selectedShowId.value
-  ? buildOutputUrl(selectedShowId.value, outputToken.value)
+const outputUrl = computed(() => outputToken.value && issuedShowId.value
+  ? buildOutputUrl(issuedShowId.value, outputToken.value)
   : '');
+const configuredShowName = computed(() => shows.value.find(
+  (show) => show.id === auth.state.output?.showId,
+)?.name ?? 'Unknown Show');
+const issuedShowName = computed(() => shows.value.find(
+  (show) => show.id === issuedShowId.value,
+)?.name ?? 'Unknown Show');
 
 onMounted(async () => {
   shows.value = await api<Show[]>('/api/shows');
-  if (!selectedShowId.value) selectedShowId.value = shows.value[0]?.id || '';
+  if (!selectedShowId.value) {
+    selectedShowId.value = auth.state.output?.showId || shows.value[0]?.id || '';
+  }
 });
 
 async function rotateToken(): Promise<void> {
   rotating.value = true;
   try {
-    const result = await api<{ token: string; updatedAt: string }>('/api/auth/output-token', { method: 'POST' });
+    const result = await api<{ token: string; showId: string; updatedAt: string }>(
+      '/api/auth/output-token',
+      { method: 'POST', body: JSON.stringify({ showId: selectedShowId.value }) },
+    );
     outputToken.value = result.token;
-    if (auth.state.output) Object.assign(auth.state.output, { configured: true, updatedAt: result.updatedAt });
+    issuedShowId.value = result.showId;
+    if (auth.state.output) Object.assign(auth.state.output, {
+      configured: true,
+      showId: result.showId,
+      updatedAt: result.updatedAt,
+    });
   } finally {
     rotating.value = false;
   }
@@ -44,13 +61,14 @@ async function copyUrl(): Promise<void> {
 
     <section class="settings-section">
       <div class="settings-copy"><KeyRound :size="20" /><div><strong>OBS output token</strong><p>Rotating invalidates the previous browser source URL immediately.</p></div></div>
-      <div class="token-status"><span :class="{ configured: auth.state.output?.configured }" /><span>{{ auth.state.output?.configured ? 'Configured' : 'Not configured' }}</span><small v-if="auth.state.output?.updatedAt">{{ new Date(auth.state.output.updatedAt).toLocaleString() }}</small></div>
-      <button class="secondary-button" type="button" :disabled="rotating" @click="rotateToken"><RotateCw :size="16" />{{ rotating ? 'Rotating...' : 'Rotate token' }}</button>
+      <label class="output-show-field"><span>Authorized Show</span><select v-model="selectedShowId" :disabled="rotating"><option v-for="item in shows" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
+      <div class="token-status"><span :class="{ configured: auth.state.output?.configured }" /><span>{{ auth.state.output?.configured ? configuredShowName : 'Not configured' }}</span><small v-if="auth.state.output?.updatedAt">{{ new Date(auth.state.output.updatedAt).toLocaleString() }}</small></div>
+      <button class="secondary-button" type="button" :disabled="rotating || !selectedShowId" @click="rotateToken"><RotateCw :size="16" />{{ rotating ? 'Rotating...' : 'Rotate token' }}</button>
     </section>
 
     <section v-if="outputToken" class="token-reveal">
       <header><div><strong>New browser source</strong><p>This URL is shown once. Add it to OBS before leaving this page.</p></div><span>ONE-TIME VIEW</span></header>
-      <label><span>Show</span><select v-model="selectedShowId"><option v-for="item in shows" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
+      <label><span>Show</span><input :value="issuedShowName" readonly /></label>
       <div class="copy-field"><input :value="outputUrl" readonly /><button class="icon-button" type="button" :title="copied ? 'Copied' : 'Copy URL'" @click="copyUrl"><Check v-if="copied" :size="17" /><Clipboard v-else :size="17" /></button></div>
     </section>
   </div>
