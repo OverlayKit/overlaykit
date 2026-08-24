@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0059",
   "title": "Prove a signed-out or expired session cannot be reused",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "Replaying the pre-logout token value on a fresh request and asserting 401, plus rejecting a token replayed past its TTL via an injected clock, proves AC-004's server-side invalidation.",
       "evidence": "server/tests/unit/sessionInvalidation.test.ts is the falsification mechanism; while the session is live the same replayed token authenticates (200), so the 401 is attributable to invalidation.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0059: a pre-logout token replayed on a fresh request is rejected with 401 while it authenticated 200 before sign-out, and a token replayed past its TTL is rejected — both attributable to server-side invalidation (AC-004's 'cannot be reused' clause). No product change; the capability existed. With this change every SPEC-0001 acceptance criterion is cited by a change contract.",
+      "evidence": "server/tests/unit/sessionInvalidation.test.ts, the passing full server suite under npm run check, the CHG-0059 pull-request Constitution run, and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is test-only (server/tests plus governance); no product or protocol behavior changes.",
+      "evidence": "git diff of the CHG-0059 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -82,7 +94,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
