@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0052",
+  "title": "Prove Editor Send to Preview and make the editor URL env-driven",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0052 under human principal @rodrigoteamx, on the 2026-08-23 directive to cover Editor authoring at the browser tier. This does not authorize automatic merge of CHG-0052.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0050 and CHG-0051 deferred the Editor authoring criteria. The Studio EditorView built the embedded editor iframe URL from a hardcoded http://localhost:5174, unlike every other cross-service URL in Studio which is env-driven (VITE_API_URL, VITE_OVERLAY_URL), so no harness could serve the editor on a test origin and AC-008 could not be proven at the browser tier.",
+      "evidence": "studio/src/views/EditorView.vue before this change, studio/src/api.ts and studio/src/production.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The editor's Send to Preview control ('Enviar a Preview', Componente mode) posts to /shows/:showId/production/preview when a show id is present in its URL, which loadPreview advances the Preview revision for and leaves Program untouched; the route is gated to owner or producer.",
+      "evidence": "editor/src/App.vue sendToProduction, server/src/routes/production.ts preview route and server/src/services/ProductionService.ts loadPreview.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix derives the editor base URL from VITE_EDITOR_URL with the localhost fallback, matching the other env-driven Studio URLs; the browser harness serves editor/ on a second loopback origin, sets VITE_EDITOR_URL to it, allow-lists it for CORS, and drives the real Send to Preview across the cross-origin iframe with a frame locator.",
+      "evidence": "studio/src/views/EditorView.vue and server/tests/e2e/studioEditorAuthoring.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: AC-008 coverage was blocked by the hardcoded editor URL inconsistency, so the slice closes that product inconsistency first and then drives Send to Preview across the iframe, rather than attempting the Editor authoring criteria that have no server support.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and the editor-authoring subsystem map.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Making the editor URL env-driven, serving editor/ on a second loopback origin, driving the real 'Enviar a Preview' across the frame and observing the Show's Preview revision advance while Program stays clear proves AC-008 without any Editor-internal change and without a component or library feature.",
+      "evidence": "The browser proof — embedded editor send, in-frame 'Enviado a Preview' toast, and the outer Production surface showing Preview revision 1 with Program clear — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-006 (creating a blank or template Scene that opens in the Editor) has no Show-scoped create-Scene endpoint; a Scene is only a collection bound to a Show by the channelId equals showId convention, and blank/template creation is a client-only Editor flow. AC-006 is a genuine product gap and is deferred.",
+      "evidence": "server/src/routes has no Show-scoped create-Scene route; production.ts binds a scene to a Show only by channelId.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-007's 'the Scene revision persists' is not backed by any revision field: CollectionRecord carries only updatedAt and saving is a blind upsert, so only the isolation half (save does not change Preview or Program) is implementable today. The persisted-revision clause needs a storage change and is deferred.",
+      "evidence": "server/src/storage/Storage.ts CollectionRecord and server/src/routes/collections.ts save.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-008's actor is designer, but POST /shows/:showId/production/preview is gated to owner or producer, so a designer-only account is denied; the proof runs as owner. The editor's save-to-server is channel-scoped rather than Show-bound. Both are recorded as deferred inconsistencies.",
+      "evidence": "server/src/index.ts requireAnyRole owner/producer on the preview route, SPEC-0001 US-005 designer actor, and editor/src/App.vue collections save.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The Studio EditorView derives its embedded editor base URL from VITE_EDITOR_URL with a localhost fallback, so a harness can serve the editor on a test origin; the default local development experience is unchanged.",
+      "verification": "studio/src/views/EditorView.vue review and the browser harness pointing the iframe at a second Vite origin."
+    },
+    {
+      "id": "SC-002",
+      "statement": "In a real browser the embedded Editor's Send to Preview delivers a runtime snapshot to the Show's Preview (Preview revision advances) while Program stays clear (AC-008).",
+      "verification": "Browser harness clicks 'Enviar a Preview' inside the editor frame, asserts the in-frame acknowledgement, and asserts Preview revision 1 with Program clear on the Production surface."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The change is a small Studio product edit plus a browser test; the Studio unit tests and the full server suite pass and no other product behavior changes.",
+      "verification": "Path-scoped review of studio/src/views/EditorView.vue plus npm run check and the Studio unit suite."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0052 records the env-drive fix, the AC-008 browser proof, and the deferred AC-006 and AC-007 gaps and the designer-role contradiction before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "EditorView derives the editor URL from VITE_EDITOR_URL, and a browser test serves editor/ on a second origin and drives Send to Preview across the iframe.",
+      "evidence": "studio/src/views/EditorView.vue and server/tests/e2e/studioEditorAuthoring.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The editor-authoring browser test passes and the Studio unit tests and full server suite pass, with the OBS proof skipping on runners without OBS.",
+      "evidence": "npm run check, the Studio unit suite and the focused editor-authoring run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}

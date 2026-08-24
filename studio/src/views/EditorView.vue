@@ -6,10 +6,13 @@ import type { Show } from '../api';
 
 const props = defineProps<{ show: Show }>();
 const route = useRoute();
+// Env-driven like every other cross-service URL in Studio (VITE_API_URL, VITE_OVERLAY_URL); the
+// hardcoded localhost fallback preserves the default local dev experience.
+const editorBaseUrl = (import.meta.env.VITE_EDITOR_URL || 'http://localhost:5174').replace(/\/$/, '');
 const editorUrl = computed(() => {
   const query = new URLSearchParams({ channel: props.show.id, show: props.show.id, embedded: 'true' });
   if (route.params.sceneId) query.set('collection', String(route.params.sceneId));
-  return `http://localhost:5174/?${query.toString()}`;
+  return `${editorBaseUrl}/?${query.toString()}`;
 });
 </script>
 
