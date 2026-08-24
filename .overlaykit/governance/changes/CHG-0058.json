@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0058",
+  "title": "Create a Scene from a Template",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0058 under human principal @rodrigoteamx, on the 2026-08-24 directive to complete the Template-creation node. This does not authorize automatic merge of CHG-0058.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0057 recorded that Template-based Scene creation was deferred; the Studio Scenes surface offered only blank Scene creation, so AC-006's 'chooses blank or a Template' branch was unmet.",
+      "evidence": "studio/src/views/ScenesView.vue before this change and CHG-0057 deferred unknown.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix adds built-in Scene templates and a New Scene chooser to the Scenes surface; choosing a Template creates a Scene pre-populated with the Template's elements through the create endpoint's scene body and opens the Editor, while Blank remains available.",
+      "evidence": "studio/src/sceneTemplates.ts, studio/src/views/ScenesView.vue and server/tests/e2e/studioSceneTemplate.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the node: because the create endpoint accepts a scene body (CHG-0055) and the New Scene control is already wired (CHG-0056), the Template branch is a Studio chooser plus a built-in Template, not a new server feature.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24, CHG-0055 and CHG-0056.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Offering a Template chooser and asserting a Template-created Scene carries the Template's elements rather than a blank canvas proves AC-006's Template branch at the browser tier.",
+      "evidence": "server/tests/e2e/studioSceneTemplate.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The built-in Scene templates are a small starter set; a user-managed Template library is deferred and belongs to the Library acceptance criteria (AC-009).",
+      "evidence": "studio/src/sceneTemplates.ts is a fixed built-in list.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The Scenes surface offers Blank and at least one Template; choosing a Template creates a Scene pre-populated with its elements and opens the Editor.",
+      "verification": "Browser harness opens the New Scene chooser, picks the Lower Third Template, asserts the Editor edit route, and asserts the created Scene lists the Template's elements."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Choosing Blank still creates a blank Scene and opens the Editor.",
+      "verification": "The Studio New Scene browser test picks Blank and asserts the edit route and the created Scene."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing Studio or server behavior regresses.",
+      "verification": "The Studio unit suite and the full server suite pass."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0058 records the Template chooser and the deferred user-managed Template library before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Scenes surface offers built-in Templates and the create endpoint's scene body carries the Template content.",
+      "evidence": "studio/src/sceneTemplates.ts and studio/src/views/ScenesView.vue."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A browser test proves a Template-created Scene carries the Template's elements and the blank flow still works; the Studio unit suite and full server suite pass.",
+      "evidence": "server/tests/e2e/studioSceneTemplate.test.ts, server/tests/e2e/studioNewScene.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}

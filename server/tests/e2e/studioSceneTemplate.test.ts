@@ -16,14 +16,12 @@ import { DEFAULT_TENANT_ID } from '../../src/tenancy';
 import { storage, type ShowRecord } from '../../src/storage';
 
 /**
- * CHG-0056 / AC-006 (UI half): choosing New Scene on the Studio Scenes surface creates a new
- * independent Scene in the Show and opens it in the Editor. Reuses the CHG-0049 harness and the
- * Show-scoped create-Scene endpoint from CHG-0055.
+ * CHG-0058 / AC-006 (Template branch): choosing a Template on the Studio Scenes surface creates a
+ * new Scene pre-populated from that Template (not blank) and opens it in the Editor.
  */
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const SHOW_ID = `new-scene-show-${process.pid}`;
-const SCENE_ID = `col-scene-1-col-${SHOW_ID}`;
+const SHOW_ID = `template-show-${process.pid}`;
 const OWNER = {
   displayName: 'Local Owner',
   email: 'owner@overlaykit.local',
@@ -32,7 +30,7 @@ const OWNER = {
 
 const show: ShowRecord = {
   id: SHOW_ID,
-  name: 'New Scene Show',
+  name: 'Template Show',
   description: '',
   createdAt: 1,
   updatedAt: 1,
@@ -56,7 +54,7 @@ function reservePort(): Promise<number> {
   });
 }
 
-describe.sequential('Studio New Scene creates and opens the Editor (browser)', () => {
+describe.sequential('Studio New Scene from a Template (browser)', () => {
   const auth = new AuthService(new MemoryAuthStore());
   let restServer: Server | undefined;
   let vite: ViteDevServer | undefined;
@@ -64,12 +62,12 @@ describe.sequential('Studio New Scene creates and opens the Editor (browser)', (
   let page: Page | undefined;
   let origin = '';
   let previousApiUrl: string | undefined;
+  const createdIds: string[] = [];
 
   beforeAll(async () => {
     await auth.init();
     await storage.init();
     await storage.saveShow(show);
-    await storage.deleteCollection(DEFAULT_TENANT_ID, SCENE_ID).catch(() => undefined);
     const production = new ProductionService(channelManager, { allowEphemeral: true });
 
     const serverPort = await reservePort();
@@ -102,16 +100,20 @@ describe.sequential('Studio New Scene creates and opens the Editor (browser)', (
     await browser?.close();
     await vite?.close();
     await new Promise<void>((resolve) => restServer?.close(() => resolve()) ?? resolve());
-    await storage.deleteCollection(DEFAULT_TENANT_ID, SCENE_ID).catch(() => undefined);
+    for (const meta of (await storage.listCollections(DEFAULT_TENANT_ID)).filter(
+      (c) => c.channelId === SHOW_ID
+    )) {
+      await storage.deleteCollection(DEFAULT_TENANT_ID, meta.id).catch(() => undefined);
+    }
     await storage.archiveShow(SHOW_ID, 2).catch(() => undefined);
     const index = config.corsOrigin.indexOf(origin);
     if (index >= 0) config.corsOrigin.splice(index, 1);
     if (previousApiUrl === undefined) delete process.env.VITE_API_URL;
     else process.env.VITE_API_URL = previousApiUrl;
+    void createdIds;
   });
 
-  it('creates a Scene in the Show and opens the Editor when New Scene is chosen', async () => {
-    // Bootstrap the owner (fresh instance) so Studio is authenticated.
+  it('creates a Scene from the Lower Third Template and opens the Editor', async () => {
     await page!.goto(`${origin}/shows`, { waitUntil: 'networkidle' });
     await page!.waitForURL('**/setup');
     await page!.getByLabel('Name').fill(OWNER.displayName);
@@ -120,18 +122,19 @@ describe.sequential('Studio New Scene creates and opens the Editor (browser)', (
     await page!.getByRole('button', { name: 'Create owner' }).click();
     await page!.waitForURL('**/shows');
 
-    // Open the Show's Scenes surface (empty).
     await page!.goto(`${origin}/shows/${SHOW_ID}/scenes`, { waitUntil: 'networkidle' });
     await page!.getByRole('heading', { name: 'Scenes', exact: true }).waitFor({ state: 'visible' });
 
-    // AC-006: choosing New Scene creates a Scene in the Show and opens it in the Editor.
+    // AC-006 Template branch: open the New Scene chooser and pick a Template.
     await page!.getByRole('button', { name: 'New scene' }).first().click();
-    await page!.getByRole('button', { name: 'Blank scene' }).click();
+    await page!.getByRole('button', { name: 'Lower Third' }).first().click();
+
+    // The Scene opens in the Editor.
     await page!.waitForURL(`**/shows/${SHOW_ID}/scenes/*/edit`);
     await page!.getByText('Edit scene').first().waitFor({ state: 'visible' });
 
-    // The created Scene now appears on the Show's Scenes surface.
+    // Back on the Scenes surface, the created Scene carries the Template's elements (not blank).
     await page!.goto(`${origin}/shows/${SHOW_ID}/scenes`, { waitUntil: 'networkidle' });
-    await page!.getByText('Scene 1').first().waitFor({ state: 'visible' });
+    await page!.getByText('3 elements').first().waitFor({ state: 'visible' });
   }, 60_000);
 });
