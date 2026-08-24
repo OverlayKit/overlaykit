@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0062",
+  "title": "List and revoke device credentials from Studio Integrations",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0062 under human principal @rodrigoteamx, on the 2026-08-24 directives to build the minimal manage slice after CHG-0061 ('dale al slice mínimo', 'dale al merge y a lo que sigue'). This does not authorize automatic merge of CHG-0062.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directives.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Before CHG-0062 the device-credential store and runtime exposed no enumeration — only get(credentialId) — so the owner could issue tokens but could not see or revoke previously-issued ones from the Studio surface. The DELETE (revoke) route existed but had no listing to drive it.",
+      "evidence": "server/src/auth/DeviceCredentialRuntime.ts store was Pick<InitializableDeviceCredentialStore, 'get'>; server/src/routes/deviceCredentials.ts had no GET list route.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds a Show-scoped store capability listByShow(showId) returning the secret-free DeviceCredential projection (protocol DeviceCredentialStore interface, MemoryDeviceCredentialStore, and SqliteDeviceCredentialStore with a show_id index and sealedSecret stripped at the store boundary), widens the runtime store surface to expose it, adds a GET list route returning { data: { credentials } }, and wires list and revoke into the Studio Integrations surface.",
+      "evidence": "protocol/src/device-credential.ts, server/src/auth/SqliteDeviceCredentialStore.ts, server/src/auth/DeviceCredentialRuntime.ts, server/src/routes/deviceCredentials.ts, studio/src/views/IntegrationsView.vue.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: the load-bearing risk is secret leakage from a new read surface, not the CRUD, so the slice proves metadata-only-by-construction first — a red HTTP test asserts the list carries no sealedSecret key, no sealed-verifier value (okdv1$sha256$), and no one-time bearer token.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; server/tests/unit/deviceCredentialsHttp.test.ts value-based secret assertions.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A metadata-only, owner-only, Show-scoped, ordered list plus a revoke round-trip, proven by the HTTP test and the browser list-then-revoke flow, proves AC-016's manage half.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts and server/tests/e2e/studioIntegrations.test.ts are the falsification mechanisms.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The list surface does not re-prove revocation enforcement (a revoked token denied at authentication); that stays proven at the integration tier. A revoked credential remains listed, marked revoked, so the owner sees retired tokens.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts asserts authenticate resolves null after revoke; the list test asserts a revoked credential is still listed with revokedAt set.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "An adversarial diverse-lens review (secret-leak, authorization, correctness, test-adequacy) surfaced five confirmed findings — a test double left non-conformant by the widened DeviceCredentialStore interface, unhandled list-refresh errors that could mask an issue or revoke result, a missing non-owner assertion on the new GET route, a name-only rather than value-based secret assertion, and single-credential coverage that left ORDER BY and the Show partition unexercised — all fixed before handoff; four further findings were refuted.",
+      "evidence": "server/tests/unit/deviceCredentialRuntime.test.ts (RecordingStore.listByShow), studio/src/views/IntegrationsView.vue (loadCredentials error handling), server/tests/unit/deviceCredentialsHttp.test.ts (non-owner GET assertion, value-based secret assertions, multi-credential ordering and partition).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0062: the owner lists issued device credentials as Show-scoped, ordered metadata (no secret material) and revokes one from the Studio Integrations surface, proving AC-016's manage half at the browser and HTTP tiers. Revocation enforcement stays proven at the integration tier; rotating a credential in place and an audit trail stay deferred.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/src/routes/deviceCredentials.ts, server/tests/unit/deviceCredentialsHttp.test.ts, server/tests/e2e/studioIntegrations.test.ts, the passing protocol and full server suites under npm run check, the CHG-0062 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Rotating a credential in place from the Studio UI, credential search and pagination, and a revocation audit trail remain deferred to a successor.",
+      "evidence": "studio/src/views/IntegrationsView.vue surfaces list and revoke only; no rotate control or audit view exists.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "No new secret material crosses any boundary: sealedSecret is stripped at the store, the one-time token is returned only by issue and rotate, and the list and revoke responses carry neither. The wire secrecy of the existing routes is unchanged.",
+      "evidence": "git diff of the CHG-0062 branch and the metadata-only assertions in server/tests/unit/deviceCredentialsHttp.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The owner lists issued device credentials for a Show as ordered, Show-scoped metadata with no secret material, through an owner-only route.",
+      "verification": "The HTTP test issues multiple credentials across two Shows and asserts the list is ordered and partitioned by Show, carries no sealedSecret key or value nor any token, is 403 for a non-owner, and 401/404/409 for unauthenticated, missing and archived Shows."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The owner revokes a credential from the surface; it stays listed marked revoked and its sibling is untouched.",
+      "verification": "The browser test reloads the surface then revokes (the row reads Revoked); the HTTP test asserts revokedAt is set on the revoked credential and null on the sibling."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and every store implementation and test double satisfies the widened interface.",
+      "verification": "The full server and protocol suites pass; the server and Studio type-checks pass; a tests-inclusive type-check shows no listByShow conformance errors."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0062 records the manage slice — the metadata-only read contract, the owner and Show scoping, and the deferred rotate/audit — before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A Show-scoped listByShow store capability and a GET list route back the surface; the Studio surface lists and revokes credentials.",
+      "evidence": "protocol/src/device-credential.ts, server/src/auth/SqliteDeviceCredentialStore.ts, server/src/routes/deviceCredentials.ts, studio/src/views/IntegrationsView.vue."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A red HTTP test proves the list is metadata-only by value, owner-only, Show-scoped and ordered; a browser test proves list-from-server and revoke; both pass with the full suites.",
+      "evidence": "npm run check and the CHG-0062 pull-request Constitution run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff, and the adversarial review's confirmed findings are resolved.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

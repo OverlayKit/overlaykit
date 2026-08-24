@@ -20,6 +20,9 @@ import { TestStorage } from './support/outputProof';
 /**
  * CHG-0061 / AC-016 (UI half): the owner issues a scoped device token for a Show through the Studio
  * Integrations surface, and the token is shown exactly once.
+ *
+ * CHG-0062 / AC-016 (manage): the issued credential appears in a server-backed list on the surface,
+ * and the owner revokes it — the credential stays listed, marked revoked.
  */
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -128,6 +131,25 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
     const value = (await token.textContent()) ?? '';
     if (!/^ok_device_/.test(value)) {
       throw new Error(`expected a device token, got: ${value.slice(0, 40)}`);
+    }
+  }, 60_000);
+
+  it('lists the issued credential from the server and revokes it', async () => {
+    // Reload the surface so the list is proven to come from the server (GET), not client memory.
+    await page!.goto(`${origin}/settings/integrations`, { waitUntil: 'networkidle' });
+    const row = page!.getByTestId('credential-device-1');
+    await row.waitFor({ state: 'visible', timeout: 12000 });
+    const statusBefore = (await row.getByTestId('credential-status').textContent())?.trim();
+    if (statusBefore !== 'Active') {
+      throw new Error(`expected an Active credential, got: ${statusBefore}`);
+    }
+
+    // AC-016 (manage): revoke the credential; the row stays, marked revoked.
+    await row.getByRole('button', { name: 'Revoke' }).click();
+    await row.getByText('Revoked').waitFor({ state: 'visible', timeout: 12000 });
+    const statusAfter = (await row.getByTestId('credential-status').textContent())?.trim();
+    if (statusAfter !== 'Revoked') {
+      throw new Error(`expected the credential to read Revoked after revoke, got: ${statusAfter}`);
     }
   }, 60_000);
 });

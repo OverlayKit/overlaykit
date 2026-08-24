@@ -103,6 +103,20 @@ export function createDeviceCredentialsRouter(
     res.json({ data: { trustBundle: runtime.signing.trustBundle } });
   });
 
+  router.get('/shows/:showId/integrations/device-credentials', async (req, res) => {
+    try {
+      if (!(await requireActiveShow(storage, req.params.showId, res))) return;
+      // Metadata-only by construction: listByShow returns the sealedSecret-free DeviceCredential
+      // projection, and the one-time bearer token is never persisted, so no secret material can
+      // reach this response.
+      const credentials = await runtime.store.listByShow(req.params.showId);
+      noStore(res);
+      res.json({ data: { credentials } });
+    } catch (error) {
+      sendDeviceError(res, error);
+    }
+  });
+
   router.post('/shows/:showId/integrations/device-credentials', async (req, res) => {
     try {
       if (!(await requireActiveShow(storage, req.params.showId, res))) return;

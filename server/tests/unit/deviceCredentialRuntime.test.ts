@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import type {
+  DeviceCredential,
   StoredDeviceCredential,
 } from '@overlaykit/protocol/device-credential';
 import { AuthService } from '../../src/auth/AuthService';
@@ -23,6 +24,12 @@ class RecordingStore implements InitializableDeviceCredentialStore {
 
   async get(credentialId: string): Promise<StoredDeviceCredential | null> {
     return this.records.get(credentialId) ?? null;
+  }
+
+  async listByShow(showId: string): Promise<DeviceCredential[]> {
+    return [...this.records.values()]
+      .filter((record) => record.showId === showId)
+      .map(({ sealedSecret: _sealedSecret, ...credential }) => credential);
   }
 
   async create(record: StoredDeviceCredential): Promise<boolean> {
