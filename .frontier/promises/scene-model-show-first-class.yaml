@@ -1,14 +1,22 @@
 id: scene-model-show-first-class
-statement: A successor closes the deferred authoring gaps — a Show-scoped create-Scene endpoint (AC-006), a persisted Scene revision (AC-007), and the designer role on Send-to-Preview.
+statement: A saved Scene carries a persisted monotonic revision (AC-007 revision clause), closed by CHG-0053. A Show-scoped create-Scene endpoint (AC-006) and the designer role on Send-to-Preview remain for later successors.
 anchors:
-  - path:server/src/routes/production.ts
   - path:server/src/storage/Storage.ts
-  - path:.overlaykit/governance/changes/CHG-0052.json
+  - path:server/tests/unit/sceneRevision.test.ts
+  - path:.overlaykit/governance/changes/CHG-0053.json
 requires:
   promises:
     - studio-send-to-preview-covered
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: scene-record-has-revision
-  command: "grep -qE 'revision' server/src/storage/Storage.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: file-contains
+        path: server/src/storage/Storage.ts
+        matches: 'revision'
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0053.json
+        matches: '"status": "implemented"'
