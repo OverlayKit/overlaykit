@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0039",
+  "title": "Output authentication overrides ambient session authority on the shared WebSocket transport",
+  "status": "accepted",
+  "date": "2026-08-23",
+  "supersedes": null,
+  "governs": [
+    "output-websocket-authentication",
+    "browser-output-credential-transport",
+    "studio-session-websocket-authority"
+  ],
+  "context": "ADR-0037 kept Output credentials out of proxy request targets and moved the bearer into a client-only fragment sent as the first WebSocket application frame. The /ws endpoint is shared: the browser Output overlay authenticates with an Output credential, while the editor and panel surfaces authenticate with the interactive Studio session cookie (the Studio shell itself uses REST, not /ws). setupWebSocketHandler resolves session authority from the upgrade request cookie before any application frame, and rejects a later authenticate.output on an already-authenticated connection with ALREADY_AUTHENTICATED. Browser cookies are scoped by host, not by port or path, so when the Output page and Studio are served from the same origin (local development, or a single-origin deployment) an Output page opened in a browser profile that holds a Studio session presents that cookie on the /ws upgrade. The connection then holds interactive Studio authority derived from the ambient session rather than read-only authority derived from its Output credential: it is not retired when the Output credential is rotated, and it carries latent Preview and mutation power. The recommended split-origin deployment avoids this, but the transport must not depend on deployment topology for a credential-scoping guarantee.",
+  "decision": "An authenticate.output application frame declares that a connection is an Output connection and installs authority derived solely from the Output credential, overriding any session-derived authority the connection already holds. This is a strict de-escalation from interactive Studio authority to read-only, exact-Show Output authority; the connection is enrolled for Output-credential rotation so that rotating or revoking the credential retires it. An authenticate.output frame that presents an invalid or retired token fails closed and closes the connection; it never falls back to the ambient session. A connection that never sends authenticate.output retains whatever session authority its cookie grants, preserving the editor and panel channel and production subscriptions, and a connection that has already authenticated as Output rejects a repeated authenticate.output with ALREADY_AUTHENTICATED. Output authority therefore comes only from the Output credential and is never inherited from an interactive session on the shared /ws transport.",
+  "consequences": [
+    "An Output page loaded in a browser that also holds a Studio session on the same origin runs on read-only Output authority, is denied Preview and mutation, and is retired by Output-credential rotation.",
+    "The editor and panel surfaces continue to authenticate the /ws transport with the Studio session cookie because they never send authenticate.output.",
+    "Presenting authenticate.output with a bad token is fail-closed even on a session-bearing connection, so a mistyped or rotated credential cannot silently escalate to session authority.",
+    "This is a defence-in-depth credential-scoping guarantee independent of deployment topology; the recommended split-origin deployment remains the primary boundary.",
+    "A degenerate Output page loaded with no credential in its fragment sends no authenticate.output and is not an Output connection; if a session cookie is present it is treated as an ordinary authenticated Studio connection, which is out of scope for this decision."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "output-authentication-overrides-session",
+      "statement": "An authenticate.output frame installs Output-credential authority and overrides any session-derived authority the connection holds; Output authority is never inherited from an interactive session."
+    },
+    {
+      "kind": "rule",
+      "id": "output-authentication-is-fail-closed",
+      "statement": "An authenticate.output frame with an invalid or retired token closes the connection and must not fall back to session authority."
+    },
+    {
+      "kind": "rule",
+      "id": "declared-output-connection-is-rotation-scoped",
+      "statement": "A connection that authenticates as Output is enrolled for Output-credential rotation and is retired when the credential is rotated or revoked, regardless of any session cookie on its upgrade."
+    }
+  ]
+}

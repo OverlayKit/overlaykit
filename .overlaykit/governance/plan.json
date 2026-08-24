@@ -382,6 +382,14 @@
       "id": "ADR-0038",
       "supersededBy": null,
       "title": "Real-consumer acceptance evidence is an attached, fingerprinted local review sample"
+    },
+    {
+      "contentHash": "574c3185828eb7301f8cfdd943ecb53dc090bdef9a600750d558f58494ab9fb2",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0039",
+      "supersededBy": null,
+      "title": "Output authentication overrides ambient session authority on the shared WebSocket transport"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -516,10 +524,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "76a1db1dddece01462ef2a7c0ee091590679da199716c891ff4d6822b69f2365",
-  "profileHash": "52b3dbc00c373a4bafb6d17db8919311e01035c9f04654caceac13a025a2ef4f",
+  "planHash": "302b0ff1d4c67dd1a27623ca7130eeaee02e4f036605c27f9c2d818b8627cfd9",
+  "profileHash": "6a7c6c1418b53ab3d86c06b21cdfd3fd835a96eedc8ca582b0cb3379d17a9f0d",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.34.0",
+  "profileVersion": "2.35.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -634,6 +642,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0006",
       "statement": "One production action is a one-step cue and sequential coordinated work uses the same cue contract with additional ordered steps."
+    },
+    {
+      "id": "declared-output-connection-is-rotation-scoped",
+      "kind": "rule",
+      "sourceDecision": "ADR-0039",
+      "statement": "A connection that authenticates as Output is enrolled for Output-credential rotation and is retired when the credential is rotated or revoked, regardless of any session cookie on its upgrade."
     },
     {
       "id": "device-action-authorization-is-fresh",
@@ -1678,6 +1692,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "A component exposes operator capabilities through typed control definitions rather than inferred variables or arbitrary implementation access."
+    },
+    {
+      "id": "output-authentication-is-fail-closed",
+      "kind": "rule",
+      "sourceDecision": "ADR-0039",
+      "statement": "An authenticate.output frame with an invalid or retired token closes the connection and must not fall back to session authority."
+    },
+    {
+      "id": "output-authentication-overrides-session",
+      "kind": "rule",
+      "sourceDecision": "ADR-0039",
+      "statement": "An authenticate.output frame installs Output-credential authority and overrides any session-derived authority the connection holds; Output authority is never inherited from an interactive session."
     },
     {
       "id": "output-authentication-precedes-subscription",
