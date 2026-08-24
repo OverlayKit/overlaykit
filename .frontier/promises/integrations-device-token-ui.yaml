@@ -1,0 +1,12 @@
+id: integrations-device-token-ui
+statement: A successor surfaces device tokens through the Studio Integrations UI (AC-016 UI half), replacing the placeholder.
+anchors:
+  - path:studio/src/views/IntegrationsView.vue
+requires:
+  promises:
+    - runtime-isolation-and-device-scope
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: integrations-view-lists-device-tokens
+  command: "grep -qE 'device-credentials|deviceCredential|createDeviceToken' studio/src/views/IntegrationsView.vue"
