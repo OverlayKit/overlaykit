@@ -1,30 +1,17 @@
 // @vitest-environment node
 
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright-core';
-import { PNG } from 'pngjs';
+import { chromium, type Browser } from 'playwright-core';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
-import { WebSocket, WebSocketServer } from 'ws';
-import { resolveAnnouncePersonProgram } from '@overlaykit/visual-compiler';
-import {
-  compilationReceiptHash,
-  type VisualContextFacts,
-  type VisualIntent,
-} from '@overlaykit/visual-protocol';
-import {
-  compileOverlayKitDomProgram,
-  prepareOverlayKitPreviewCandidate,
-  type OverlayKitDomProgramArtifact,
-} from '@overlaykit/visual-target-overlaykit';
+import { WebSocketServer } from 'ws';
+import { compilationReceiptHash } from '@overlaykit/visual-protocol';
 import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { config } from '../../src/config/environment';
@@ -32,185 +19,28 @@ import { setupWebSocketHandler } from '../../src/handlers/websocket';
 import { createApp } from '../../src/index';
 import { channelManager } from '../../src/services/ChannelManager';
 import { ProductionService } from '../../src/services/ProductionService';
-import type {
-  ActionRecord,
-  CollectionMeta,
-  CollectionRecord,
-  ShowRecord,
-  Storage,
-} from '../../src/storage';
+import {
+  ORIGIN_OWNER,
+  OTHER_SHOW_ID,
+  SHOW_ID,
+  TestStorage,
+  VIEWPORT,
+  authenticateOutput,
+  closeCode,
+  compiledFixture,
+  nextMessage,
+  openWebSocket,
+  pixelMetrics,
+  repoRoot,
+  serverPort,
+  waitForText,
+} from './support/outputProof';
 
-const VIEWPORT = { width: 1920, height: 1080 } as const;
-const SHOW_ID = 'output-authority-show';
-const OTHER_SHOW_ID = 'output-authority-other-show';
-const ORIGIN_OWNER = {
-  email: 'owner@overlaykit.local',
-  displayName: 'Local Owner',
-  password: 'correct horse battery staple',
-};
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const execFileAsync = promisify(execFile);
 const evidenceDir = path.resolve(
   repoRoot,
   process.env.OVERLAYKIT_OUTPUT_TRANSPORT_PROOF_DIR ?? 'artifacts/output-transport-proof'
 );
-
-class TestStorage implements Storage {
-  private readonly shows = new Map<string, ShowRecord>([
-    [
-      SHOW_ID,
-      {
-        id: SHOW_ID,
-        name: 'Authorized Output',
-        description: 'CHG-0045 proof Show',
-        createdAt: 1,
-        updatedAt: 1,
-        archivedAt: null,
-      },
-    ],
-    [
-      OTHER_SHOW_ID,
-      {
-        id: OTHER_SHOW_ID,
-        name: 'Other Output',
-        description: 'Cross-Show denial target',
-        createdAt: 1,
-        updatedAt: 1,
-        archivedAt: null,
-      },
-    ],
-  ]);
-
-  async init(): Promise<void> {}
-  async listShows(includeArchived = false): Promise<ShowRecord[]> {
-    return [...this.shows.values()].filter((show) => includeArchived || show.archivedAt === null);
-  }
-  async getShow(id: string): Promise<ShowRecord | null> {
-    return this.shows.get(id) ?? null;
-  }
-  async saveShow(show: ShowRecord): Promise<ShowRecord> {
-    this.shows.set(show.id, show);
-    return show;
-  }
-  async archiveShow(id: string, archivedAt: number): Promise<ShowRecord | null> {
-    const show = this.shows.get(id);
-    if (!show) return null;
-    const archived = { ...show, archivedAt, updatedAt: archivedAt };
-    this.shows.set(id, archived);
-    return archived;
-  }
-  async listCollections(_tenantId: string): Promise<CollectionMeta[]> {
-    return [];
-  }
-  async getCollection(_tenantId: string, _id: string): Promise<CollectionRecord | null> {
-    return null;
-  }
-  async saveCollection(record: CollectionRecord): Promise<CollectionRecord> {
-    return record;
-  }
-  async deleteCollection(_tenantId: string, _id: string): Promise<boolean> {
-    return false;
-  }
-  async listActions(_tenantId: string): Promise<ActionRecord[]> {
-    return [];
-  }
-  async getAction(_tenantId: string, _id: string): Promise<ActionRecord | null> {
-    return null;
-  }
-  async saveAction(_record: ActionRecord): Promise<void> {}
-  async deleteAction(_tenantId: string, _id: string): Promise<boolean> {
-    return false;
-  }
-}
-
-interface CompiledFixture {
-  artifact: OverlayKitDomProgramArtifact;
-  candidate: ReturnType<typeof prepareOverlayKitPreviewCandidate>;
-  name: string;
-  programId: string;
-  role: string;
-}
-
-interface PixelMetrics {
-  colorCount: number;
-  opaquePixels: number;
-  screenshotHash: string;
-  totalPixels: number;
-  transparentPixels: number;
-  visiblePixels: number;
-}
-
-function visualContext(): VisualContextFacts {
-  return {
-    surface: 'broadcast.overlay',
-    viewport: { ...VIEWPORT, pixelRatio: 1, transparent: true },
-    temporalMode: 'live',
-    interaction: 'operator',
-    safeAreas: [{ x: 64, y: 64, width: 1792, height: 952 }],
-    expectedDuration: 6_000,
-    audienceDistance: 'medium',
-    attentionBudget: 'medium',
-    reducedMotion: true,
-    capabilities: {
-      dom: true,
-      svg: true,
-      canvas: false,
-      cssAnimations: true,
-      webAnimations: false,
-      audio: false,
-    },
-  };
-}
-
-function compiledFixture(id: string, name: string, role: string): CompiledFixture {
-  const intent: VisualIntent = {
-    id,
-    task: 'announce',
-    subject: { type: 'person', name, role },
-    desiredEffect: 'notice',
-    importance: 'primary',
-  };
-  const program = resolveAnnouncePersonProgram({ intent, context: visualContext() });
-  const artifact = compileOverlayKitDomProgram(program);
-  return {
-    artifact,
-    candidate: prepareOverlayKitPreviewCandidate(artifact, {
-      'person-name': name,
-      'person-role': role,
-    }),
-    name,
-    programId: program.id,
-    role,
-  };
-}
-
-function serverPort(server: Server | WebSocketServer | ViteDevServer): number {
-  const address =
-    server instanceof WebSocketServer
-      ? server.address()
-      : 'httpServer' in server
-        ? server.httpServer?.address()
-        : server.address();
-  if (!address || typeof address === 'string') throw new Error('Proof server has no TCP port');
-  return address.port;
-}
-
-function openWebSocket(url: string, origin: string): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(url, [], { origin });
-    socket.once('open', () => resolve(socket));
-    socket.once('error', reject);
-  });
-}
-
-async function authenticateOutput(socket: WebSocket, token: string): Promise<void> {
-  const authenticated = nextMessage(socket);
-  socket.send(JSON.stringify({ type: 'authenticate.output', token }));
-  expect(await authenticated).toMatchObject({
-    type: 'authentication.confirmed',
-    access: 'output',
-  });
-}
 
 async function createTlsMaterial(): Promise<{
   certificate: Buffer;
@@ -243,55 +73,6 @@ async function createTlsMaterial(): Promise<{
     directory,
     privateKey: await readFile(privateKeyPath),
   };
-}
-
-function nextMessage(socket: WebSocket): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
-    socket.once('message', (data) =>
-      resolve(JSON.parse(data.toString()) as Record<string, unknown>)
-    );
-  });
-}
-
-function closeCode(socket: WebSocket): Promise<number> {
-  return new Promise((resolve) => socket.once('close', resolve));
-}
-
-function pixelMetrics(buffer: Buffer): PixelMetrics {
-  const png = PNG.sync.read(buffer);
-  let opaquePixels = 0;
-  let transparentPixels = 0;
-  let visiblePixels = 0;
-  const colors = new Set<number>();
-  for (let index = 0; index < png.data.length; index += 4) {
-    const alpha = png.data[index + 3];
-    if (alpha === 0) transparentPixels += 1;
-    if (alpha === 255) opaquePixels += 1;
-    if (alpha > 0) {
-      visiblePixels += 1;
-      if (colors.size < 4096) {
-        colors.add((png.data[index] << 16) | (png.data[index + 1] << 8) | png.data[index + 2]);
-      }
-    }
-  }
-  return {
-    totalPixels: png.width * png.height,
-    visiblePixels,
-    opaquePixels,
-    transparentPixels,
-    colorCount: colors.size,
-    screenshotHash: createHash('sha256').update(buffer).digest('hex'),
-  };
-}
-
-async function waitForText(page: Page, fixture: CompiledFixture): Promise<void> {
-  await page.locator(`#${fixture.programId}-name`).filter({ hasText: fixture.name }).waitFor({
-    state: 'visible',
-  });
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    await Promise.all(document.getAnimations().map((animation) => animation.finished));
-  });
 }
 
 describe.sequential('authenticated Program rendering proof', () => {

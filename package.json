@@ -61,7 +61,8 @@
     "governance:ruleset:apply": "npm run ruleset:apply --workspace @overlaykit/governance-host --",
     "proof:visual": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/visualPreviewRendering.test.ts",
     "proof:output-authority": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts",
-    "proof:output-transport": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts"
+    "proof:output-transport": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts",
+    "proof:obs-acceptance": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/obsProgramCompositing.test.ts"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5",

@@ -27,7 +27,7 @@ branded Chrome at 1920 by 1080.
 Regenerate the evidence from the repository root:
 
 ```bash
-OVERLAYKIT_OUTPUT_PROOF_DIR=docs/evidence/CHG-0045 npm run proof:output-authority
+OVERLAYKIT_OUTPUT_TRANSPORT_PROOF_DIR=docs/evidence/CHG-0045 npm run proof:output-authority
 ```
 
 ## Boundary

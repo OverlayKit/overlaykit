@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-profile/v2",
   "name": "overlaykit-oss",
-  "version": "2.33.0",
+  "version": "2.34.0",
   "decisionIds": [
     "ADR-0003",
     "ADR-0004",
@@ -36,7 +36,8 @@
     "ADR-0034",
     "ADR-0035",
     "ADR-0036",
-    "ADR-0037"
+    "ADR-0037",
+    "ADR-0038"
   ],
   "specificationIds": ["SPEC-0001"],
   "gates": [],
@@ -51,6 +52,12 @@
     {
       "kind": "agent",
       "id": "codex",
+      "principal": "@rodrigoteamx",
+      "roles": ["author", "investigator", "producer"]
+    },
+    {
+      "kind": "agent",
+      "id": "claude-code",
       "principal": "@rodrigoteamx",
       "roles": ["author", "investigator", "producer"]
     },

@@ -75,9 +75,23 @@ References: [RFC 3986 fragment handling](https://www.rfc-editor.org/rfc/rfc3986.
 [RFC 6455 WebSocket protocol](https://www.rfc-editor.org/rfc/rfc6455.html), and
 [Caddy WebSocket proxying](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming).
 
+## Consumer Configuration
+
+OBS stores the browser-source URL, including the `#output=...` fragment, inside its scene
+collection on disk. Treat exported, backed-up or shared OBS scene collections as credential
+disclosure: rotate the Output credential afterwards and replace the browser-source URL. The same
+applies to any other consumer that persists the URL it was given.
+
+The real-OBS acceptance proof (`npm run proof:obs-acceptance`, CHG-0047) attaches to an OBS that
+you already run, through obs-websocket on loopback, and creates only a dedicated scene and input
+that it removes afterwards. It refuses to run while OBS is streaming or recording and skips
+without writing evidence when obs-websocket is unreachable. Its evidence is a local review sample
+over loopback HTTP; it is not a Constitution gate and does not prove OBS over TLS.
+
 ## Evidence Boundary
 
 CHG-0046 exercises the real Output client through local TLS termination and a WebSocket upgrade
-proxy in branded Chrome. It does not prove that an OBS process loaded or composited the source, that
-a public CA or DNS path is correct, that a particular external proxy preserves long-lived sockets,
-or that the rendered result is perceptually acceptable on air.
+proxy in branded Chrome. CHG-0047 observes the same Output URL in a real OBS browser source over
+loopback HTTP on one workstation. Neither proves that a public CA or DNS path is correct, that a
+particular external proxy preserves long-lived sockets, that OBS trusts a given certificate, or
+that the rendered result is perceptually acceptable on air.

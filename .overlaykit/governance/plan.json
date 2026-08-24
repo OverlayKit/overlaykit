@@ -11,6 +11,16 @@
       ]
     },
     {
+      "id": "claude-code",
+      "kind": "agent",
+      "principal": "@rodrigoteamx",
+      "roles": [
+        "author",
+        "investigator",
+        "producer"
+      ]
+    },
+    {
       "id": "codex",
       "kind": "agent",
       "principal": "@rodrigoteamx",
@@ -364,6 +374,14 @@
       "id": "ADR-0037",
       "supersededBy": null,
       "title": "Output credentials cross proxy boundaries only inside the WebSocket protocol"
+    },
+    {
+      "contentHash": "e8ce6300317250c3690a9dc8e45af8e42c9c57f2632817490c35a1d276271fd3",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0038",
+      "supersededBy": null,
+      "title": "Real-consumer acceptance evidence is an attached, fingerprinted local review sample"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -498,10 +516,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "f131de08ce38966641fc72b0871b4949faf1318b1afd8ecfc4357c01e901dfa9",
-  "profileHash": "a7f163be70ca4446d4fc0b9beffa14abb825ae945118576fbd6733aa9cf0e76e",
+  "planHash": "76a1db1dddece01462ef2a7c0ee091590679da199716c891ff4d6822b69f2365",
+  "profileHash": "52b3dbc00c373a4bafb6d17db8919311e01035c9f04654caceac13a025a2ef4f",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.33.0",
+  "profileVersion": "2.34.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -574,6 +592,12 @@
       "kind": "rule",
       "sourceDecision": "ADR-0030",
       "statement": "Canonical component-visibility commands must use the existing long-lived exclusive SQLite credential and production-state connection and must never create a second executable command authority."
+    },
+    {
+      "id": "consumer-configuration-holds-output-credentials",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "Because a browser source persists its URL including the fragment bearer, exported or shared consumer configuration is credential disclosure and must be followed by Output credential rotation."
     },
     {
       "id": "credentials-are-purpose-scoped",
@@ -1912,6 +1936,36 @@
       "kind": "rule",
       "sourceDecision": "ADR-0018",
       "statement": "Every public npm package allowlist and packed payload must include LICENSE and NOTICE."
+    },
+    {
+      "id": "real-consumer-evidence-is-fingerprinted",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "Retained real-consumer evidence must record the consumer version, control-protocol version, platform, video settings and embedded-browser user agent, and must contain no credential, password or payload."
+    },
+    {
+      "id": "real-consumer-evidence-is-not-a-gate",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "Real-consumer evidence is classified local-review-sample; it must not be represented as CI-reproducible, as a gate outcome, or as evidence for any consumer, platform or transport it did not observe."
+    },
+    {
+      "id": "real-consumer-proof-attaches",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "A real-consumer proof attaches to a consumer the operator already runs; it must not launch, reconfigure or switch the operator's live Program scene."
+    },
+    {
+      "id": "real-consumer-proof-refuses-live-output",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "A real-consumer proof must refuse to run while the consumer reports an active stream or recording."
+    },
+    {
+      "id": "real-consumer-proof-skips-loudly",
+      "kind": "rule",
+      "sourceDecision": "ADR-0038",
+      "statement": "When the consumer control endpoint is unreachable or rejects authentication, the proof must skip with a visible reason and write no evidence, unless the operator explicitly requires it to fail."
     },
     {
       "id": "receipt-scope-is-honest",
