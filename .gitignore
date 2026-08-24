@@ -40,3 +40,4 @@ tmp/
 
 # Server runtime data
 server/data/
+server/.test-data/
