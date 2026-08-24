@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0060",
+  "title": "Prove runtime operations never alter the saved Scene",
+  "status": "approved",
+  "changeClass": "architecture",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0060 under human principal @rodrigoteamx, on the 2026-08-24 directive to close the last uncited-criteria node. This does not authorize automatic merge of CHG-0060.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "AC-013's 'runtime edits never alter a saved Scene without an explicit save-back' was proven only for the in-memory scene object at the unit tier, not against a saved CollectionRecord re-read from storage. The isolation held by convention because ProductionService.loadPreview prepares and clones the scene, but there was no persistence-tier proof.",
+      "evidence": "server/src/services/ProductionService.ts loadPreview and prepareScene, and the prior coverage audit of AC-013.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds a persistence-tier proof that after Preview load, controls and Take against a saved Scene, the saved CollectionRecord re-read from storage is byte-identical to its saved form; getCollection returns the stored record by reference, so any aliasing mutation would surface. No product code changes.",
+      "evidence": "server/tests/unit/runtimeSceneIsolation.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "AC-016's device-token least-privilege (a token executes only its selected actions for its Show, and cross-Show, undeclared, expired and revoked actions are denied) is already proven at the integration tier by the device-credential HTTP tests; only surfacing device tokens through the Studio Integrations UI remains.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts and studio/src/views/IntegrationsView.vue placeholder.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: AC-013's gap was a missing persistence-tier proof, not a missing isolation guarantee, so the slice adds a re-read comparison rather than changing the ProductionService.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24 and the loadPreview cloning path.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Exercising Preview load, controls and Take against a saved Scene and asserting the re-read CollectionRecord is byte-identical, while Preview and Program advance, proves AC-013's saved-source isolation.",
+      "evidence": "server/tests/unit/runtimeSceneIsolation.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Surfacing device tokens through the Studio Integrations UI (AC-016 UI half) remains a placeholder and is deferred to a successor.",
+      "evidence": "studio/src/views/IntegrationsView.vue renders a PLANNED placeholder.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "After Preview load, controls and Take against a saved Scene, the saved CollectionRecord re-read from storage is byte-identical to its saved form, while Preview and Program advanced.",
+      "verification": "Persistence-tier test runs the runtime operations and asserts the re-read record equals the saved snapshot."
+    },
+    {
+      "id": "SC-002",
+      "statement": "No product code changes and no existing behavior regresses.",
+      "verification": "Path-scoped review that only server/tests and governance changed; the full server suite passes."
+    },
+    {
+      "id": "SC-003",
+      "statement": "AC-016's device-token least-privilege is recorded as already proven at the integration tier, with the Integrations UI deferred.",
+      "verification": "Reference to server/tests/unit/deviceCredentialsHttp.test.ts and the IntegrationsView placeholder."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0060 records the AC-013 persistence proof, AC-016's existing server proof, and the deferred Integrations UI before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A persistence-tier test proves runtime operations leave the saved Scene byte-identical.",
+      "evidence": "server/tests/unit/runtimeSceneIsolation.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The test passes and the full server suite passes.",
+      "evidence": "npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}
