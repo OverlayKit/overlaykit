@@ -2,12 +2,19 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0062",
   "title": "List and revoke device credentials from Studio Integrations",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032", "ADR-0040"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -49,6 +56,12 @@
       "kind": "fact",
       "statement": "An adversarial diverse-lens review (secret-leak, authorization, correctness, test-adequacy) surfaced five confirmed findings — a test double left non-conformant by the widened DeviceCredentialStore interface, unhandled list-refresh errors that could mask an issue or revoke result, a missing non-owner assertion on the new GET route, a name-only rather than value-based secret assertion, and single-credential coverage that left ORDER BY and the Show partition unexercised — all fixed before handoff; four further findings were refuted.",
       "evidence": "server/tests/unit/deviceCredentialRuntime.test.ts (RecordingStore.listByShow), studio/src/views/IntegrationsView.vue (loadCredentials error handling), server/tests/unit/deviceCredentialsHttp.test.ts (non-owner GET assertion, value-based secret assertions, multi-credential ordering and partition).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0062: the owner lists issued device credentials as Show-scoped, ordered metadata (no secret material) and revokes one from the Studio Integrations surface, proving AC-016's manage half at the browser and HTTP tiers. Revocation enforcement stays proven at the integration tier; rotating a credential in place and an audit trail stay deferred.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/src/routes/deviceCredentials.ts, server/tests/unit/deviceCredentialsHttp.test.ts, server/tests/e2e/studioIntegrations.test.ts, the passing protocol and full server suites under npm run check, the CHG-0062 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
