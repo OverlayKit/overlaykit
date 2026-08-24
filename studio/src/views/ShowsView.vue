@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { Archive, ArrowUpRight, Plus, Radio, X } from '@lucide/vue';
 import { api, type Show } from '../api';
+
+const router = useRouter();
 
 const shows = ref<Show[]>([]);
 const loading = ref(true);
@@ -30,6 +33,8 @@ async function createShow(): Promise<void> {
     name.value = '';
     description.value = '';
     creating.value = false;
+    // AC-005: opening the created Show lands the producer on its Production surface.
+    await router.push(`/shows/${show.id}/production`);
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Could not create show';
   }
