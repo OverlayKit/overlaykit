@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0056",
+  "title": "Create a Scene and open the Editor from New Scene",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0056 under human principal @rodrigoteamx, on the 2026-08-24 directive to complete the Studio New Scene wiring node. This does not authorize automatic merge of CHG-0056.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0055 added the Show-scoped create-Scene endpoint but deferred the Studio wiring; the Studio Scenes surface routed New Scene directly to a blank Editor without creating a Scene, so no independent Scene was created on choosing New.",
+      "evidence": "studio/src/views/ScenesView.vue before this change routed New scene to /shows/:id/new-scene, and CHG-0055 deferred unknown.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix changes the Studio Scenes surface's New Scene control to call POST /api/shows/:showId/scenes and open the Editor on the created Scene, so choosing New Scene creates a new independent Scene in the Show and opens it in the Editor, and the Scene then appears on the Scenes surface.",
+      "evidence": "studio/src/views/ScenesView.vue createScene and server/tests/e2e/studioNewScene.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the node: with the unified storage and the Show-scoped create-Scene endpoint already in place from CHG-0055, the UI half of AC-006 is a small Scenes surface change plus a browser proof.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24 and CHG-0055.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Routing New Scene through the create endpoint and asserting the Editor opens on the created Scene, which then appears on the Scenes surface, proves AC-006's browser-tier create-and-open behavior without a Template chooser.",
+      "evidence": "server/tests/e2e/studioNewScene.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Template-based Scene creation (choosing a Template rather than blank) is not implemented; only blank creation is wired.",
+      "evidence": "studio/src/views/ScenesView.vue createScene creates a blank named Scene only.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The create-Scene endpoint derives the Scene id from the name slug, so two Shows with a same-named Scene would share an id; a Show-scoped or unique Scene id is a deferred follow-on.",
+      "evidence": "server/src/routes/collections.ts create-Scene route uses slug(name) for the id.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Choosing New Scene on the Studio Scenes surface creates a Scene in the Show and navigates to the Editor on that Scene (AC-006).",
+      "verification": "Browser harness clicks New scene and asserts the Editor edit route and the Edit-scene surface."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The created Scene appears on the Show's Scenes surface.",
+      "verification": "Browser harness returns to the Scenes surface and asserts the created Scene is listed."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing Studio or server behavior regresses.",
+      "verification": "The Studio unit suite and the full server suite pass."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0056 records the New Scene wiring and the deferred Template creation and Scene-id scoping before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Studio Scenes surface's New Scene control creates a Scene through the create endpoint and opens the Editor on it.",
+      "evidence": "studio/src/views/ScenesView.vue and server/tests/e2e/studioNewScene.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A browser test proves create-and-open and that the Scene appears; the Studio unit suite and full server suite pass.",
+      "evidence": "server/tests/e2e/studioNewScene.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}
