@@ -26,6 +26,9 @@ import { TestStorage } from './support/outputProof';
  *
  * CHG-0063 / AC-016 (manage): the owner rotates the credential in place — a fresh token is disclosed
  * once and the credential's generation advances — before it is finally revoked.
+ *
+ * CHG-0064 / AC-016 (manage): each credential shows a lifecycle audit detail DERIVED from its own
+ * metadata (issuer, issue/last-activity time, generation, revocation) — reflecting state changes.
  */
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -139,6 +142,14 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
       throw new Error(`expected a device token, got: ${value.slice(0, 40)}`);
     }
     issuedTokenValue = value;
+
+    // CHG-0064: the derived audit detail surfaces the credential's provenance and generation.
+    const audit = page!.getByTestId('credential-audit-device-1');
+    await audit.waitFor({ state: 'visible', timeout: 12000 });
+    const auditText = (await audit.textContent())?.trim() ?? '';
+    if (!auditText.includes('Issued by') || !auditText.includes('generation 1')) {
+      throw new Error(`expected an audit detail with issuer and generation 1, got: ${auditText.slice(0, 100)}`);
+    }
   }, 60_000);
 
   it('rotates the credential in place, advancing its generation and disclosing a fresh token', async () => {
@@ -178,12 +189,19 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
       throw new Error(`expected an Active credential, got: ${statusBefore}`);
     }
 
-    // AC-016 (manage): revoke the credential; the row stays, marked revoked.
+    // AC-016 (manage): revoke the credential; the row stays, marked revoked. Scope the wait to the
+    // status badge — the derived audit line also contains the word "Revoked".
     await row.getByRole('button', { name: 'Revoke' }).click();
-    await row.getByText('Revoked').waitFor({ state: 'visible', timeout: 12000 });
+    await row.getByTestId('credential-status').filter({ hasText: 'Revoked' }).waitFor({ state: 'visible', timeout: 12000 });
     const statusAfter = (await row.getByTestId('credential-status').textContent())?.trim();
     if (statusAfter !== 'Revoked') {
       throw new Error(`expected the credential to read Revoked after revoke, got: ${statusAfter}`);
+    }
+
+    // CHG-0064: the derived audit detail reflects the revocation (it is derived from state).
+    const auditText = (await row.getByTestId('credential-audit-device-1').textContent())?.trim() ?? '';
+    if (!auditText.includes('Revoked')) {
+      throw new Error(`expected the audit detail to record the revocation, got: ${auditText.slice(0, 100)}`);
     }
   }, 60_000);
 });

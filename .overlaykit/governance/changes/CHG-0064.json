@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0064",
+  "title": "Show a derived device-credential lifecycle audit detail",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0064 under human principal @rodrigoteamx, on the 2026-08-24 directive to build the next frontier node after CHG-0063 ('dale al merge y a lo que sigue'). This does not authorize automatic merge of CHG-0064.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Before CHG-0064 the Integrations list showed label, scopes, generation and status, but not the credential's provenance or activity timestamps — even though issuedBy, issuedAt and updatedAt were already on the wire in the DeviceCredential list projection.",
+      "evidence": "studio/src/views/IntegrationsView.vue prior list row and the DeviceCredential = Omit<StoredDeviceCredential, 'sealedSecret'> projection returned by the list route.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is UI-only: each credential row shows a lifecycle audit detail derived from its own metadata — issued by and at, last activity (updatedAt) with generation, and revoked-at or expires-at — reading fields already returned by the list route. No server or protocol change.",
+      "evidence": "studio/src/views/IntegrationsView.vue credential-audit detail and server/tests/e2e/studioIntegrations.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: the audit truth is derivable from the credential's own fields rather than a parallel persisted event log, so the slice derives a lifecycle summary from existing state — avoiding a second source of truth that could drift — instead of building an event store.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; the credential record already carries issuedBy, issuedAt, updatedAt, generation and revokedAt.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Showing a per-credential lifecycle detail (issuer, issue time, last-activity time, generation, revocation or expiry) derived from the list metadata, and asserting it renders the issuer and reflects revocation, proves the derived audit view. server/tests/e2e/studioIntegrations.test.ts is the falsification mechanism.",
+      "evidence": "server/tests/e2e/studioIntegrations.test.ts asserts the audit detail shows 'Issued by' and 'generation 1' at issue and 'Revoked' after revoke.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The derived detail is a lifecycle summary, not a per-event audit log: generation conflates rotations and the revocation, a single updatedAt loses per-rotation timestamps, and issuedBy records only the issuer, not who performed each later change. Per-event 'who did what when' is not provided.",
+      "evidence": "protocol/src/device-credential.ts: generation is bumped by both rotate and revoke; the record keeps one updatedAt and one issuedBy.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The summary's limits are evidence that derivation is insufficient for a true per-event audit; whether to persist a per-event credential lifecycle log is a genuine decision (a new persisted source of truth) that stays deferred as an ADR candidate, not promoted on this thin evidence.",
+      "evidence": "Governed-close overstatement check on 2026-08-24; the derived detail cannot reconstruct per-rotation timestamps or per-event actors.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "A persisted per-event credential lifecycle log (issued, rotated and revoked events with per-event timestamp and actor) remains deferred to a successor and would be an architectural decision in its own right.",
+      "evidence": "No credential event store exists; the derived detail is read from current state only.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "No server or protocol code changes; the change is the Studio view and browser-test assertions on the existing issue, rotate and revoke lifecycle.",
+      "evidence": "git diff of the CHG-0064 branch: studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Each credential shows a lifecycle audit detail derived from its metadata (issuer, issue time, last-activity time, generation, and revocation or expiry).",
+      "verification": "The browser test asserts the audit detail renders the issuer ('Issued by') and the generation for the issued credential."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The derived detail reflects state changes.",
+      "verification": "After the credential is revoked, the audit detail records the revocation ('Revoked')."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the surface type-checks.",
+      "verification": "The full server suite passes and the Studio type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0064 records the derived audit slice — the fields surfaced, its lifecycle-summary limit, and the deferred per-event log — before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "IntegrationsView renders a per-credential lifecycle audit detail from existing metadata; a browser test proves it renders provenance and reflects revocation.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser test and the full server suite pass.",
+      "evidence": "npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
