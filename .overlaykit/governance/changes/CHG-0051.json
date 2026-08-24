@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0051",
   "title": "Open a created Show on its Production surface",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "Navigating to /shows/:showId/production after create satisfies 'OverlayKit opens that Show on its Production surface with isolated resources'; the isolated-resource boundary is already enforced by the Show-scoped routes proven elsewhere.",
       "evidence": "The browser proof that a created Show lands on its Production surface with its own workspace is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0051: the Studio create flow now routes to the created Show's Production surface, so creating a Show with valid metadata opens it on Production in a real browser (AC-005). The change is a five-line single-page navigation in ShowsView; the Editor authoring and Library criteria stay deferred.",
+      "evidence": "studio/src/views/ShowsView.vue, server/tests/e2e/studioAuthoring.test.ts (fails before the fix, passes after), the passing Studio unit suite and full server suite under npm run check, the CHG-0051 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds only the Studio create-flow navigation; no server or protocol behavior changes, the Studio unit tests and full server suite pass, and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0051 branch (studio/src/views/ShowsView.vue plus server/tests and governance) and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -77,7 +89,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
