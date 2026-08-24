@@ -1,0 +1,12 @@
+id: studio-authoring-browser-covered
+statement: The Studio authoring criteria (AC-005 open-on-create, AC-006/007/008 Editor Send-to-Preview, AC-009 Library) are proven at the browser tier or their product gaps are closed by successors.
+anchors:
+  - path:studio/src/views/ShowsView.vue
+  - path:studio/src/views/EditorView.vue
+requires:
+  promises:
+    - studio-acs-browser-covered
+  conditions: []
+fulfilled_when:
+  type: path-exists
+  path: server/tests/e2e/studioAuthoring.test.ts
