@@ -2,12 +2,19 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0063",
   "title": "Rotate device credentials in place from Studio Integrations",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032", "ADR-0040"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +50,12 @@
       "kind": "fact",
       "statement": "The UI does not re-prove that a rotated (old) token is denied; that stays proven at the integration tier. The rotate response's one-time token is handled exactly like issuance — shown once, never listed, never persisted client-side beyond the disclosure ref.",
       "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts asserts authenticate resolves null for the pre-rotation token; studio/src/views/IntegrationsView.vue reuses the shown-once section.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0063: the owner rotates a device credential in place from the Studio Integrations surface — a fresh one-time token is disclosed once, distinct from the original, and the credential's generation advances — proving AC-016's rotate management at the browser tier. Denial of the rotated (old) token stays proven at the integration tier; the rotation and revocation audit trail stays deferred.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/tests/e2e/studioIntegrations.test.ts, the passing full server suite under npm run check, the CHG-0063 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
