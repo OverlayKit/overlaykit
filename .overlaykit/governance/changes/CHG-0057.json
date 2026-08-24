@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0057",
   "title": "Scope the created Scene id to its Show",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "A Show-scoped Scene id proven distinct across Shows and bound to each Show closes the collision without a first-class Scene-id registry or optimistic concurrency.",
       "evidence": "server/tests/unit/sceneIdScoping.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0057: the created Scene id is Show-scoped, so same-named Scenes in different Shows are independent and never collide, each bound to its own Show. Template-based Scene creation stays deferred.",
+      "evidence": "server/src/routes/collections.ts, server/tests/unit/sceneIdScoping.test.ts, the passing full server suite under npm run check, the CHG-0057 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a single-line id derivation plus the Studio New Scene test's expected id; no other behavior changes.",
+      "evidence": "git diff of the CHG-0057 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -82,7 +94,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
