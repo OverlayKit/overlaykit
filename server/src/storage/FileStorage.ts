@@ -153,7 +153,9 @@ export class FileStorage implements Storage {
   }
 
   async saveCollection(record: CollectionRecord): Promise<CollectionRecord> {
-    const saved = { ...record, tenantId: DEFAULT_TENANT_ID };
+    // AC-007: assign a persisted, monotonic revision that advances on each save of the same id.
+    const previousRevision = this.collections().get(record.id)?.revision ?? 0;
+    const saved = { ...record, tenantId: DEFAULT_TENANT_ID, revision: previousRevision + 1 };
     this.collections().set(saved.id, saved);
     await this.persistCollections();
     return saved;

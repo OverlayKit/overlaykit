@@ -1,0 +1,13 @@
+id: scene-create-and-designer-role
+statement: A successor adds a Show-scoped create-Scene endpoint (AC-006) and lets the designer role Send-to-Preview (AC-008 actor), closing the last authoring gaps.
+anchors:
+  - path:server/src/routes/production.ts
+  - path:.overlaykit/governance/specifications/SPEC-0001.json
+requires:
+  promises:
+    - scene-model-show-first-class
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: preview-route-allows-designer
+  command: "grep -qE \"requireAnyRole\\(\\[.*'designer'\" server/src/index.ts"

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0053",
+  "title": "Persist a monotonic Scene revision",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0053 under human principal @rodrigoteamx, on the 2026-08-23 directive to advance the Scene-model node with a minimal slice. This does not authorize automatic merge of CHG-0053.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0052 deferred AC-007's 'the Scene revision persists' clause: CollectionRecord carried only updatedAt and saving a Scene was a blind upsert with no revision, so a persisted, monotonic revision did not exist.",
+      "evidence": "server/src/storage/Storage.ts CollectionRecord and server/src/storage/FileStorage.ts saveCollection before this change.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds an optional revision to CollectionRecord and CollectionMeta that FileStorage advances monotonically on each save of the same id (previous revision plus one, starting at one), exposes it through toMeta and the collections save response, and leaves saving fully isolated from the ProductionService so Preview and Program are untouched.",
+      "evidence": "server/src/storage/Storage.ts, server/src/storage/FileStorage.ts saveCollection, server/src/routes/collections.ts and server/tests/unit/sceneRevision.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the Scene-model node to its minimal slice: a persisted revision field advanced at the storage layer, rather than a full Show-first-class Scene redesign. The 'without changing Preview or Program' half of AC-007 already held because the collections storage never touches the ProductionService.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and the editor-authoring subsystem map from CHG-0052.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "An optional, storage-assigned monotonic revision, proven to start at one, advance on each save, persist across a fresh storage instance, and never perturb Preview or Program, satisfies AC-007's persisted-revision clause without a Show-first-class Scene model or optimistic concurrency.",
+      "evidence": "server/tests/unit/sceneRevision.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0053: a saved Scene now carries a persisted, monotonic revision that starts at one, advances on each save, and survives a fresh storage instance, while saving leaves Preview and Program unchanged (AC-007 revision clause). AC-006 and the designer-role gate remain deferred to a successor.",
+      "evidence": "server/src/storage/Storage.ts, server/src/storage/FileStorage.ts, server/tests/unit/sceneRevision.test.ts, the passing full server suite under npm run check, the CHG-0053 pull-request Constitution run, and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a storage-layer field with an optional type, so existing CollectionRecord constructors and in-memory test doubles are unaffected; the full server suite passes and no runtime production behavior changes.",
+      "evidence": "git diff of the CHG-0053 branch and the pull-request validate job.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-006 (a Show-scoped create-Scene endpoint) and the AC-008 designer-role gate on Send to Preview remain deferred; surfacing the Scene revision in the Studio UI and revision-aware optimistic concurrency on save are also deferred.",
+      "evidence": "server/src/routes has no Show-scoped create-Scene route and POST /shows/:showId/production/preview stays owner/producer-gated.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A saved Scene carries a persisted revision that starts at one and advances by one on each save of the same id, and the revision survives a fresh storage instance reading from disk.",
+      "verification": "Focused test saves a collection twice and reads it back from a new FileStorage instance."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Saving a Scene does not change Preview or Program.",
+      "verification": "Focused test loads Preview to revision one, saves the Scene twice, and asserts Preview revision one and Program revision zero unchanged."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The persisted revision is exposed through the collection metadata and the save response, and no existing behavior regresses.",
+      "verification": "toMeta and the collections save response include revision; the full server suite passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0053 records the persisted-revision closure of AC-007's revision clause and the deferred AC-006 and designer-role gaps before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "CollectionRecord carries an optional revision that the storage layer advances monotonically on save, exposed via metadata and the save response, isolated from the ProductionService.",
+      "evidence": "server/src/storage/Storage.ts, server/src/storage/FileStorage.ts and server/src/routes/collections.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A focused test proves the revision advances, persists across a fresh instance, and leaves Preview and Program unchanged; the full server suite passes.",
+      "evidence": "server/tests/unit/sceneRevision.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
