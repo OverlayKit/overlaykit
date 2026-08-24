@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0060",
   "title": "Prove runtime operations never alter the saved Scene",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Exercising Preview load, controls and Take against a saved Scene and asserting the re-read CollectionRecord is byte-identical, while Preview and Program advance, proves AC-013's saved-source isolation.",
       "evidence": "server/tests/unit/runtimeSceneIsolation.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0060: after Preview load, controls and Take against a saved Scene, the saved CollectionRecord re-read from storage is byte-identical, proving AC-013's runtime isolation at the persistence tier. AC-016's device-token least-privilege is already proven at the integration tier; the Integrations UI stays deferred.",
+      "evidence": "server/tests/unit/runtimeSceneIsolation.test.ts, the passing full server suite under npm run check, the CHG-0060 pull-request Constitution run, and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is test-only; no product or protocol behavior changes.",
+      "evidence": "git diff of the CHG-0060 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -88,7 +100,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
