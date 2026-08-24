@@ -1,0 +1,19 @@
+id: session-cannot-be-reused
+statement: A signed-out or expired session cannot be reused, proven at the HTTP tier by replaying the token (AC-004), closed by CHG-0059.
+anchors:
+  - path:server/tests/unit/sessionInvalidation.test.ts
+  - path:.overlaykit/governance/changes/CHG-0059.json
+requires:
+  promises: []
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/sessionInvalidation.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0059.json
+        matches: '"status": "implemented"'

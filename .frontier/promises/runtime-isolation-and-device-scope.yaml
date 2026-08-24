@@ -1,0 +1,12 @@
+id: runtime-isolation-and-device-scope
+statement: A successor PROVES AC-013 (runtime edits never alter a saved Scene without explicit save-back, at the persistence tier) and AC-016 (a device token executes only its selected actions, surfaced in the Integrations UI).
+anchors:
+  - path:.overlaykit/governance/specifications/SPEC-0001.json
+  - path:server/tests/unit
+requires:
+  promises:
+    - session-cannot-be-reused
+  conditions: []
+fulfilled_when:
+  type: path-exists
+  path: server/tests/unit/runtimeSceneIsolation.test.ts
