@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0058",
   "title": "Create a Scene from a Template",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "Offering a Template chooser and asserting a Template-created Scene carries the Template's elements rather than a blank canvas proves AC-006's Template branch at the browser tier.",
       "evidence": "server/tests/e2e/studioSceneTemplate.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0058: the Studio Scenes surface offers a New Scene chooser with Blank and built-in Templates, and choosing a Template creates a Scene pre-populated with its elements and opens the Editor (AC-006 Template branch), proven in a real browser. A user-managed Template library stays deferred.",
+      "evidence": "studio/src/sceneTemplates.ts, studio/src/views/ScenesView.vue, server/tests/e2e/studioSceneTemplate.test.ts, the passing Studio unit suite and full server suite under npm run check, the CHG-0058 pull-request Constitution run, and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a Studio-only edit (a built-in Template list and a Scenes-surface chooser); no server or protocol behavior changes.",
+      "evidence": "git diff of the CHG-0058 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -82,7 +94,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, vue-tsc and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
