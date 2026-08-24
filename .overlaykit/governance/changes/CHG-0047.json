@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0047",
   "title": "Observe the Output URL in a real OBS browser source",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "high",
   "owner": "@rodrigoteamx",
@@ -49,6 +49,18 @@
       "kind": "assumption",
       "statement": "Attaching to the operator's running OBS through obs-websocket, creating one dedicated scene and one browser_source with the fragment-bearer URL over loopback HTTP, observing the real server-side connection, and capturing OBS's own render of the source and scene before Take, after Take, after an OBS-initiated refresh and after rotation is the smallest slice that can refute the recurring real-OBS unknown without launching OBS, touching the operator's Program or adding a runtime dependency.",
       "evidence": "The server-side connection observation, the transparent before-Take capture, the post-Take pixel thresholds, refresh re-authentication and rotation denial are the falsification mechanisms; ws is already a server dependency.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0047 for the exact real-consumer boundary it observed: OBS Studio 32.2.2 with obs-browser on CEF 127 and obs-websocket 5.7.4 loaded the fragment-credential Output URL, sent authenticate.output before subscription, rendered zero visible pixels before Take and the exact compiled Program after Take (49,560 visible pixels, identical to the CHG-0046 branded-Chrome proof), composited the same in its scene, re-authenticated the page-held credential on an OBS-initiated refresh, and lost both the established connection and the old-credential reconnect after rotation. Per ADR-0038 this is a local review sample bound to non-secret hashes and an environment fingerprint; it does not establish OBS over TLS, public PKI or DNS, external proxy products, encoded output truth, hardware-accelerated CEF, other platforms or versions, long-running stability, network loss or perceptual quality.",
+      "evidence": "docs/evidence/CHG-0047 report and PNGs produced on the maintainer workstation on 2026-08-23, byte-reproducible across runs; npm run proof:obs-acceptance; human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Acceptance preserved gate integrity: the CHG-0046 browser proof reproduced its retained evidence byte-identically after helper extraction, the obs-websocket client is covered by CI-runnable unit tests, and the OBS compositing proof skips without evidence on runners that lack OBS, so all eight Constitution jobs pass on the pull request without OBS present.",
+      "evidence": "npm run proof:output-transport (unchanged docs/evidence/CHG-0046), server unit test obsWebSocketClient, and the pull-request Constitution run for the CHG-0047 branch.",
       "blocking": false
     },
     {
@@ -116,7 +128,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, formatting, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff, with the OBS proof skipping on runners without OBS.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, focused proofs, Prettier and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), npm run proof:output-transport (byte-identical CHG-0046 evidence), npm run proof:obs-acceptance (real OBS on the maintainer workstation), Prettier and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge, and the OBS proof skips on OBS-less runners."
     }
   ]
 }
