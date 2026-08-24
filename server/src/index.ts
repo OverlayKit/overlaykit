@@ -17,7 +17,7 @@ import { logger, setLogLevel } from './utils/logger';
 import elementRoutes from './routes/elements';
 import variablesRoutes from './routes/variables';
 import scenesRoutes from './routes/scenes';
-import collectionsRoutes from './routes/collections';
+import { createCollectionsRouter } from './routes/collections';
 import designSystemRoutes from './routes/designSystem';
 import eventsRoutes from './routes/events';
 import actionsRoutes from './routes/actions';
@@ -172,7 +172,7 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   app.use('/api', elementRoutes);
   app.use('/api', variablesRoutes);
   app.use('/api', scenesRoutes);
-  app.use('/api', collectionsRoutes);
+  app.use('/api', createCollectionsRouter(dataStorage));
   app.use('/api', designSystemRoutes);
   app.use('/api', eventsRoutes);
   app.use('/api', actionsRoutes);

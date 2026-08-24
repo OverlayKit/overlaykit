@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0055",
+  "title": "Unify collections storage and add a Show-scoped create-Scene endpoint",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0055 under human principal @rodrigoteamx, on the 2026-08-23 directive to advance the storage-unification and create-Scene node. This does not authorize automatic merge of CHG-0055.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0050 recorded that the collections router read a module-singleton storage while the shows and production routers used the injected dataStorage, diverging whenever a test injected a different storage; CHG-0054 deferred AC-006 (a Show-scoped create-Scene endpoint) as entangled with that split.",
+      "evidence": "server/src/routes/collections.ts before this change importing the module singleton, and CHG-0050 and CHG-0054 deferred unknowns.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change converts the collections router to a factory that receives the injected storage, so a Show and its Scenes resolve through one storage; production behavior is unchanged because the default injected dataStorage is the same singleton.",
+      "evidence": "server/src/routes/collections.ts createCollectionsRouter and server/src/index.ts mounting createCollectionsRouter(dataStorage).",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A new Show-scoped endpoint POST /api/shows/:showId/scenes verifies the Show exists and creates a Scene bound to the Show (its channel is the Show) starting at revision 1, closing AC-006's server capability.",
+      "evidence": "server/src/routes/collections.ts create-Scene route and server/tests/unit/collectionsStorageUnify.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the node: unifying the collections storage first is what makes a clean, testable create-Scene endpoint possible, because otherwise the endpoint would write to a different storage than the Show rundown reads.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and the collections storage split from CHG-0050.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Routing collections through the injected storage and adding a Show-scoped create-Scene endpoint proves a Show and its Scenes resolve through one storage and a new Scene is created bound to the Show; wiring the Studio Scenes surface's New Scene control to this endpoint and the full opens-in-Editor browser flow are follow-ons.",
+      "evidence": "server/tests/unit/collectionsStorageUnify.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0055: the collections router is a factory over the injected storage, so a Show and its Scenes resolve through one storage, and a Show-scoped POST /api/shows/:showId/scenes creates a Scene bound to the Show at revision 1 (AC-006 server capability). The Studio New Scene wiring and the opens-in-Editor browser flow stay deferred.",
+      "evidence": "server/src/routes/collections.ts, server/src/index.ts, server/tests/unit/collectionsStorageUnify.test.ts, the passing full server suite under npm run check, and the CHG-0055 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Production behavior is unchanged because the default injected storage is the same singleton; the refactor only affects tests that inject a distinct storage and closes the CHG-0050 divergence.",
+      "evidence": "server/src/index.ts createApp dataStorage default and the full server suite.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The Studio Scenes surface still routes New Scene directly to the Editor without calling the create endpoint, so the browser-tier opens-in-Editor half of AC-006 remains deferred; issuing designer accounts through user management also remains deferred.",
+      "evidence": "studio/src/views/ScenesView.vue New scene routes to the Editor, and server/src/auth/AuthService.ts issues only the owner.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The collections routes serve and persist through the injected storage, so an injected Show's Scenes are listed rather than a module singleton's.",
+      "verification": "Harness test seeds a collection in an injected storage and asserts GET /api/collections lists it."
+    },
+    {
+      "id": "SC-002",
+      "statement": "POST /api/shows/:showId/scenes creates a Show-bound Scene at revision 1 that appears in the Show's collections, and rejects an unknown Show with 404.",
+      "verification": "Harness test creates a Scene and asserts channel, revision 1 and its presence, and asserts 404 for an unknown Show."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing production or collections behavior regresses.",
+      "verification": "The full server suite passes with the collections router as a factory over the injected storage."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0055 records the storage unification, the Show-scoped create-Scene endpoint, and the deferred Studio wiring and user management before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The collections router is a factory over the injected storage and exposes POST /api/shows/:showId/scenes.",
+      "evidence": "server/src/routes/collections.ts and server/src/index.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A focused test proves collections resolve through the injected storage and the create-Scene endpoint binds a Scene to the Show at revision 1; the full server suite passes.",
+      "evidence": "server/tests/unit/collectionsStorageUnify.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
