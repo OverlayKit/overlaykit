@@ -1,0 +1,11 @@
+id: studio-browser-harness
+statement: Studio has a browser-driven end-to-end harness, the tier SPEC-0001 demands for AC-001, AC-003, AC-005, AC-006, AC-007, AC-008, AC-009, AC-011 and AC-012.
+anchors:
+  - path:.overlaykit/governance/specifications/SPEC-0001.json
+  - path:studio/tests
+requires:
+  promises: []
+  conditions: []
+fulfilled_when:
+  type: path-exists
+  path: studio/tests/e2e

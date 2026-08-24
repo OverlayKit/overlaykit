@@ -34,11 +34,11 @@ In visual Editor mode, add controls under **Contenido → Controles de Preview**
 Open **Show → Output**, rotate the output token, and copy the complete one-time browser-source URL into OBS. The URL has this shape:
 
 ```text
-http://localhost:5183/production?show=<show-id>&bus=program&transparent=true&token=<output-token>
+http://localhost:5183/production?show=<show-id>&bus=program&transparent=true&hideStatus=true&hideWatermark=true#output=<output-token>
 ```
 
-The output credential is read-only. Rotating it invalidates every previously issued OBS URL.
+The output credential lives only in the URL fragment (`#output=...`): it never reaches a proxy or access log, and OBS sends it as the first WebSocket frame after the socket opens. The credential is read-only. Rotating it invalidates every previously issued OBS URL. OBS stores the URL, including the credential, inside its scene collection, so rotate the credential after exporting or sharing an OBS scene collection.
 
-Preview and Program are currently ephemeral across a server-process restart. Reconnecting clients recover the current in-process snapshot.
+Committed Program and Preview state survive a server-process restart (see README). Reconnecting clients re-authenticate and recover the current snapshot.
 
 Use a 1920x1080 source for landscape scenes or 1080x1920 for portrait scenes.

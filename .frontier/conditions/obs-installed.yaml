@@ -1,0 +1,5 @@
+id: obs-installed
+statement: OBS Studio is installed on this workstation (Flatpak com.obsproject.Studio).
+satisfied_when:
+  type: command-succeeds
+  command: "flatpak info com.obsproject.Studio >/dev/null 2>&1"

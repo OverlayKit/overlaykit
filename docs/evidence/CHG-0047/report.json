@@ -1,0 +1,103 @@
+{
+  "evidenceClass": "local-review-sample",
+  "ciReproducible": false,
+  "consumer": "OBS Studio browser_source via obs-websocket",
+  "observer": "obs-websocket GetSourceScreenshot",
+  "environment": {
+    "obsVersion": "32.2.2",
+    "obsWebSocketVersion": "5.7.4",
+    "rpcVersion": 1,
+    "platform": "org.freedesktop.platform",
+    "platformDescription": "Freedesktop SDK 25.08 (Flatpak runtime)",
+    "videoSettings": {
+      "baseHeight": 1080,
+      "baseWidth": 1920,
+      "fpsDenominator": 1,
+      "fpsNumerator": 30,
+      "outputHeight": 1080,
+      "outputWidth": 1920
+    },
+    "browserSourceUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.120 OBS/32.2.2 Safari/537.36"
+  },
+  "renderer": "client/ProductionView.vue + shared/ElementRenderer.vue",
+  "authority": {
+    "showId": "output-authority-show",
+    "retiredConnectionCloseCode": 1008,
+    "oldCredentialReconnectDenied": true
+  },
+  "transport": {
+    "pageScheme": "http:",
+    "webSocketScheme": "ws:",
+    "upgradePath": "/ws",
+    "upgradeOriginMatchesPage": true,
+    "bearerInPageRequestTarget": false,
+    "bearerInUpgradeRequestTarget": false,
+    "firstApplicationFrame": "authenticate.output",
+    "authenticationConfirmedBeforeSubscription": true
+  },
+  "refresh": {
+    "mechanism": "PressInputPropertiesButton refreshnocache",
+    "newConnectionFirstApplicationFrame": "authenticate.output",
+    "newConnectionAuthenticatedBeforeSubscription": true,
+    "previousConnectionClosed": true
+  },
+  "firstTake": {
+    "operationId": "chg-0047-take-1",
+    "previewRevision": 1,
+    "programRevisionBefore": 0,
+    "programRevisionAfter": 1,
+    "programHash": "f9bbb90baf7f81e60434578bc36749477bf473fa73326d746493dd59463f20df",
+    "bundleHash": "21c1fa0a743570d3feaee21b76a2e3a4f6fcf5b89422e0e365c8f72b6a690454",
+    "receiptHash": "b7b90586b56f7adf5fa8bb09f566ab8c2bd4464f10ca3b67b4f4ff8781a56c1e"
+  },
+  "screenshots": {
+    "beforeTake": {
+      "file": "program-before-take.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 0,
+        "opaquePixels": 0,
+        "transparentPixels": 2073600,
+        "colorCount": 0,
+        "screenshotHash": "673b1f8dc4985bdb24b1ebfd9591d49ef40efb12de1a8336e0a7b91e1d15bf87"
+      }
+    },
+    "afterTake": {
+      "file": "program-after-take.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 49560,
+        "opaquePixels": 4677,
+        "transparentPixels": 2024040,
+        "colorCount": 354,
+        "screenshotHash": "8a9775fb7764fd29d90e64bd75c78e12eab49c2bef8a52e0094fabc72c7f0add"
+      }
+    },
+    "sceneAfterTake": {
+      "file": "scene-after-take.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 49560,
+        "opaquePixels": 4677,
+        "transparentPixels": 2024040,
+        "colorCount": 354,
+        "screenshotHash": "8a9775fb7764fd29d90e64bd75c78e12eab49c2bef8a52e0094fabc72c7f0add"
+      }
+    },
+    "afterRefresh": {
+      "file": "program-after-refresh.png",
+      "pixels": {
+        "totalPixels": 2073600,
+        "visiblePixels": 49560,
+        "opaquePixels": 4677,
+        "transparentPixels": 2024040,
+        "colorCount": 354,
+        "screenshotHash": "8a9775fb7764fd29d90e64bd75c78e12eab49c2bef8a52e0094fabc72c7f0add"
+      }
+    }
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0038",
+  "title": "Real-consumer acceptance evidence is an attached, fingerprinted local review sample",
+  "status": "accepted",
+  "date": "2026-08-23",
+  "supersedes": null,
+  "governs": [
+    "real-consumer-acceptance-evidence",
+    "obs-browser-source-acceptance",
+    "output-credential-in-consumer-configuration",
+    "local-only-proof-execution"
+  ],
+  "context": "ADR-0037 proved the proxy-safe Output transport only through a standards-based browser and a local TLS terminator; CHG-0044, CHG-0045 and CHG-0046 each recorded real OBS execution as unknown because no OBS process existed in the producing environment. The maintainer workstation runs OBS Studio 32.2.2 with obs-browser on the Chromium Embedded Framework and obs-websocket 5.7.4, but GitHub-hosted Constitution runners cannot execute OBS, so any real-consumer observation is necessarily produced outside the enforced gates, and the Constitution already states that local runs cannot satisfy gates owned by GitHub Actions. A browser source persists its URL, including the client-only fragment bearer, inside the consumer's own scene collection, and obs-browser exposes no certificate-trust override, so a loopback HTTP origin is the only honest transport for a local proof.",
+  "decision": "OverlayKit records real-consumer acceptance as a local review sample: a proof that attaches to a consumer the operator already runs through that consumer's own control protocol, never launches, reconfigures or switches the operator's live Program, refuses to run while the consumer reports an active stream or recording, creates only dedicated resources that it removes afterwards, uses ephemeral in-process authority so any credential the consumer persists is dead when the proof exits, and binds its report to an environment fingerprint (consumer version, control-protocol version, platform, video settings and embedded-browser user agent) plus non-secret hashes only. When the consumer control endpoint is unreachable or rejects authentication the proof skips with a visible reason and writes no evidence unless the operator explicitly requires failure. Such evidence is retained under docs/evidence with the same hash binding as browser evidence but is classified local-review-sample: it never satisfies a GitHub-owned gate, is never represented as CI-reproducible, and claims only the exact consumer build, platform and transport it observed.",
+  "consequences": [
+    "A real OBS observation can narrow the recurring OBS unknown without being represented as gate evidence.",
+    "The Constitution quality gate keeps passing on runners without OBS because the proof skips visibly there and produces no report.",
+    "A browser-source URL with its fragment bearer is stored in the consumer's scene collection, so consumer configuration is credential storage and exporting or sharing it must be followed by rotation.",
+    "Local proofs run over loopback HTTP; TLS behaviour inside the consumer remains a separate unknown until certificate trust inside the consumer is governed.",
+    "The proof mutates only the resources it creates inside the operator's consumer, so an interrupted run can leave a dedicated scene behind that holds only a dead credential."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "real-consumer-proof-attaches",
+      "statement": "A real-consumer proof attaches to a consumer the operator already runs; it must not launch, reconfigure or switch the operator's live Program scene."
+    },
+    {
+      "kind": "rule",
+      "id": "real-consumer-proof-refuses-live-output",
+      "statement": "A real-consumer proof must refuse to run while the consumer reports an active stream or recording."
+    },
+    {
+      "kind": "rule",
+      "id": "real-consumer-proof-skips-loudly",
+      "statement": "When the consumer control endpoint is unreachable or rejects authentication, the proof must skip with a visible reason and write no evidence, unless the operator explicitly requires it to fail."
+    },
+    {
+      "kind": "rule",
+      "id": "real-consumer-evidence-is-fingerprinted",
+      "statement": "Retained real-consumer evidence must record the consumer version, control-protocol version, platform, video settings and embedded-browser user agent, and must contain no credential, password or payload."
+    },
+    {
+      "kind": "rule",
+      "id": "real-consumer-evidence-is-not-a-gate",
+      "statement": "Real-consumer evidence is classified local-review-sample; it must not be represented as CI-reproducible, as a gate outcome, or as evidence for any consumer, platform or transport it did not observe."
+    },
+    {
+      "kind": "rule",
+      "id": "consumer-configuration-holds-output-credentials",
+      "statement": "Because a browser source persists its URL including the fragment bearer, exported or shared consumer configuration is credential disclosure and must be followed by Output credential rotation."
+    }
+  ]
+}

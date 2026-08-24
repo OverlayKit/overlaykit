@@ -1,0 +1,5 @@
+id: obs-websocket-reachable
+statement: An OBS process is running with obs-websocket listening on loopback port 4455.
+satisfied_when:
+  type: command-succeeds
+  command: "ss -ltn 2>/dev/null | grep -q ':4455 '"

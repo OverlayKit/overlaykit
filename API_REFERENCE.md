@@ -1,7 +1,7 @@
 # OverlayKit OSS API Reference
 
 Base URL: http://localhost:3000
-WebSocket: ws://localhost:8080
+WebSocket: ws://localhost:8080/ws (derived same-origin by the Output client; wss:// behind an HTTPS proxy)
 
 ## REST
 
@@ -36,5 +36,5 @@ All state is local to the self-hosted server process and persisted to the local 
 ## OBS URL
 
 ```text
-http://localhost:5173/production?channel=main&transparent=true
+http://localhost:5183/production?show=<show-id>&bus=program&transparent=true&hideStatus=true&hideWatermark=true#output=<output-token>
 ```

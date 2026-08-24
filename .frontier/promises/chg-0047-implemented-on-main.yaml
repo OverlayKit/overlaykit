@@ -1,0 +1,13 @@
+id: chg-0047-implemented-on-main
+statement: main carries CHG-0047 in status implemented after human acceptance and merge.
+anchors:
+  - path:.overlaykit/governance/changes/CHG-0047.json
+requires:
+  promises:
+    - chg-0047-obs-evidence-retained
+  conditions: []
+fulfilled_when:
+  type: file-contains
+  ref: origin/main
+  path: .overlaykit/governance/changes/CHG-0047.json
+  matches: '"status": "implemented"'
