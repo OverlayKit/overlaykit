@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0050",
+  "title": "Prove the Studio production arc in a real browser",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "medium",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0050 under human principal @rodrigoteamx, on the 2026-08-23 directive to cover the remaining Studio acceptance criteria at the browser tier. This does not authorize automatic merge of CHG-0050.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0049 (ADR-0040) established the Studio browser harness that serves the unmodified Studio SPA against the real server; this slice reuses that harness to cover the production arc without a new architectural decision.",
+      "evidence": "server/tests/e2e/studioAuthFlow.test.ts and ADR-0040 on main.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The Studio Production surface lists saved Scenes from GET /api/collections?channelId, loads a Scene into Preview through POST /shows/:showId/production/preview/scenes/:sceneId, and promotes Preview to Program through POST /shows/:showId/production/take; the rundown, Preview and Program monitors and the Take control render on one Production surface reached by opening a Show.",
+      "evidence": "studio/src/views/ProductionView.vue, studio/src/views/ShowView.vue and server/src/routes/production.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The collections router reads a module-level storage singleton rather than the dataStorage injected into createApp, unlike the shows and production routers which use the injected storage; the harness therefore seeds the shared singleton so the rundown list and the Preview load resolve the same saved Scene.",
+      "evidence": "server/src/routes/collections.ts imports storage directly, while server/src/index.ts passes dataStorage to createShowsRouter and createProductionRouter.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work to prove the production arc that is actually wired end to end in the Studio UI — open a Show, load a saved Scene into Preview, Take it to Program — and to record the criteria that are not wired as deferred gaps rather than assume the full production feature set is browser-covered.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and the ProductionView, ShowsView and Editor sources.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Seeding one Show with one saved Scene and driving open, load-to-Preview and Take asserts the observable production flow (Preview advancing to revision 1, Program promotion, and the operator acknowledgement text) without exercising the Editor authoring path, and is sufficient to prove AC-011, AC-012, REQ-NAV-002 and REQ-NAV-004 at the browser tier.",
+      "evidence": "The browser arc — open Show to Production, rundown load to Preview revision 1, Take to the Last-Take acknowledgement — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0050 for the exact browser-tier production arc it proves against the real server and unmodified Studio bundle: opening a Show lands on its Production surface, clicking a saved Scene in the rundown loads it into Preview at revision 1 while Program stays clear, and Take promotes Preview to Program with the Last-Take acknowledgement (AC-011, AC-012, REQ-NAV-002, REQ-NAV-004). Acceptance also acknowledged the recorded gaps as deferred, not covered: AC-005 open-on-create is unimplemented, the Editor authoring and Library criteria run through paths not yet browser-covered, and the collections router reads a module singleton rather than the injected storage.",
+      "evidence": "server/tests/e2e/studioProductionArc.test.ts, the passing full server suite under npm run check, the CHG-0050 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change touches only server/tests and governance; the Studio SPA is unchanged and product behavior is unaffected. The harness seeds and removes a Show and Scene in shared storage, and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0050 branch and the pull-request validate job.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-005 as specified — creating a Show opens it on its Production surface — is not implemented: createShow adds the Show to the list without navigating, and only an explicit Open control routes to Production. Proving AC-005 requires a product change and is deferred.",
+      "evidence": "studio/src/views/ShowsView.vue createShow performs no navigation.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-006, AC-007 and AC-008 authoring and Send to Preview run through the iframed legacy Editor, AC-009 Library is a placeholder, and AC-010 control adjustment on the Production surface is only partially wired; these remain unproven at the browser tier and are deferred to successors that reuse this harness.",
+      "evidence": "studio/src/views/EditorView.vue iframes the legacy editor and studio/src/views/LibraryView.vue is a placeholder.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The collections router's use of the module singleton instead of the injected dataStorage is a discovered inconsistency; unifying it so all Show-scoped resources resolve through one storage is deferred to a successor.",
+      "evidence": "server/src/routes/collections.ts versus the injected dataStorage in server/src/index.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Opening a Show in a real browser lands on its Production surface, which renders the scene rundown, the Preview and Program monitors and the Take control on one surface (REQ-NAV-002, REQ-NAV-004).",
+      "verification": "Browser harness opens the seeded Show and asserts the Production route, heading and rundown."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Clicking a saved Scene in the rundown loads it into Preview at revision 1 while Program stays clear (AC-011).",
+      "verification": "Browser harness clicks the rundown Scene and asserts Preview revision 1."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Take promotes Preview to Program and shows the operator the Last-Take acknowledgement (AC-012).",
+      "verification": "Browser harness clicks Take and asserts the Last-Take: Preview 1 to Program 1 acknowledgement."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The harness seeds a Show and Scene into the shared storage the collections and production routers read, removes them afterwards, and does not change the Studio source or product behavior; the full server suite passes.",
+      "verification": "Path-scoped review that only server/tests and governance changed, plus npm run check."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0050 records the covered production arc, the discovered collections storage inconsistency, and the deferred authoring and AC-005 criteria before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A browser production-arc test reuses the CHG-0049 harness, seeds a Show and Scene into shared storage, drives open, load-to-Preview and Take, and removes the seed afterwards, with no Studio source change.",
+      "evidence": "server/tests/e2e/studioProductionArc.test.ts and an unchanged studio/src."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The production-arc browser test passes and the full server suite passes, with the OBS proof skipping on runners without OBS.",
+      "evidence": "npm run check and the focused production-arc run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
