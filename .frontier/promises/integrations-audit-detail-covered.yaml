@@ -1,0 +1,22 @@
+id: integrations-audit-detail-covered
+statement: AC-016 (audit) — each device credential shows a lifecycle detail DERIVED from its own metadata (issuer, issue and last-activity time, generation, revocation or expiry) on the Studio Integrations surface — is proven by CHG-0064. It is a lifecycle summary, not a per-event log.
+anchors:
+  - path:studio/src/views/IntegrationsView.vue
+  - path:server/tests/e2e/studioIntegrations.test.ts
+  - path:.overlaykit/governance/changes/CHG-0064.json
+requires:
+  promises:
+    - integrations-device-credential-audit
+    - integrations-rotation-covered
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/e2e/studioIntegrations.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0064.json
+        matches: '"status": "implemented"'

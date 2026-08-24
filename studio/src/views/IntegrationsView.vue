@@ -12,8 +12,18 @@ interface DeviceCredentialSummary {
   controlIds: string[];
   scopes: string[];
   generation: number;
+  issuedBy: string;
+  issuedAt: number;
+  updatedAt: number;
   expiresAt: number;
   revokedAt: number | null;
+}
+
+// A lifecycle detail DERIVED from the credential's own metadata — no separate event log. It shows
+// provenance and last-activity, not a per-event history (generation counts all changes; a single
+// updatedAt loses per-rotation timestamps).
+function moment(ms: number): string {
+  return new Date(ms).toLocaleString();
 }
 
 const shows = ref<Show[]>([]);
@@ -168,6 +178,12 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
             <button class="secondary-button" type="button" :disabled="!!credential.revokedAt || rotating === credential.credentialId" @click="rotate(credential)">Rotate</button>
             <button class="danger-button" type="button" :disabled="!!credential.revokedAt || revoking === credential.credentialId" @click="revoke(credential)">Revoke</button>
           </div>
+          <p class="credential-audit" :data-testid="`credential-audit-${credential.credentialId}`">
+            <span class="audit-label">Activity history</span>
+            Issued by {{ credential.issuedBy }} · {{ moment(credential.issuedAt) }}. Last activity {{ moment(credential.updatedAt) }} (generation {{ credential.generation }}).
+            <template v-if="credential.revokedAt"> Revoked {{ moment(credential.revokedAt) }}.</template>
+            <template v-else> Expires {{ moment(credential.expiresAt) }}.</template>
+          </p>
         </li>
       </ul>
     </section>
