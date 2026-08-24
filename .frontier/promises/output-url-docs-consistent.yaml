@@ -1,0 +1,19 @@
+id: output-url-docs-consistent
+statement: Every document that shows an OBS Output URL shows the fragment-bearer form and the current WebSocket defaults.
+anchors:
+  - path:QUICKSTART.md
+  - path:API_REFERENCE.md
+requires:
+  promises: []
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: command-succeeds
+        name: quickstart-has-no-query-token
+        command: "! grep -q 'token=<output-token>' QUICKSTART.md"
+      - type: command-succeeds
+        name: api-reference-has-no-channel-url
+        command: "! grep -q 'production?channel=main' API_REFERENCE.md"

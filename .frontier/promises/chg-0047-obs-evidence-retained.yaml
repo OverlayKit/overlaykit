@@ -1,0 +1,19 @@
+id: chg-0047-obs-evidence-retained
+statement: CHG-0047 retains a real-OBS acceptance report and PNGs produced by an operator-run proof.
+anchors:
+  - path:.overlaykit/governance/changes/CHG-0047.json
+  - path:server/tests/e2e/obsProgramCompositing.test.ts
+requires:
+  promises: []
+  conditions:
+    - obs-websocket-reachable
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: docs/evidence/CHG-0047/report.json
+      - type: file-contains
+        path: docs/evidence/CHG-0047/report.json
+        matches: '"evidenceClass": "local-review-sample"'

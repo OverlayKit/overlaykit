@@ -1,0 +1,5 @@
+id: companion-installed
+statement: Bitfocus Companion is installed on this workstation.
+satisfied_when:
+  type: command-succeeds
+  command: "command -v companion >/dev/null 2>&1 || test -d /opt/companion"

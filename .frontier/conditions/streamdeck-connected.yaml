@@ -1,0 +1,5 @@
+id: streamdeck-connected
+statement: An Elgato Stream Deck is connected over USB (vendor 0fd9).
+satisfied_when:
+  type: command-succeeds
+  command: "lsusb 2>/dev/null | grep -qi '0fd9:'"

@@ -1,0 +1,13 @@
+id: output-never-inherits-studio-session
+statement: A bounded change proves that an Output page connection never inherits an interactive Studio session on the /ws upgrade (deferred unknown from CHG-0046).
+anchors:
+  - path:server/src/handlers/websocket.ts
+  - path:.overlaykit/governance/changes/CHG-0046.json
+requires:
+  promises:
+    - chg-0047-implemented-on-main
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: chg-governs-studio-session-precedence
+  command: "grep -lE 'session (cookie )?precedence' .overlaykit/governance/changes/CHG-00(4[89]|[5-9][0-9]).json >/dev/null 2>&1"
