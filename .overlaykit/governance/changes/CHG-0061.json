@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0061",
   "title": "Surface scoped device-token issuance in the Studio Integrations UI",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -50,6 +50,12 @@
       "kind": "fact",
       "statement": "The UI does not prove least-privilege enforcement. Cross-Show, undeclared, expired and revoked denial remain proven only at the integration tier; the Integrations surface proves only that an owner can issue a scoped token and that it is shown once.",
       "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts holds the enforcement proofs; studioIntegrations.test.ts asserts only issuance and shown-once.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0061: an owner issues a Show-scoped device token through the Studio Integrations surface and the token is shown exactly once, proving AC-016's UI half at the browser tier. Least-privilege enforcement stays proven at the integration tier; listing, rotating and revoking device credentials through the UI stays deferred.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/tests/e2e/studioIntegrations.test.ts, the passing full server suite under npm run check, the CHG-0061 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
