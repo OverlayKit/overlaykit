@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0052",
   "title": "Prove Editor Send to Preview and make the editor URL env-driven",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Making the editor URL env-driven, serving editor/ on a second loopback origin, driving the real 'Enviar a Preview' across the frame and observing the Show's Preview revision advance while Program stays clear proves AC-008 without any Editor-internal change and without a component or library feature.",
       "evidence": "The browser proof — embedded editor send, in-frame 'Enviado a Preview' toast, and the outer Production surface showing Preview revision 1 with Program clear — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0052: the Studio editor URL is now env-driven (VITE_EDITOR_URL), and the embedded Editor's Send to Preview delivers a runtime snapshot to the Show's Preview (revision advances) while Program stays clear, proven in a real browser across the cross-origin editor iframe (AC-008). The deferred AC-006 and AC-007 gaps and the designer-role contradiction remain for a successor.",
+      "evidence": "studio/src/views/EditorView.vue, server/tests/e2e/studioEditorAuthoring.test.ts (fails before the fix, passes after), the passing Studio unit suite and full server suite under npm run check, the CHG-0052 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The product change is a four-line env-drive in EditorView with a localhost fallback, preserving default local development; no server or protocol behavior changes and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0052 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -100,7 +112,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, studio vue-tsc and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
