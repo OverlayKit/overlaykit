@@ -23,6 +23,9 @@ import { TestStorage } from './support/outputProof';
  *
  * CHG-0062 / AC-016 (manage): the issued credential appears in a server-backed list on the surface,
  * and the owner revokes it — the credential stays listed, marked revoked.
+ *
+ * CHG-0063 / AC-016 (manage): the owner rotates the credential in place — a fresh token is disclosed
+ * once and the credential's generation advances — before it is finally revoked.
  */
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -54,6 +57,9 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
   let dbDir = '';
   let origin = '';
   let previousApiUrl: string | undefined;
+  // Shared across the sequential lifecycle tests so rotation can prove it discloses a *different*
+  // bearer than the original issue.
+  let issuedTokenValue = '';
 
   beforeAll(async () => {
     const auth = new AuthService(new MemoryAuthStore());
@@ -132,6 +138,34 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
     if (!/^ok_device_/.test(value)) {
       throw new Error(`expected a device token, got: ${value.slice(0, 40)}`);
     }
+    issuedTokenValue = value;
+  }, 60_000);
+
+  it('rotates the credential in place, advancing its generation and disclosing a fresh token', async () => {
+    // Reload so the credential is read back from the server, then rotate it.
+    await page!.goto(`${origin}/settings/integrations`, { waitUntil: 'networkidle' });
+    const row = page!.getByTestId('credential-device-1');
+    await row.waitFor({ state: 'visible', timeout: 12000 });
+    const genBefore = (await row.getByTestId('credential-generation').textContent())?.trim();
+    if (genBefore !== 'gen 1') {
+      throw new Error(`expected gen 1 before rotate, got: ${genBefore}`);
+    }
+
+    // AC-016 (manage): rotate discloses a fresh one-time token and advances the generation.
+    await row.getByRole('button', { name: 'Rotate' }).click();
+    const rotatedToken = page!.getByTestId('device-token');
+    await rotatedToken.waitFor({ state: 'visible', timeout: 12000 });
+    await page!.getByText('Device token rotated').first().waitFor({ state: 'visible' });
+    const rotatedValue = (await rotatedToken.textContent()) ?? '';
+    if (!/^ok_device_/.test(rotatedValue)) {
+      throw new Error(`expected a rotated device token, got: ${rotatedValue.slice(0, 40)}`);
+    }
+    // Rotation must disclose a *fresh* bearer, not re-show the original.
+    if (rotatedValue === issuedTokenValue) {
+      throw new Error('rotate disclosed the same token as the original issue');
+    }
+    // The credential's generation advances in the list (1 -> 2).
+    await row.getByText('gen 2').waitFor({ state: 'visible', timeout: 12000 });
   }, 60_000);
 
   it('lists the issued credential from the server and revokes it', async () => {

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0063",
+  "title": "Rotate device credentials in place from Studio Integrations",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0063 under human principal @rodrigoteamx, on the 2026-08-24 directive to build the next frontier node after CHG-0062 ('dale merge y a lo que sigue'). This does not authorize automatic merge of CHG-0063.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Before CHG-0063 the Studio Integrations surface issued, listed and revoked device credentials but could not rotate one in place. The rotate route (POST /shows/:showId/integrations/device-credentials/:credentialId/rotate) existed and was proven at the HTTP tier but had no UI.",
+      "evidence": "server/src/routes/deviceCredentials.ts rotate route and server/tests/unit/deviceCredentialsHttp.test.ts; the prior IntegrationsView surfaced only issue, list and revoke.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is UI-only: IntegrationsView adds a Rotate action on each active credential that calls the existing rotate route with a fresh 30-day expiry (preserving scopes, targets and controls by omitting them), discloses the new one-time token through the same shown-once affordance (labeled 'rotated'), and reloads the list so the credential's generation advances. No server or protocol change.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: rotate is another producer of the same one-time token, so the load-bearing fact is that the credential's generation advances and a fresh token is disclosed once — not the button. The slice proves the rotate round-trip and the generation advance at the browser tier.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; normalizedRotation in protocol/src/device-credential.ts preserves scopes and bumps generation.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Rotating an active credential from the surface and asserting a fresh /^ok_device_/ token shown once plus the credential's generation advancing (1 to 2) proves AC-016's rotate management. server/tests/e2e/studioIntegrations.test.ts is the falsification mechanism.",
+      "evidence": "server/tests/e2e/studioIntegrations.test.ts rotates device-1 and asserts the rotated token and gen 2.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The UI does not re-prove that a rotated (old) token is denied; that stays proven at the integration tier. The rotate response's one-time token is handled exactly like issuance — shown once, never listed, never persisted client-side beyond the disclosure ref.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts asserts authenticate resolves null for the pre-rotation token; studio/src/views/IntegrationsView.vue reuses the shown-once section.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0063: the owner rotates a device credential in place from the Studio Integrations surface — a fresh one-time token is disclosed once, distinct from the original, and the credential's generation advances — proving AC-016's rotate management at the browser tier. Denial of the rotated (old) token stays proven at the integration tier; the rotation and revocation audit trail stays deferred.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/tests/e2e/studioIntegrations.test.ts, the passing full server suite under npm run check, the CHG-0063 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "A rotation and revocation audit trail (who rotated or revoked which credential and when) and per-field rotation editing from the UI remain deferred to a successor.",
+      "evidence": "studio/src/views/IntegrationsView.vue surfaces issue, list, rotate and revoke but no audit view or per-field rotation form.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "No server or protocol code changes; the change is the Studio view and a browser test step, exercising the full issue, rotate and revoke lifecycle on the surface.",
+      "evidence": "git diff of the CHG-0063 branch: studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The owner rotates an active credential from the surface; a fresh one-time token is disclosed once and the credential's generation advances.",
+      "verification": "The browser test reloads the surface, rotates device-1 (generation 1), and asserts a /^ok_device_/ token shown once under a 'Device token rotated' header, distinct from the originally issued token, with the row's generation reading gen 2."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Rotation is unavailable for a revoked credential and preserves the credential's scopes.",
+      "verification": "The Rotate control is disabled for a revoked credential; the rotate request omits scopes, targets and controls so they are preserved, per the integration-tier rotation semantics."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the surface type-checks.",
+      "verification": "The full server suite passes and the Studio type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0063 records the rotate slice — the shown-once disclosure reuse, the generation-advance proof, and the deferred audit trail — before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "IntegrationsView rotates a credential in place through the existing route; a browser test proves the rotate round-trip and the generation advance.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser test and the full server suite pass.",
+      "evidence": "npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

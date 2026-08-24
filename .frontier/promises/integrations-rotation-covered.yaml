@@ -1,0 +1,22 @@
+id: integrations-rotation-covered
+statement: AC-016's rotate management — the owner rotates a device credential in place from the Studio Integrations surface, disclosing a fresh one-time token and advancing the credential's generation — is proven by CHG-0063. It does not re-prove that the rotated (old) token is denied, which stays at the integration tier.
+anchors:
+  - path:studio/src/views/IntegrationsView.vue
+  - path:server/tests/e2e/studioIntegrations.test.ts
+  - path:.overlaykit/governance/changes/CHG-0063.json
+requires:
+  promises:
+    - integrations-rotate-device-credentials
+    - integrations-lists-and-revokes-device-credentials
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/e2e/studioIntegrations.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0063.json
+        matches: '"status": "implemented"'

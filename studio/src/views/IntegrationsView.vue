@@ -25,9 +25,11 @@ const scopeFeedback = ref(true);
 const issuing = ref(false);
 const error = ref('');
 const issued = ref<{ token: string; credentialId: string } | null>(null);
+const disclosureKind = ref<'issued' | 'rotated'>('issued');
 const credentials = ref<DeviceCredentialSummary[]>([]);
 const listError = ref('');
 const revoking = ref('');
+const rotating = ref('');
 
 onMounted(async () => {
   shows.value = await api<Show[]>('/api/shows');
@@ -72,12 +74,36 @@ async function issueToken(): Promise<void> {
       `/api/shows/${encodeURIComponent(selectedShow.value)}/integrations/device-credentials`,
       { method: 'POST', body: JSON.stringify({ label: label.value, scopes, targets: ['program'], controlIds: [controlId.value.trim()], expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30 }) }
     );
+    disclosureKind.value = 'issued';
     issued.value = { token: result.token, credentialId: result.credential.credentialId };
     await loadCredentials();
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Could not issue device token';
   } finally {
     issuing.value = false;
+  }
+}
+
+// AC-016 (manage): rotating a token retires the current bearer and issues a fresh one for the same
+// credential (its generation advances), shown exactly once. Scopes and targets are preserved; the
+// expiry is refreshed.
+async function rotate(credential: DeviceCredentialSummary): Promise<void> {
+  if (rotating.value || credential.revokedAt) return;
+  rotating.value = credential.credentialId;
+  error.value = '';
+  issued.value = null;
+  try {
+    const result = await api<{ token: string; credential: { credentialId: string } }>(
+      `/api/shows/${encodeURIComponent(selectedShow.value)}/integrations/device-credentials/${encodeURIComponent(credential.credentialId)}/rotate`,
+      { method: 'POST', body: JSON.stringify({ expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30 }) }
+    );
+    disclosureKind.value = 'rotated';
+    issued.value = { token: result.token, credentialId: result.credential.credentialId };
+    await loadCredentials();
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Could not rotate device token';
+  } finally {
+    rotating.value = '';
   }
 }
 
@@ -119,7 +145,7 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
     </section>
 
     <section v-if="issued" class="issued-token" aria-label="Issued device token">
-      <div class="issued-head"><KeyRound :size="18" /><strong>Device token issued</strong><span class="evidence-badge">SHOWN ONCE</span></div>
+      <div class="issued-head"><KeyRound :size="18" /><strong>{{ disclosureKind === 'rotated' ? 'Device token rotated' : 'Device token issued' }}</strong><span class="evidence-badge">SHOWN ONCE</span></div>
       <p>Copy this token now — it is shown once and cannot be retrieved again.</p>
       <code class="token-value" data-testid="device-token">{{ issued.token }}</code>
       <small>Credential {{ issued.credentialId }}</small>
@@ -134,10 +160,14 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
           <div class="credential-meta">
             <strong>{{ credential.label }}</strong>
             <span class="credential-scopes">{{ credential.scopes.join(', ') }}</span>
+            <span class="credential-gen" data-testid="credential-generation">gen {{ credential.generation }}</span>
             <span v-if="credential.revokedAt" class="status-badge revoked" data-testid="credential-status">Revoked</span>
             <span v-else class="status-badge active" data-testid="credential-status">Active</span>
           </div>
-          <button class="danger-button" type="button" :disabled="!!credential.revokedAt || revoking === credential.credentialId" @click="revoke(credential)">Revoke</button>
+          <div class="credential-actions">
+            <button class="secondary-button" type="button" :disabled="!!credential.revokedAt || rotating === credential.credentialId" @click="rotate(credential)">Rotate</button>
+            <button class="danger-button" type="button" :disabled="!!credential.revokedAt || revoking === credential.credentialId" @click="revoke(credential)">Revoke</button>
+          </div>
         </li>
       </ul>
     </section>
