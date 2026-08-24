@@ -1,0 +1,12 @@
+id: studio-acs-browser-covered
+statement: The remaining Studio acceptance criteria (AC-005 Shows->Production, AC-006/007/008 authoring, AC-009 library, AC-011/012 production and Take) are proven at the browser tier by successors reusing the CHG-0049 harness.
+anchors:
+  - path:server/tests/e2e/studioAuthFlow.test.ts
+requires:
+  promises:
+    - studio-browser-harness
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: studio-e2e-covers-production-arc
+  command: "grep -lE 'production|Take|rundown' server/tests/e2e/studio*.test.ts | grep -vq studioAuthFlow || grep -qE \"waitForURL\\('\\*\\*/shows/.*production\" server/tests/e2e/studio*.test.ts"

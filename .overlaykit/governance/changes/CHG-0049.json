@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0049",
+  "title": "Prove Studio first-run and authentication guards in a real browser",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "medium",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0049 under human principal @rodrigoteamx, on the 2026-08-23 directive to continue with the next frontier node after CHG-0048. This does not authorize automatic merge of CHG-0049.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "SPEC-0001 demands E2E verification for AC-001, AC-003, AC-005, AC-006, AC-007, AC-008, AC-009, AC-011 and AC-012, but before this change no browser harness drove the Studio SPA: the only browser-driven tests (server/tests/e2e) load the client Output renderer, and studio/tests are happy-dom unit tests that never mount the router. AC-001, AC-003 and REQ-SEC-001 were covered only at the server HTTP tier.",
+      "evidence": "server/tests/e2e/*, studio/tests/unit/*, and the SPEC-0001 verification fields at ff45281 lineage on main.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Studio is a Vue SPA whose router beforeEach guard calls GET /api/auth/status and redirects setupRequired to /setup, an unauthenticated protected route to /login, and an authenticated /login or /setup visit to /shows; its api client sends credentialed fetches to VITE_API_URL. The Studio shell drives production over REST and does not use /ws.",
+      "evidence": "studio/src/router.ts, studio/src/api.ts, studio/src/auth.ts and studio/src/views/AuthView.vue.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The session cookie is HttpOnly SameSite=Strict and, under COOKIE_SECURE auto over http, not Secure; SameSite is scoped by host, so a loopback page and a loopback API on the same host but different ports are same-site and carry the cookie. enforceBrowserOrigin bypasses safe methods but requires the request Origin to be in an allowlist Set built at application construction, so a mutation from a browser page needs its origin allow-listed before createApp.",
+      "evidence": "server/src/auth/http.ts secureCookie and enforceBrowserOrigin, and server/src/index.ts cors and enforceBrowserOrigin wiring.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The smallest slice that refutes whether Studio flows are browser-drivable is the foundational first-run and authentication arc, not the broadest feature. Governed discovery therefore reordered the work to establish the reusable harness on the auth guards first; the remaining Studio acceptance criteria become follow-on slices that reuse it.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and ADR-0040.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Serving the unmodified Studio SPA through Vite against the real server on the same loopback host, with the page origin allow-listed before createApp and the Studio bundle pointed at the real server, is sufficient to drive and assert Studio route-guard behavior in a real browser without a build step or any Studio source change.",
+      "evidence": "The browser arc test — fresh-instance guard to setup, bootstrap to Shows, closed setup, sign-out gating and sign-in redirect — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0049 for the exact browser-tier arc it proves: against the real server and the unmodified Studio bundle, a fresh instance guards any Studio route to owner setup, setup bootstraps and lands on Shows, a re-visit of /setup while authenticated returns to Shows, sign-out gates a protected route to sign-in, and valid owner credentials redirect to Shows. The harness adds no test-only affordance to the Studio source and asserts observable flow; the remaining Studio acceptance criteria stay deferred to successors that reuse it.",
+      "evidence": "server/tests/e2e/studioAuthFlow.test.ts, the passing full server suite under npm run check, the CHG-0049 branch pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change touches only server/tests and governance; the Studio SPA is unchanged and product behavior is unaffected. The harness runs branded Chrome under vitest inside npm run check and passes on the GitHub-hosted runners, while the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0049 branch and the pull-request validate job.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The remaining Studio acceptance criteria — AC-005 Shows to Production, AC-006 and AC-007 authoring and Send to Preview, AC-008 editor to preview, AC-009 component library, AC-011 and AC-012 rundown load and Take — remain unproven at the browser tier and are deferred to successor slices that reuse this harness.",
+      "evidence": "The scope of this slice is the first-run and authentication arc only.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "This harness runs branded Chrome under vitest without @playwright/test; responsive and mobile navigation (REQ-NAV E2E) and any pixel or visual assertion are deferred.",
+      "evidence": "The harness asserts resolved routes and rendered headings only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "In a real browser against the real server, requesting a protected Studio route on a fresh instance resolves to owner setup and renders the Create-the-owner surface (AC-001, REQ-SEC-001).",
+      "verification": "Browser harness navigates to /shows and asserts the router resolves to /setup with the setup heading."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Submitting the owner setup form bootstraps the owner through the real server, lands on the Shows workspace, and a subsequent visit to /setup while authenticated returns to Shows (AC-001 bootstrap, AC-002 at the route tier).",
+      "verification": "Browser harness fills and submits the setup form, asserts /shows and the Shows heading, then asserts /setup resolves back to /shows."
+    },
+    {
+      "id": "SC-003",
+      "statement": "After sign-out a protected route is gated to sign-in, and valid owner credentials create a session and redirect to Shows (AC-003, REQ-SEC-001).",
+      "verification": "Browser harness signs out, asserts a protected route resolves to /login, signs in and asserts /shows."
+    },
+    {
+      "id": "SC-004",
+      "statement": "The harness drives the unmodified Studio bundle against the real authentication routes and AuthService with no Studio source change, and the change does not alter product behavior.",
+      "verification": "Path-scoped review that only server/tests and governance changed; the full server suite passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0040 and CHG-0049 record the harness decision, the covered first-run and authentication criteria and the deferred Studio criteria before implementation.",
+      "evidence": "Schema-valid records and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A Vite-served Studio browser harness drives the real server and asserts the first-run and authentication route guards, with no Studio source change and no test-only hook in the Studio SPA.",
+      "evidence": "server/tests/e2e/studioAuthFlow.test.ts and an unchanged studio/src."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser arc test passes and the full server suite passes, with the OBS proof skipping on runners without OBS.",
+      "evidence": "npm run check and the focused studio harness run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
