@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0048",
   "title": "Bind Output transport authority to the Output credential, not an ambient session",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "high",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Treating authenticate.output as a de-escalation that overrides session authority, enrolls the socket for rotation, and fails closed on a bad token is the smallest correct fix that closes the credential-scoping leak for every credentialed Output connection without a client change and without weakening editor or panel session authority.",
       "evidence": "The focused de-escalation, fail-closed, studio-preservation and rotation-retirement tests are the falsification mechanisms.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0048 for the exact de-escalation it implements: an authenticate.output frame on a connection that would otherwise hold Studio session authority installs read-only exact-Show Output authority, enrols the socket for Output-credential rotation, and denies Preview and mutation; a bad token fails closed without falling back to the session; a connection that never claims Output keeps its session authority and an already-output connection still rejects a repeated authenticate.output. Interactive editor and panel session authentication on the shared /ws transport is unchanged and the CHG-0046 branded-Chrome Output proof still reproduces its evidence.",
+      "evidence": "server/tests/unit/outputSessionPrecedence.test.ts (de-escalation, rotation retirement, fail-closed invalid token, studio preservation), the unchanged server/tests/unit/authHttp.test.ts WebSocket authentication test, the passing CHG-0046 e2e Output proof under npm run check, and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix is a server-only change to setupWebSocketHandler with no client, editor or panel change; the full server suite passed and the pull-request Constitution jobs passed with the OBS acceptance proof skipping on the OBS-less runners.",
+      "evidence": "server/src/handlers/websocket.ts diff, npm run check, and the CHG-0048 branch pull-request Constitution run.",
       "blocking": false
     },
     {
@@ -94,7 +106,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
