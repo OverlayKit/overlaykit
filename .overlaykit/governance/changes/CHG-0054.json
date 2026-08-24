@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0054",
+  "title": "Let the designer role Send to Preview",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0054 under human principal @rodrigoteamx, on the 2026-08-23 directive to close the last authoring node. This does not authorize automatic merge of CHG-0054.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0052 recorded a role contradiction: SPEC-0001 US-005 makes the designer the actor for Send to Preview, but POST /shows/:showId/production/preview was gated to owner or producer by a blanket mount, so a designer was denied. The product also issues only an owner account with all three roles, so no designer-only account exists yet.",
+      "evidence": "server/src/index.ts production mount before this change, SPEC-0001 US-005, and server/src/auth/AuthService.ts setup which grants owner all roles.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix broadens the production mount to include the designer role and adds a per-route owner-or-producer gate inside the production router on Take, preview controls and recovery, so a designer may Send a Scene to Preview but may not promote to Program, adjust preview controls, or run recovery.",
+      "evidence": "server/src/index.ts production mount and server/src/routes/production.ts PRODUCER_ONLY on the take, preview/controls and recovery routes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the last node: closing the AC-008 role contradiction is a per-route authorization split testable through a session-injecting harness, whereas a Show-scoped create-Scene endpoint (AC-006) is entangled with unifying the collections router's module-singleton storage and stays deferred.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23, the production route gating and the collections storage split recorded in CHG-0050.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Admitting the designer role at the production mount while re-gating Take, preview controls and recovery to owner or producer implements AC-008's designer-Sends-to-Preview intent with least privilege.",
+      "evidence": "server/tests/unit/previewRoleGate.test.ts — designer Preview allowed, designer Take denied, producer Take allowed — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The real-application designer-Sends-to-Preview path cannot be integration-tested until user management issues a designer-only account; the per-route producer protection on Take, controls and recovery is proven at the router tier, and the mount's admission of the designer role is a verified role-list edit.",
+      "evidence": "server/src/auth/AuthService.ts issues only the owner, and server/tests/unit/previewRoleGate.test.ts exercises the gate through an injected session.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "A Show-scoped create-Scene endpoint (AC-006) remains deferred and is entangled with unifying the collections router's module-singleton storage with the injected dataStorage; surfacing the designer account through user management is also deferred.",
+      "evidence": "server/src/routes/collections.ts uses the module singleton while the shows and production routers use the injected dataStorage.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A designer session may Send a Scene to Preview: the Preview revision advances and Program stays clear.",
+      "verification": "Harness test posts to /shows/:showId/production/preview with a designer session and asserts Preview revision 1 and Program revision 0."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A designer session is denied Take with 403 while owner or producer may Take.",
+      "verification": "Harness test asserts a designer Take returns 403 FORBIDDEN and a producer Take returns 200 with Program revision 1."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Preview controls and recovery remain owner-or-producer, and no existing production behavior regresses.",
+      "verification": "Per-route gates on take, preview/controls and recovery; the existing production recovery test and the full server suite pass."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0054 records the designer Send-to-Preview authorization, the untestable real-application path, and the deferred AC-006 create-Scene endpoint before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The production mount admits the designer role and per-route owner-or-producer gates protect Take, preview controls and recovery.",
+      "evidence": "server/src/index.ts and server/src/routes/production.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A harness test proves designer Preview allowed, designer Take denied and producer Take allowed; the production recovery test and the full server suite pass.",
+      "evidence": "server/tests/unit/previewRoleGate.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}

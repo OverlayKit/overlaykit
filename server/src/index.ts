@@ -163,7 +163,9 @@ export function createApp(dependencies: AppDependencies = {}): Express {
   app.use('/api', requireRole('producer'), createShowsRouter(dataStorage));
   app.use(
     '/api',
-    requireAnyRole(['owner', 'producer']),
+    // The designer role (AC-008 actor) may Send a Scene to Preview; per-route gates inside the
+    // production router keep Take, preview controls and recovery producer decisions.
+    requireAnyRole(['owner', 'producer', 'designer']),
     createProductionRouter(dataStorage, production),
   );
 

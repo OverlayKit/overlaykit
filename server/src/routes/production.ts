@@ -1,6 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import type { Storage } from '../storage';
 import { resolveTenant } from '../tenancy';
+import { requireAnyRole } from '../auth/http';
+
+// Producer-level operations within the production surface: promoting to Program, adjusting Preview
+// controls, and recovery. The designer role may reach the surface (Send to Preview) but not these.
+const PRODUCER_ONLY = requireAnyRole(['owner', 'producer']);
 import type { Scene } from '../types/scene';
 import {
   ProductionError,
@@ -88,7 +93,7 @@ export function createProductionRouter(storage: Storage, production: ProductionS
     }
   });
 
-  router.post('/shows/:showId/production/take', async (req: Request, res: Response) => {
+  router.post('/shows/:showId/production/take', PRODUCER_ONLY, async (req: Request, res: Response) => {
     if (!await showExists(req, res)) return;
     const expectedPreviewRevision = req.body?.expectedPreviewRevision;
     const operationId = req.body?.operationId;
@@ -109,7 +114,7 @@ export function createProductionRouter(storage: Storage, production: ProductionS
     }
   });
 
-  router.post('/shows/:showId/production/preview/controls', async (req: Request, res: Response) => {
+  router.post('/shows/:showId/production/preview/controls', PRODUCER_ONLY, async (req: Request, res: Response) => {
     if (!await showExists(req, res)) return;
     const expectedPreviewRevision = req.body?.expectedPreviewRevision;
     const operationId = req.body?.operationId;
@@ -138,7 +143,7 @@ export function createProductionRouter(storage: Storage, production: ProductionS
     }
   });
 
-  router.post('/shows/:showId/production/:target/recovery', async (req: Request, res: Response) => {
+  router.post('/shows/:showId/production/:target/recovery', PRODUCER_ONLY, async (req: Request, res: Response) => {
     if (!await showExists(req, res)) return;
     try {
       res.json({
