@@ -1,0 +1,13 @@
+id: scene-create-endpoint-and-storage-unify
+statement: A successor unifies the collections module-singleton storage with the injected dataStorage and adds a Show-scoped create-Scene endpoint (AC-006), and issues designer accounts through user management.
+anchors:
+  - path:server/src/routes/collections.ts
+  - path:server/src/index.ts
+requires:
+  promises:
+    - scene-create-and-designer-role
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: show-scoped-create-scene-endpoint
+  command: "grep -qE \"shows/:showId/scenes\" server/src/routes/*.ts"

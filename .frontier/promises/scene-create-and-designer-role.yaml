@@ -1,13 +1,22 @@
 id: scene-create-and-designer-role
-statement: A successor adds a Show-scoped create-Scene endpoint (AC-006) and lets the designer role Send-to-Preview (AC-008 actor), closing the last authoring gaps.
+statement: The designer role (AC-008 actor) may Send a Scene to Preview while Take stays producer-level, closed by CHG-0054.
 anchors:
-  - path:server/src/routes/production.ts
-  - path:.overlaykit/governance/specifications/SPEC-0001.json
+  - path:server/src/index.ts
+  - path:server/tests/unit/previewRoleGate.test.ts
+  - path:.overlaykit/governance/changes/CHG-0054.json
 requires:
   promises:
     - scene-model-show-first-class
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: preview-route-allows-designer
-  command: "grep -qE \"requireAnyRole\\(\\[.*'designer'\" server/src/index.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: command-succeeds
+        name: preview-mount-admits-designer
+        command: "grep -qE \"requireAnyRole\\(\\['owner', 'producer', 'designer'\" server/src/index.ts"
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0054.json
+        matches: '"status": "implemented"'
