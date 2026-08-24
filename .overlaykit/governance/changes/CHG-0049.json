@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0049",
   "title": "Prove Studio first-run and authentication guards in a real browser",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "medium",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Serving the unmodified Studio SPA through Vite against the real server on the same loopback host, with the page origin allow-listed before createApp and the Studio bundle pointed at the real server, is sufficient to drive and assert Studio route-guard behavior in a real browser without a build step or any Studio source change.",
       "evidence": "The browser arc test — fresh-instance guard to setup, bootstrap to Shows, closed setup, sign-out gating and sign-in redirect — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0049 for the exact browser-tier arc it proves: against the real server and the unmodified Studio bundle, a fresh instance guards any Studio route to owner setup, setup bootstraps and lands on Shows, a re-visit of /setup while authenticated returns to Shows, sign-out gates a protected route to sign-in, and valid owner credentials redirect to Shows. The harness adds no test-only affordance to the Studio source and asserts observable flow; the remaining Studio acceptance criteria stay deferred to successors that reuse it.",
+      "evidence": "server/tests/e2e/studioAuthFlow.test.ts, the passing full server suite under npm run check, the CHG-0049 branch pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change touches only server/tests and governance; the Studio SPA is unchanged and product behavior is unaffected. The harness runs branded Chrome under vitest inside npm run check and passes on the GitHub-hosted runners, while the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0049 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -99,7 +111,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
