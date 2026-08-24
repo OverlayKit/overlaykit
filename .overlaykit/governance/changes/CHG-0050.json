@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0050",
   "title": "Prove the Studio production arc in a real browser",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "medium",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Seeding one Show with one saved Scene and driving open, load-to-Preview and Take asserts the observable production flow (Preview advancing to revision 1, Program promotion, and the operator acknowledgement text) without exercising the Editor authoring path, and is sufficient to prove AC-011, AC-012, REQ-NAV-002 and REQ-NAV-004 at the browser tier.",
       "evidence": "The browser arc — open Show to Production, rundown load to Preview revision 1, Take to the Last-Take acknowledgement — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0050 for the exact browser-tier production arc it proves against the real server and unmodified Studio bundle: opening a Show lands on its Production surface, clicking a saved Scene in the rundown loads it into Preview at revision 1 while Program stays clear, and Take promotes Preview to Program with the Last-Take acknowledgement (AC-011, AC-012, REQ-NAV-002, REQ-NAV-004). Acceptance also acknowledged the recorded gaps as deferred, not covered: AC-005 open-on-create is unimplemented, the Editor authoring and Library criteria run through paths not yet browser-covered, and the collections router reads a module singleton rather than the injected storage.",
+      "evidence": "server/tests/e2e/studioProductionArc.test.ts, the passing full server suite under npm run check, the CHG-0050 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change touches only server/tests and governance; the Studio SPA is unchanged and product behavior is unaffected. The harness seeds and removes a Show and Scene in shared storage, and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0050 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -105,7 +117,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
