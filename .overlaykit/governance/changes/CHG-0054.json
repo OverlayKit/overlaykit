@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0054",
   "title": "Let the designer role Send to Preview",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "Admitting the designer role at the production mount while re-gating Take, preview controls and recovery to owner or producer implements AC-008's designer-Sends-to-Preview intent with least privilege.",
       "evidence": "server/tests/unit/previewRoleGate.test.ts — designer Preview allowed, designer Take denied, producer Take allowed — is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0054: the production mount admits the designer role and per-route owner-or-producer gates keep Take, preview controls and recovery producer decisions, so a designer may Send a Scene to Preview but not promote to Program (AC-008 role). The real designer path awaits user management and AC-006 stays deferred.",
+      "evidence": "server/src/index.ts, server/src/routes/production.ts, server/tests/unit/previewRoleGate.test.ts, the passing full server suite under npm run check, and the CHG-0054 pull-request Constitution run (all eight jobs, one flaky Windows timeout on an unrelated SQLite test re-run to success), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is an eleven-line authorization edit to the production mount and router; no other product behavior changes. A first pull-request run hit the known non-deterministic Windows five-second timeout on server/tests/unit/durableProductionCommandAuthority.test.ts, unrelated to this change, and passed on re-run.",
+      "evidence": "git diff of the CHG-0054 branch and the re-run pull-request validate and portability jobs.",
       "blocking": false
     },
     {
@@ -88,7 +100,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
