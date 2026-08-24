@@ -36,7 +36,8 @@ describe('production URL and Take contracts', () => {
     const url = new URL(outputUrl('show-1', 'secret token'));
     expect(url.searchParams.get('show')).toBe('show-1');
     expect(url.searchParams.get('bus')).toBe('program');
-    expect(url.searchParams.get('token')).toBe('secret token');
+    expect(url.searchParams.has('token')).toBe(false);
+    expect(new URLSearchParams(url.hash.slice(1)).get('output')).toBe('secret token');
     expect(url.searchParams.get('hideStatus')).toBe('true');
     expect(url.searchParams.get('hideWatermark')).toBe('true');
     expect(url.searchParams.has('channel')).toBe(false);

@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0046",
+  "title": "Keep Output credentials out of proxy request targets",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "critical",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0022", "ADR-0029", "ADR-0037"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex is the source-producing agent for CHG-0046 under human principal @rodrigoteamx. The 2026-08-14 directive to merge CHG-0045 and proceed authorizes this bounded successor, but does not authorize a claim of real OBS acceptance or automatic merge of CHG-0046.",
+      "evidence": "AGENTS.md and the 2026-08-14 user directive 'dale al merge y a lo que sigue'.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0045 merged through PR 44 at f312075823f35b98d8970f964a03b2bc46a30a63 after its exact signed head f557a073b2890e5759492e82746370d638b3fc04 passed all eight pull-request Constitution jobs; protected-main Constitution run 31854010375 also succeeded.",
+      "evidence": "GitHub PR 44, merge commit f312075823f35b98d8970f964a03b2bc46a30a63, Constitution runs 31853752643 and 31854010375 observed on 2026-08-14.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The accepted Output URL builder places the raw bearer in the page query, ProductionView copies that bearer into the WebSocket query, and setupWebSocketHandler authenticates it from request.url. The production client otherwise defaults to ws://localhost:8080/ws even when loaded from an HTTPS origin.",
+      "evidence": "studio/src/production.ts, client/src/components/ProductionView.vue, and server/src/handlers/websocket.ts at f312075823f35b98d8970f964a03b2bc46a30a63.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The server uses separate plaintext HTTP listeners for REST and WebSocket traffic; SSL_CERT_PATH and SSL_KEY_PATH are parsed but unused. SPEC-0001 requires local-only defaults plus secure proxy guidance, while the repository contains no current proxy deployment guide.",
+      "evidence": "server/src/index.ts, server/src/config/environment.ts, README.md, repository file inventory, and SPEC-0001 REQ-SEC-005 at f312075823f35b98d8970f964a03b2bc46a30a63.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "RFC 3986 separates a URI fragment before dereference, RFC 6455 establishes application messaging only after the opening handshake, and official OBS documentation describes Browser Source as a URL-loaded Chrome Embedded Framework surface. No OBS executable is installed in the available environment.",
+      "evidence": "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5, https://www.rfc-editor.org/rfc/rfc6455.html, https://obsproject.com/kb/browser-source, and local command inventory on 2026-08-14.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A TLS proxy test against the accepted query-token client would reproduce a credential-bearing request target and a deployment-specific WebSocket endpoint rather than establish a safe proxy boundary. Governed discovery therefore reorders the first slice to remove authority from both request targets before testing WSS delivery.",
+      "evidence": "Governed-discovery reorder check on 2026-08-14, ADR-0037, SPEC-0001 REQ-SEC-003 and REQ-SEC-005, plus CHG-0045's explicit TLS and proxy evidence limit.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A client-only fragment plus a bounded authenticate.output frame sent before subscription is the smallest transport correction that keeps a page-specific credential out of proxy request targets without introducing ambient cookies, a second credential store, or a proxy-specific authentication feature.",
+      "evidence": "The TLS proxy, hostile pre-authentication, reconnect, query-rejection and rotation tests are the falsification mechanisms.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the agent that produced the acceptance corrections for CHG-0046 under human principal @rodrigoteamx after the 2026-08-23 directive 'dale cerrar PR 45'. That directive authorizes acceptance and merge of this exact bounded slice; it does not authorize a claim of real OBS acceptance, which is delegated to a bounded successor.",
+      "evidence": "AGENTS.md and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0046 for the exact standards-based browser and local TLS-termination boundary: fragment-only bearer, bounded first-frame authentication observed in the browser as authentication.confirmed preceding production.subscription.confirmed, same-origin WSS derivation, legacy query rejection, exact-Show Program delivery, Preview denial and immediate rotation retirement. Acceptance first corrected one evidence defect: the retained report had recorded the authentication ordering as a literal rather than as an observed browser frame order. The inference does not establish real OBS execution, public PKI or DNS, external proxy products, network loss, long-running refresh, perceptual quality or multi-destination credentials.",
+      "evidence": "GitHub Actions Constitution run 31855484649 at 1436ddb522932dd0dcfd1ead66ecb5bc2ebe7ff1, the regenerated docs/evidence/CHG-0046 proof produced by the corrected test, and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether a real OBS process loads, refreshes and composites the successor URL correctly remains unknown because OBS is not installed in this environment; branded Chrome is only a standards-based browser boundary probe.",
+      "evidence": "Local executable inventory and ADR-0037 evidence boundary.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Public DNS and CA behavior, third-party proxy products, hostile-network conditions, network loss, long-running refresh behavior, perceptual broadcast quality and multi-destination credentials remain untested and deferred.",
+      "evidence": "The minimal slice uses one local TLS terminator, the real client, the existing single Output authority and deterministic browser assertions only.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether an interactive Studio session cookie presented on the /ws upgrade should ever take precedence over Output authentication remains untested: the handler authenticates the session before any application frame, so an Output page opened in a browser profile that already holds a Studio session on the same host runs on a session-authority connection. This has no effect inside OBS or on split-host deployments and is deferred to a bounded successor.",
+      "evidence": "server/src/handlers/websocket.ts session authentication path reviewed during acceptance on 2026-08-23; no test covers it.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Studio generates a Program-only browser-source URL whose bearer exists only in a client-side fragment, while its HTTP path and query remain non-secret; legacy query-token URLs do not authenticate.",
+      "verification": "Studio URL tests, server hostile query tests, and observed proxy request-target assertions."
+    },
+    {
+      "id": "SC-002",
+      "statement": "An unauthenticated browser WebSocket may establish transport only for a bounded deadline, may authenticate once with a valid Output bearer as its first application message, and may not subscribe, ping or mutate before exact-Show authority is installed.",
+      "verification": "Focused WebSocket tests cover valid, missing, malformed, oversized, late, repeated and non-authentication first messages."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The real output client sends authentication before initial subscription and before reconnect subscription restoration, derives /ws from its page origin by default, and maps an HTTPS page to WSS without placing the credential in the WebSocket URL.",
+      "verification": "Client unit tests and the browser TLS proxy proof inspect message order, schemes and observed upgrade targets."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Through a local TLS terminator and WebSocket upgrade proxy, the unmodified production client renders no Program pixels before Take, renders the exact compiled Program after Take, and loses both established and reconnect authority after rotation.",
+      "verification": "Branded-Chrome HTTPS/WSS proof through the real auth routes, production routes, WebSocket handler, compiler target and renderer, with retained PNG and JSON evidence."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Secure proxy guidance keeps upstream listeners local, uses one verified HTTPS origin for Output and WSS, names the required Origin configuration, avoids frame or payload logging, and explicitly distinguishes browser transport evidence from real OBS acceptance.",
+      "verification": "Documentation review against SPEC-0001 REQ-SEC-005 and the evidence report's declared limits."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0037 and CHG-0046 record authority, facts, governed-discovery reorder, the fragment and first-frame boundary, measurable refutation criteria, migration impact and deferred claims before product implementation.",
+      "evidence": "Schema-valid successor records and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Studio, client and server implement one coherent non-request-target credential transport, with exact Show and rotation semantics preserved and no bearer retained in logs, reports, screenshots or committed evidence.",
+      "evidence": "Path-scoped implementation review, hostile tests, request-target observations and secret scans."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Automated evidence covers URL construction, same-origin WSS derivation, authentication ordering, deadline, pre-auth denial, query rejection, reconnect authentication, exact-Show Program, transparent pixels, Take and immediate rotation retirement through TLS termination.",
+      "evidence": "Focused unit, integration and branded-browser proof outputs bound only to non-secret hashes and booleans."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, formatting, lint, type-check, focused and full tests, build, dependency audit, clean installation and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, npm ci, npm run proof:output-transport, Prettier, git diff --check and GitHub Actions Constitution run 31855484649 at 1436ddb522932dd0dcfd1ead66ecb5bc2ebe7ff1; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

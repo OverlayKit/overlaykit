@@ -1,10 +1,13 @@
 // @vitest-environment node
 
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright-core';
@@ -46,9 +49,10 @@ const ORIGIN_OWNER = {
   password: 'correct horse battery staple',
 };
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const execFileAsync = promisify(execFile);
 const evidenceDir = path.resolve(
   repoRoot,
-  process.env.OVERLAYKIT_OUTPUT_PROOF_DIR ?? 'artifacts/output-authority-proof'
+  process.env.OVERLAYKIT_OUTPUT_TRANSPORT_PROOF_DIR ?? 'artifacts/output-transport-proof'
 );
 
 class TestStorage implements Storage {
@@ -199,6 +203,48 @@ function openWebSocket(url: string, origin: string): Promise<WebSocket> {
   });
 }
 
+async function authenticateOutput(socket: WebSocket, token: string): Promise<void> {
+  const authenticated = nextMessage(socket);
+  socket.send(JSON.stringify({ type: 'authenticate.output', token }));
+  expect(await authenticated).toMatchObject({
+    type: 'authentication.confirmed',
+    access: 'output',
+  });
+}
+
+async function createTlsMaterial(): Promise<{
+  certificate: Buffer;
+  directory: string;
+  privateKey: Buffer;
+}> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'overlaykit-output-tls-'));
+  const certificatePath = path.join(directory, 'certificate.pem');
+  const privateKeyPath = path.join(directory, 'private-key.pem');
+  await execFileAsync('openssl', [
+    'req',
+    '-x509',
+    '-newkey',
+    'rsa:2048',
+    '-nodes',
+    '-sha256',
+    '-days',
+    '1',
+    '-subj',
+    '/CN=127.0.0.1',
+    '-addext',
+    'subjectAltName=IP:127.0.0.1',
+    '-keyout',
+    privateKeyPath,
+    '-out',
+    certificatePath,
+  ]);
+  return {
+    certificate: await readFile(certificatePath),
+    directory,
+    privateKey: await readFile(privateKeyPath),
+  };
+}
+
 function nextMessage(socket: WebSocket): Promise<Record<string, unknown>> {
   return new Promise((resolve) => {
     socket.once('message', (data) =>
@@ -269,6 +315,9 @@ describe.sequential('authenticated Program rendering proof', () => {
   let wsServer: WebSocketServer | undefined;
   let origin = '';
   let originalWsUrl: string | undefined;
+  let tlsDirectory = '';
+  const pageRequestTargets: string[] = [];
+  const upgradeRequestTargets: string[] = [];
 
   beforeAll(async () => {
     await mkdir(evidenceDir, { recursive: true });
@@ -279,18 +328,37 @@ describe.sequential('authenticated Program rendering proof', () => {
       wsServer?.once('listening', resolve);
       wsServer?.once('error', reject);
     });
+    wsServer.on('connection', (_socket, incoming) => {
+      upgradeRequestTargets.push(incoming.url ?? '');
+    });
     originalWsUrl = process.env.VITE_WS_URL;
-    process.env.VITE_WS_URL = `ws://127.0.0.1:${serverPort(wsServer)}/ws`;
+    delete process.env.VITE_WS_URL;
 
     const clientRoot = path.join(repoRoot, 'client');
+    const tls = await createTlsMaterial();
+    tlsDirectory = tls.directory;
     vite = await createViteServer({
       root: clientRoot,
       configFile: path.join(clientRoot, 'vite.config.ts'),
       logLevel: 'error',
-      server: { host: '127.0.0.1', port: 0, strictPort: false },
+      server: {
+        host: '127.0.0.1',
+        port: 0,
+        strictPort: false,
+        https: { cert: tls.certificate, key: tls.privateKey },
+        proxy: {
+          '/ws': {
+            target: `ws://127.0.0.1:${serverPort(wsServer)}`,
+            ws: true,
+          },
+        },
+      },
     });
     await vite.listen();
-    origin = `http://127.0.0.1:${serverPort(vite)}`;
+    vite.httpServer?.on('request', (incoming) => {
+      pageRequestTargets.push(incoming.url ?? '');
+    });
+    origin = `https://127.0.0.1:${serverPort(vite)}`;
     config.corsOrigin.push(origin);
     setupWebSocketHandler(wsServer, auth, [origin], production);
 
@@ -300,7 +368,11 @@ describe.sequential('authenticated Program rendering proof', () => {
       restServer?.listen(0, '127.0.0.1', resolve);
     });
     agent = request.agent(`http://127.0.0.1:${serverPort(restServer)}`);
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await chromium.launch({
+      channel: 'chrome',
+      headless: true,
+      args: ['--ignore-certificate-errors'],
+    });
   }, 30_000);
 
   afterAll(async () => {
@@ -308,6 +380,7 @@ describe.sequential('authenticated Program rendering proof', () => {
     await vite?.close();
     await new Promise<void>((resolve) => wsServer?.close(() => resolve()) ?? resolve());
     await new Promise<void>((resolve) => restServer?.close(() => resolve()) ?? resolve());
+    if (tlsDirectory) await rm(tlsDirectory, { recursive: true, force: true });
     const originIndex = config.corsOrigin.indexOf(origin);
     if (originIndex >= 0) config.corsOrigin.splice(originIndex, 1);
     if (originalWsUrl === undefined) delete process.env.VITE_WS_URL;
@@ -337,8 +410,9 @@ describe.sequential('authenticated Program rendering proof', () => {
     const token = issued.body.data.token as string;
     expect(issued.body.data).toMatchObject({ showId: SHOW_ID });
 
-    const wsUrl = `ws://127.0.0.1:${serverPort(wsServer!)}?token=${encodeURIComponent(token)}`;
+    const wsUrl = `ws://127.0.0.1:${serverPort(wsServer!)}`;
     const crossShow = await openWebSocket(wsUrl, origin);
+    await authenticateOutput(crossShow, token);
     const crossShowMessage = nextMessage(crossShow);
     crossShow.send(
       JSON.stringify({
@@ -351,6 +425,7 @@ describe.sequential('authenticated Program rendering proof', () => {
     crossShow.close();
 
     const previewProbe = await openWebSocket(wsUrl, origin);
+    await authenticateOutput(previewProbe, token);
     const previewMessage = nextMessage(previewProbe);
     previewProbe.send(
       JSON.stringify({
@@ -366,10 +441,13 @@ describe.sequential('authenticated Program rendering proof', () => {
       viewport: VIEWPORT,
       deviceScaleFactor: 1,
       reducedMotion: 'reduce',
+      ignoreHTTPSErrors: true,
     });
     const page = await context.newPage();
     const receivedTypes: string[] = [];
+    const browserWebSocketUrls: string[] = [];
     page.on('websocket', (socket) => {
+      browserWebSocketUrls.push(socket.url());
       socket.on('framereceived', ({ payload }) => {
         try {
           const message = JSON.parse(String(payload)) as { type?: string };
@@ -385,9 +463,23 @@ describe.sequential('authenticated Program rendering proof', () => {
     outputUrl.searchParams.set('transparent', 'true');
     outputUrl.searchParams.set('hideStatus', 'true');
     outputUrl.searchParams.set('hideWatermark', 'true');
-    outputUrl.searchParams.set('token', token);
+    outputUrl.hash = new URLSearchParams({ output: token }).toString();
     await page.goto(outputUrl.toString(), { waitUntil: 'domcontentloaded' });
     await expect.poll(() => receivedTypes).toContain('production.subscription.confirmed');
+    const authenticationIndex = receivedTypes.indexOf('authentication.confirmed');
+    const subscriptionIndex = receivedTypes.indexOf('production.subscription.confirmed');
+    expect(authenticationIndex).toBeGreaterThanOrEqual(0);
+    expect(authenticationIndex).toBeLessThan(subscriptionIndex);
+    const authenticationFramePrecedesSubscription =
+      authenticationIndex >= 0 && authenticationIndex < subscriptionIndex;
+    const outputWebSocketUrls = browserWebSocketUrls.filter(
+      (url) => new URL(url).pathname === '/ws'
+    );
+    expect(outputWebSocketUrls).toEqual([`${origin.replace('https:', 'wss:')}/ws`]);
+    expect(browserWebSocketUrls.some((url) => url.includes(token))).toBe(false);
+    expect(pageRequestTargets.some((target) => target.includes(token))).toBe(false);
+    expect(upgradeRequestTargets.some((target) => target.includes(token))).toBe(false);
+    expect(upgradeRequestTargets).toContain('/ws');
     expect(await page.locator('.elements-container').locator(':scope > *').count()).toBe(0);
 
     const beforeBuffer = await page.screenshot({
@@ -400,12 +492,12 @@ describe.sequential('authenticated Program rendering proof', () => {
     const taken = await agent
       .post(`/api/shows/${SHOW_ID}/production/take`)
       .set('Origin', origin)
-      .send({ expectedPreviewRevision: 1, operationId: 'chg-0045-take-1' })
+      .send({ expectedPreviewRevision: 1, operationId: 'chg-0046-take-1' })
       .expect(200);
     expect(taken.body.data).toMatchObject({
       preview: { revision: 1 },
       program: { revision: 1, scene: { id: first.candidate.scene.id } },
-      lastTake: { operationId: 'chg-0045-take-1', previewRevision: 1, programRevision: 1 },
+      lastTake: { operationId: 'chg-0046-take-1', previewRevision: 1, programRevision: 1 },
     });
     await waitForText(page, first);
     expect(await page.locator(`#${first.programId}-role`).textContent()).toBe(first.role);
@@ -420,6 +512,7 @@ describe.sequential('authenticated Program rendering proof', () => {
     expect(afterPixels.colorCount).toBeGreaterThan(20);
 
     const retirementProbe = await openWebSocket(wsUrl, origin);
+    await authenticateOutput(retirementProbe, token);
     const retirementSubscription = nextMessage(retirementProbe);
     retirementProbe.send(
       JSON.stringify({
@@ -441,8 +534,15 @@ describe.sequential('authenticated Program rendering proof', () => {
       .expect(201);
     expect(await retiredClose).toBe(1008);
 
-    const rejectedOldToken = new WebSocket(wsUrl, [], { origin });
-    expect(await closeCode(rejectedOldToken)).toBe(1008);
+    const rejectedOldToken = await openWebSocket(wsUrl, origin);
+    const rejectedOldTokenClose = closeCode(rejectedOldToken);
+    rejectedOldToken.send(
+      JSON.stringify({
+        type: 'authenticate.output',
+        token,
+      })
+    );
+    expect(await rejectedOldTokenClose).toBe(1008);
 
     const secondPreview = await agent
       .post(`/api/shows/${SHOW_ID}/production/preview`)
@@ -453,7 +553,7 @@ describe.sequential('authenticated Program rendering proof', () => {
     await agent
       .post(`/api/shows/${SHOW_ID}/production/take`)
       .set('Origin', origin)
-      .send({ expectedPreviewRevision: 2, operationId: 'chg-0045-take-2' })
+      .send({ expectedPreviewRevision: 2, operationId: 'chg-0046-take-2' })
       .expect(200);
     await page.waitForTimeout(2_500);
     expect(await page.locator(`#${first.programId}-name`).textContent()).toBe(first.name);
@@ -466,7 +566,9 @@ describe.sequential('authenticated Program rendering proof', () => {
     currentUrl.searchParams.set('transparent', 'true');
     currentUrl.searchParams.set('hideStatus', 'true');
     currentUrl.searchParams.set('hideWatermark', 'true');
-    currentUrl.searchParams.set('token', replacement.body.data.token as string);
+    currentUrl.hash = new URLSearchParams({
+      output: replacement.body.data.token as string,
+    }).toString();
     await currentPage.goto(currentUrl.toString(), { waitUntil: 'domcontentloaded' });
     await waitForText(currentPage, second);
 
@@ -481,8 +583,17 @@ describe.sequential('authenticated Program rendering proof', () => {
         oldTokenReconnectDenied: true,
         retiredClientReceivedSecondProgram: false,
       },
+      transport: {
+        pageScheme: 'https:',
+        webSocketScheme: 'wss:',
+        sameOriginWebSocket: true,
+        bearerInPageRequestTarget: false,
+        bearerInUpgradeRequestTarget: false,
+        upgradePath: '/ws',
+        authenticationFramePrecedesSubscription,
+      },
       firstTake: {
-        operationId: 'chg-0045-take-1',
+        operationId: 'chg-0046-take-1',
         previewRevision: 1,
         programRevisionBefore: 0,
         programRevisionAfter: 1,

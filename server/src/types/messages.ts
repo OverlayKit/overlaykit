@@ -51,6 +51,11 @@ export interface WsPingMessage {
   type: 'ping';
 }
 
+export interface WsOutputAuthenticateMessage {
+  type: 'authenticate.output';
+  token: string;
+}
+
 export interface WsComponentDeployMessage {
   type: 'component_deploy';
   payload: {
@@ -76,6 +81,7 @@ export interface WsSceneActivateMessage {
 }
 
 export type ClientMessage =
+  | WsOutputAuthenticateMessage
   | WsSubscribeMessage
   | WsUnsubscribeMessage
   | WsProductionSubscribeMessage
@@ -136,6 +142,11 @@ export interface WsPongMessage {
   type: 'pong';
 }
 
+export interface WsAuthenticationConfirmedMessage {
+  type: 'authentication.confirmed';
+  access: 'output';
+}
+
 export interface WsElementsUpdatedMessage {
   type: 'elements.updated';
   channelId: string;
@@ -192,6 +203,7 @@ export interface WsProductionTakenMessage {
 }
 
 export type ServerMessage =
+  | WsAuthenticationConfirmedMessage
   | WsElementCreateMessage
   | WsElementUpdateMessage
   | WsElementDeleteMessage
