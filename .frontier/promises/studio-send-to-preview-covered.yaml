@@ -1,0 +1,21 @@
+id: studio-send-to-preview-covered
+statement: AC-008 (Editor Send to Preview delivers a Preview snapshot, Program unchanged) is proven at the browser tier and the editor URL is env-driven (CHG-0052).
+anchors:
+  - path:studio/src/views/EditorView.vue
+  - path:server/tests/e2e/studioEditorAuthoring.test.ts
+  - path:.overlaykit/governance/changes/CHG-0052.json
+requires:
+  promises:
+    - studio-authoring-browser-covered
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/e2e/studioEditorAuthoring.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0052.json
+        matches: '"status": "implemented"'
