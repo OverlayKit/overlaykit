@@ -1,0 +1,22 @@
+id: integrations-ui-issues-scoped-token
+statement: AC-016's UI half — an owner issues a Show-scoped device token through the Studio Integrations surface and the token is shown exactly once — is proven by CHG-0061 at the browser tier. It does not re-prove least-privilege enforcement, which stays at the integration tier.
+anchors:
+  - path:studio/src/views/IntegrationsView.vue
+  - path:server/tests/e2e/studioIntegrations.test.ts
+  - path:.overlaykit/governance/changes/CHG-0061.json
+requires:
+  promises:
+    - integrations-device-token-ui
+    - studio-browser-harness
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/e2e/studioIntegrations.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0061.json
+        matches: '"status": "implemented"'

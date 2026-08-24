@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0061",
+  "title": "Surface scoped device-token issuance in the Studio Integrations UI",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0061 under human principal @rodrigoteamx, on the 2026-08-24 directive to build the next frontier node after CHG-0060. This does not authorize automatic merge of CHG-0061.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive 'dale al merge y a lo que sigue'.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "AC-016's device-token least-privilege (a token executes only its selected actions for its Show, and cross-Show, undeclared, expired and revoked actions are denied) is already proven at the integration tier by the device-credential HTTP tests. Only surfacing device-token issuance through the Studio Integrations UI remained; the IntegrationsView was a PLANNED placeholder.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts and the prior IntegrationsView placeholder recorded in CHG-0060.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change replaces the Integrations placeholder with a real surface: the owner picks a Show, a label, a control id and the action scopes (visibility control, state feedback), issues a device token through the owner-only device-credential endpoint, and the token is displayed exactly once (data-testid=device-token with a SHOWN ONCE affordance and a shown-once warning). A browser test drives the real Studio SPA against the real server to prove the round-trip.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: the UI is a thin, evidence-only surface over the existing owner-only device-credential endpoint, so the slice proves the browser round-trip (owner issues a scoped token, token shown once) first, not any new server authority. No server or protocol behavior changes.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; the endpoint POST /api/shows/:showId/integrations/device-credentials and its owner-role gate predate this change.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Driving the real Studio Integrations surface to issue a Show-scoped device token and asserting that a token matching /^ok_device_/ is shown exactly once proves AC-016's UI half. server/tests/e2e/studioIntegrations.test.ts is the falsification mechanism.",
+      "evidence": "server/tests/e2e/studioIntegrations.test.ts issues a token through the browser and asserts the shown-once token value and affordance.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The UI does not prove least-privilege enforcement. Cross-Show, undeclared, expired and revoked denial remain proven only at the integration tier; the Integrations surface proves only that an owner can issue a scoped token and that it is shown once.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts holds the enforcement proofs; studioIntegrations.test.ts asserts only issuance and shown-once.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Rotating, revoking and listing issued device credentials through the Studio UI remains deferred to a successor; no GET list route for issued credentials exists yet.",
+      "evidence": "server/src/routes/deviceCredentials.ts exposes create, rotate and delete but no list route.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "No server or protocol code changes. The change is Studio UI plus a browser test, and a .gitignore entry for the vitest DATA_DIR (server/.test-data/) so test runs do not dirty the tree.",
+      "evidence": "git diff of the CHG-0061 branch: studio/src/views/IntegrationsView.vue, server/tests/e2e/studioIntegrations.test.ts and .gitignore only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "An owner issues a Show-scoped device token through the Studio Integrations surface and the token is shown exactly once.",
+      "verification": "The browser test navigates to /settings/integrations, clicks Issue device token, and asserts a token matching /^ok_device_/ with a SHOWN ONCE affordance."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The issued token is bound to the selected Show with the selected scopes and a declared control.",
+      "verification": "The device-credential POST returns 201 with credential.showId equal to the selected Show and the requested scopes and controlIds."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the UI type-checks.",
+      "verification": "The full server suite passes and the Studio type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0061 records the AC-016 UI half — the browser round-trip proof, the enforcement that stays at the integration tier, and the deferred rotate/revoke/list — before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "IntegrationsView issues a scoped device token and shows it exactly once, and a browser test proves the owner round-trip against the real server.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser test passes and the full server suite passes.",
+      "evidence": "npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
