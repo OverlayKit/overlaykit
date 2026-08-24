@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0053",
   "title": "Persist a monotonic Scene revision",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "An optional, storage-assigned monotonic revision, proven to start at one, advance on each save, persist across a fresh storage instance, and never perturb Preview or Program, satisfies AC-007's persisted-revision clause without a Show-first-class Scene model or optimistic concurrency.",
       "evidence": "server/tests/unit/sceneRevision.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0053: a saved Scene now carries a persisted, monotonic revision that starts at one, advances on each save, and survives a fresh storage instance, while saving leaves Preview and Program unchanged (AC-007 revision clause). AC-006 and the designer-role gate remain deferred to a successor.",
+      "evidence": "server/src/storage/Storage.ts, server/src/storage/FileStorage.ts, server/tests/unit/sceneRevision.test.ts, the passing full server suite under npm run check, the CHG-0053 pull-request Constitution run, and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a storage-layer field with an optional type, so existing CollectionRecord constructors and in-memory test doubles are unaffected; the full server suite passes and no runtime production behavior changes.",
+      "evidence": "git diff of the CHG-0053 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -82,7 +94,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
