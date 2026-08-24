@@ -2,7 +2,10 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
-import type { StoredDeviceCredential } from '@overlaykit/protocol/device-credential' with {
+import type {
+  DeviceCredential,
+  StoredDeviceCredential,
+} from '@overlaykit/protocol/device-credential' with {
   'resolution-mode': 'import',
 };
 import {
@@ -185,6 +188,7 @@ export class SqliteDeviceCredentialStore {
   private readonly signing: Omit<DeviceSigningSchemaOptions, 'previousSchemaVersion'>;
   private database: DatabaseSync | null = null;
   private selectStatement: StatementSync | null = null;
+  private listByShowStatement: StatementSync | null = null;
   private insertStatement: StatementSync | null = null;
   private replaceStatement: StatementSync | null = null;
   private productionStateStore: SqliteProductionStateStore | null = null;
@@ -222,6 +226,7 @@ export class SqliteDeviceCredentialStore {
       });
     } catch (error) {
       this.selectStatement = null;
+      this.listByShowStatement = null;
       this.insertStatement = null;
       this.replaceStatement = null;
       this.signingAuthority?.close();
@@ -240,6 +245,15 @@ export class SqliteDeviceCredentialStore {
     const row = this.requiredStatement(this.selectStatement).get(credentialId) as
       CredentialRow | undefined;
     return row ? cloneRecord(rowRecord(row)) : null;
+  }
+
+  async listByShow(showId: string): Promise<DeviceCredential[]> {
+    const rows = this.requiredStatement(this.listByShowStatement).all(showId) as unknown as CredentialRow[];
+    // Strip the sealedSecret verifier at the store boundary so no list path can ever surface it.
+    return rows.map((row) => {
+      const { sealedSecret: _sealedSecret, ...credential } = cloneRecord(rowRecord(row));
+      return credential;
+    });
   }
 
   async create(recordInput: StoredDeviceCredential): Promise<boolean> {
@@ -303,6 +317,7 @@ export class SqliteDeviceCredentialStore {
     this.signingAuthority?.close();
     this.database = null;
     this.selectStatement = null;
+    this.listByShowStatement = null;
     this.insertStatement = null;
     this.replaceStatement = null;
     this.productionStateStore = null;
@@ -354,6 +369,8 @@ export class SqliteDeviceCredentialStore {
           expires_at INTEGER NOT NULL,
           revoked_at INTEGER
         ) STRICT;
+        CREATE INDEX IF NOT EXISTS device_credentials_show_id
+          ON device_credentials (show_id);
       `);
       initializeDeviceTransitionLedgerSchema(database);
       initializeProductionStateSchema(database);
@@ -442,6 +459,13 @@ export class SqliteDeviceCredentialStore {
              sealed_secret, issued_by, issued_at, updated_at, expires_at, revoked_at
       FROM device_credentials
       WHERE credential_id = ?
+    `);
+    this.listByShowStatement = database.prepare(`
+      SELECT credential_id, label, show_id, targets, control_ids, scopes, generation,
+             sealed_secret, issued_by, issued_at, updated_at, expires_at, revoked_at
+      FROM device_credentials
+      WHERE show_id = ?
+      ORDER BY issued_at ASC, credential_id ASC
     `);
     this.insertStatement = this.insertStatementFor(database);
     this.replaceStatement = database.prepare(`

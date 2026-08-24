@@ -235,9 +235,148 @@ describe('Owner device credential HTTP lifecycle', () => {
       .get('/integrations/device-trust')
       .expect(403);
     await request(app)
+      .get('/shows/show-1/integrations/device-credentials')
+      .expect(403);
+    await request(app)
       .post('/shows/show-1/integrations/device-credentials')
       .send({})
       .expect(403);
     await expect(runtime.store.get('device-1')).resolves.toBeNull();
+  });
+
+  it('lists device credentials as owner-only, Show-scoped, ordered metadata with no secret material', async () => {
+    let entropyByte = 0;
+    let credentialSeq = 0;
+    const databasePath = path.join(directory, 'device-credentials.sqlite');
+    const runtime = await createDeviceCredentialRuntime({
+      store: new SqliteDeviceCredentialStore({ databasePath }),
+      lifecycleOptions: createDeviceCredentialCryptoOptions({
+        now: () => 1_000,
+        primitives: {
+          // Distinct ids so a Show can hold more than one credential — this exercises the list
+          // ORDER BY and the Show partition with both Shows populated.
+          randomUUID: () => `device-${++credentialSeq}`,
+          randomBytes: (size) => new Uint8Array(size).fill(++entropyByte),
+        },
+      }),
+    });
+    runtimes.push(runtime);
+    const auth = new AuthService(new MemoryAuthStore());
+    await auth.init();
+    const storage = new TestStorage();
+    storage.shows.set('show-1', show('show-1'));
+    storage.shows.set('other-show', show('other-show'));
+    storage.shows.set('archived-show', show('archived-show', 2_000));
+    const app = createApp({ auth, dataStorage: storage, deviceCredentials: runtime });
+    const agent = request.agent(app);
+
+    // The list route shares the issue route's guards: unauthenticated is refused, and it is
+    // Show-scoped (missing 404, archived 409).
+    await request(app)
+      .get('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(401);
+    await agent.post('/api/auth/setup').set('Origin', ORIGIN).send(OWNER).expect(201);
+    await agent
+      .get('/api/shows/missing/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(404);
+    await agent
+      .get('/api/shows/archived-show/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(409);
+
+    // An empty Show lists nothing.
+    const empty = await agent
+      .get('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(empty.body.data.credentials).toEqual([]);
+
+    const tokens: string[] = [];
+    async function issue(showId: string, label: string): Promise<string> {
+      const response = await agent
+        .post(`/api/shows/${showId}/integrations/device-credentials`)
+        .set('Origin', ORIGIN)
+        .send({
+          label,
+          targets: ['program'],
+          controlIds: ['lower-third.visibility'],
+          scopes: ['component.visibility:write'],
+          expiresAt: 10_000,
+        })
+        .expect(201);
+      const token = response.body.data.token as string;
+      tokens.push(token);
+      return token;
+    }
+
+    // Two credentials into show-1 and one into other-show, so the partition is exercised with both
+    // Shows populated and the list has more than one row to order.
+    await issue('show-1', 'Stream Deck A');
+    await issue('show-1', 'Stream Deck B');
+    await issue('other-show', 'Other Desk');
+
+    const listed = await agent
+      .get('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(listed.headers['cache-control']).toContain('no-store');
+    // ORDER BY issued_at ASC, credential_id ASC — same clock, so credential_id decides the order.
+    expect(listed.body.data.credentials.map((c: { credentialId: string }) => c.credentialId)).toEqual([
+      'device-1',
+      'device-2',
+    ]);
+    expect(listed.body.data.credentials[0]).toMatchObject({
+      credentialId: 'device-1',
+      label: 'Stream Deck A',
+      showId: 'show-1',
+      targets: ['program'],
+      controlIds: ['lower-third.visibility'],
+      scopes: ['component.visibility:write'],
+      generation: 1,
+      revokedAt: null,
+    });
+
+    // Metadata-only by construction — proven against the sealed verifier's VALUE, not just its key.
+    const persisted = await runtime.store.get('device-1');
+    expect(persisted?.sealedSecret).toMatch(/^okdv1\$sha256\$/);
+    expect(listed.body.data.credentials[0]).not.toHaveProperty('sealedSecret');
+    const listedJson = JSON.stringify(listed.body);
+    expect(listedJson).not.toContain('sealedSecret');
+    expect(listedJson).not.toContain('okdv1$sha256$');
+    expect(listedJson).not.toContain(persisted?.sealedSecret ?? 'sealed-secret-missing');
+    expect(listedJson).not.toContain('ok_device_');
+    for (const token of tokens) expect(listedJson).not.toContain(token);
+
+    // Show-scoped: show-1's credentials never leak into another Show's list.
+    const otherList = await agent
+      .get('/api/shows/other-show/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(otherList.body.data.credentials.map((c: { credentialId: string }) => c.credentialId)).toEqual([
+      'device-3',
+    ]);
+
+    // Revoking one credential leaves it listed (marked revoked) and the sibling untouched.
+    await agent
+      .delete('/api/shows/show-1/integrations/device-credentials/device-1')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    const afterRevoke = await agent
+      .get('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(afterRevoke.body.data.credentials).toHaveLength(2);
+    expect(afterRevoke.body.data.credentials[0]).toMatchObject({
+      credentialId: 'device-1',
+      revokedAt: 1_000,
+    });
+    expect(afterRevoke.body.data.credentials[1]).toMatchObject({
+      credentialId: 'device-2',
+      revokedAt: null,
+    });
+    expect(JSON.stringify(afterRevoke.body)).not.toContain('sealedSecret');
+    expect(JSON.stringify(afterRevoke.body)).not.toContain('okdv1$sha256$');
   });
 });

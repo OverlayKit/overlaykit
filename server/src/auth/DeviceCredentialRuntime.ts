@@ -49,7 +49,7 @@ export interface DeviceCredentialLifecyclePort {
 export interface DeviceCredentialRuntime {
   readonly lifecycle: DeviceCredentialLifecyclePort;
   readonly authoritySource: DeviceAuthorityObservationSource;
-  readonly store: Pick<InitializableDeviceCredentialStore, 'get'>;
+  readonly store: Pick<InitializableDeviceCredentialStore, 'get' | 'listByShow'>;
   readonly transitionLedger: DeviceTransitionLedgerPort | null;
   readonly productionState: ProductionStatePersistencePort | null;
   readonly signing: DeviceSigningAuthority | null;

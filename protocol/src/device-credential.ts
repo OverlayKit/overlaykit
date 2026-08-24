@@ -81,6 +81,9 @@ export interface DeviceAuthorizationRequest {
 
 export interface DeviceCredentialStore {
   get(credentialId: string): Promise<StoredDeviceCredential | null>;
+  // Secret-free by construction: listing is a bulk read for display, so it returns the public
+  // DeviceCredential projection (sealedSecret omitted) and never the one-time token.
+  listByShow(showId: string): Promise<DeviceCredential[]>;
   create(record: StoredDeviceCredential): Promise<boolean>;
   replace(record: StoredDeviceCredential, expectedGeneration: number): Promise<boolean>;
 }
@@ -277,6 +280,13 @@ export class MemoryDeviceCredentialStore implements DeviceCredentialStore {
   async get(credentialId: string): Promise<StoredDeviceCredential | null> {
     const record = this.records.get(credentialId);
     return record ? cloneRecord(record) : null;
+  }
+
+  async listByShow(showId: string): Promise<DeviceCredential[]> {
+    return [...this.records.values()]
+      .filter((record) => record.showId === showId)
+      .sort((left, right) => left.issuedAt - right.issuedAt || left.credentialId.localeCompare(right.credentialId))
+      .map((record) => publicCredential(record));
   }
 
   async create(record: StoredDeviceCredential): Promise<boolean> {
