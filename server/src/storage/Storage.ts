@@ -18,6 +18,9 @@ export interface CollectionRecord {
   scene: Scene;
   variables: Record<string, unknown>;
   updatedAt: number;
+  // Persisted, monotonic Scene revision advanced on each save (AC-007). Optional so existing
+  // records and in-memory test doubles remain valid; the storage layer assigns it on save.
+  revision?: number;
 }
 
 export interface CollectionMeta {
@@ -26,6 +29,7 @@ export interface CollectionMeta {
   channelId: string;
   elementCount: number;
   updatedAt: number;
+  revision?: number;
 }
 
 export interface ActionRecord {
@@ -61,5 +65,6 @@ export function toMeta(c: CollectionRecord): CollectionMeta {
     channelId: c.channelId,
     elementCount: c.scene?.elements?.length || 0,
     updatedAt: c.updatedAt,
+    revision: c.revision,
   };
 }

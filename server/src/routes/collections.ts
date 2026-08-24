@@ -56,9 +56,9 @@ router.post('/collections', async (req: Request, res: Response) => {
     variables: (variables && typeof variables === 'object') ? variables : {},
     updatedAt: Date.now(),
   };
-  await storage.saveCollection(record);
+  const saved = await storage.saveCollection(record);
   logger.info('Collection saved', { tenantId, id: record.id, name: record.name, elements: record.scene.elements?.length || 0 });
-  res.status(201).json({ data: { id: record.id, name: record.name } });
+  res.status(201).json({ data: { id: saved.id, name: saved.name, revision: saved.revision } });
 });
 
 /** DELETE /api/collections/:id */
