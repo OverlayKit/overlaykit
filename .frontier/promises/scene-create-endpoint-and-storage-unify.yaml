@@ -1,13 +1,22 @@
 id: scene-create-endpoint-and-storage-unify
-statement: A successor unifies the collections module-singleton storage with the injected dataStorage and adds a Show-scoped create-Scene endpoint (AC-006), and issues designer accounts through user management.
+statement: The collections router resolves through the injected storage and a Show-scoped create-Scene endpoint exists (AC-006 server capability), closed by CHG-0055.
 anchors:
   - path:server/src/routes/collections.ts
-  - path:server/src/index.ts
+  - path:server/tests/unit/collectionsStorageUnify.test.ts
+  - path:.overlaykit/governance/changes/CHG-0055.json
 requires:
   promises:
     - scene-create-and-designer-role
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: show-scoped-create-scene-endpoint
-  command: "grep -qE \"shows/:showId/scenes\" server/src/routes/*.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: command-succeeds
+        name: show-scoped-create-scene-endpoint
+        command: "grep -qE \"shows/:showId/scenes\" server/src/routes/collections.ts"
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0055.json
+        matches: '"status": "implemented"'

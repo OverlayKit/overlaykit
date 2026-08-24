@@ -1,0 +1,13 @@
+id: studio-new-scene-wiring
+statement: The Studio Scenes surface wires New Scene to the create-Scene endpoint and proves the opens-in-Editor browser flow (AC-006 UI half), and user management issues designer accounts.
+anchors:
+  - path:studio/src/views/ScenesView.vue
+  - path:server/src/routes/collections.ts
+requires:
+  promises:
+    - scene-create-endpoint-and-storage-unify
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: scenesview-calls-create-endpoint
+  command: "grep -qE \"/scenes'|/scenes\\`\" studio/src/views/ScenesView.vue"
