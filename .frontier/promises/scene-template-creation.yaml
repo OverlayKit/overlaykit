@@ -1,0 +1,13 @@
+id: scene-template-creation
+statement: A successor implements Template-based Scene creation (the AC-006 Template branch), so a designer can start a Scene from a Template rather than blank.
+anchors:
+  - path:studio/src/views/ScenesView.vue
+  - path:.overlaykit/governance/specifications/SPEC-0001.json
+requires:
+  promises:
+    - scene-templates-and-id-scoping
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: new-scene-offers-a-template-choice
+  command: "grep -qE 'Template|templates|templateId|chooseTemplate' studio/src/views/ScenesView.vue"

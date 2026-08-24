@@ -51,7 +51,8 @@ export function createCollectionsRouter(storage: Storage): Router {
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name is required' } });
     }
-    const sceneId = slug(name);
+    // Show-scoped id so same-named Scenes in different Shows are independent and never collide.
+    const sceneId = `${slug(name)}-${slug(showId)}`;
     const sceneDoc: Scene =
       scene && scene.id && scene.name && Array.isArray(scene.elements)
         ? (scene as Scene)

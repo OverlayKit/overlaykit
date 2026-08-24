@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0057",
+  "title": "Scope the created Scene id to its Show",
+  "status": "implemented",
+  "changeClass": "architecture",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0057 under human principal @rodrigoteamx, on the 2026-08-24 directive to advance the Scene id-scoping node. This does not authorize automatic merge of CHG-0057.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0056 recorded that the create-Scene endpoint derived the Scene id from the name slug alone, so creating a same-named Scene in two different Shows produced one id and the second creation rebound the earlier Scene's channel — a cross-Show collision.",
+      "evidence": "server/src/routes/collections.ts create-Scene id before this change and CHG-0056 deferred unknown.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix makes the created Scene id Show-scoped (the name slug combined with the Show slug), so same-named Scenes in different Shows are independent and never collide, each bound to its own Show.",
+      "evidence": "server/src/routes/collections.ts create-Scene id and server/tests/unit/sceneIdScoping.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the node to its minimal slice: the reported defect was the id collision, not the absence of Templates, so the slice fixes the id scoping and defers Template-based creation.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24 and CHG-0056.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A Show-scoped Scene id proven distinct across Shows and bound to each Show closes the collision without a first-class Scene-id registry or optimistic concurrency.",
+      "evidence": "server/tests/unit/sceneIdScoping.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0057: the created Scene id is Show-scoped, so same-named Scenes in different Shows are independent and never collide, each bound to its own Show. Template-based Scene creation stays deferred.",
+      "evidence": "server/src/routes/collections.ts, server/tests/unit/sceneIdScoping.test.ts, the passing full server suite under npm run check, the CHG-0057 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a single-line id derivation plus the Studio New Scene test's expected id; no other behavior changes.",
+      "evidence": "git diff of the CHG-0057 branch and the pull-request validate job.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Template-based Scene creation (choosing a Template rather than blank) remains unimplemented; only blank creation exists.",
+      "evidence": "studio/src/views/ScenesView.vue createScene creates a blank named Scene only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Creating a same-named Scene in two different Shows yields distinct ids, each bound to its Show, with no rebinding of the earlier Scene.",
+      "verification": "Harness test creates the same-named Scene in two Shows and asserts distinct ids and one Scene per Show."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The Studio New Scene flow still creates and opens a Scene with the Show-scoped id.",
+      "verification": "The Studio New Scene browser test passes with the updated id format."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0057 records the Show-scoped Scene id and the deferred Template creation before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The create-Scene endpoint derives a Show-scoped id.",
+      "evidence": "server/src/routes/collections.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A focused test proves cross-Show non-collision and the Studio New Scene browser test still passes; the full server suite passes.",
+      "evidence": "server/tests/unit/sceneIdScoping.test.ts, server/tests/e2e/studioNewScene.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

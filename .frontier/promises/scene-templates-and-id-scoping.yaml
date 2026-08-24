@@ -1,13 +1,22 @@
 id: scene-templates-and-id-scoping
-statement: A successor adds Template-based Scene creation (AC-006 Template branch) and a Show-scoped or unique Scene id so same-named Scenes across Shows do not collide.
+statement: The created Scene id is Show-scoped so same-named Scenes across Shows never collide (closed by CHG-0057).
 anchors:
-  - path:studio/src/views/ScenesView.vue
   - path:server/src/routes/collections.ts
+  - path:server/tests/unit/sceneIdScoping.test.ts
+  - path:.overlaykit/governance/changes/CHG-0057.json
 requires:
   promises:
     - studio-new-scene-wiring
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: create-scene-id-is-show-scoped
-  command: "grep -qE 'showId.*slug|template' server/src/routes/collections.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: file-contains
+        path: server/src/routes/collections.ts
+        matches: 'slug(showId)'
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0057.json
+        matches: '"status": "implemented"'

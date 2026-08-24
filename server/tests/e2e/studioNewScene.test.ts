@@ -23,7 +23,7 @@ import { storage, type ShowRecord } from '../../src/storage';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const SHOW_ID = `new-scene-show-${process.pid}`;
-const SCENE_ID = 'col-scene-1';
+const SCENE_ID = `col-scene-1-col-${SHOW_ID}`;
 const OWNER = {
   displayName: 'Local Owner',
   email: 'owner@overlaykit.local',
