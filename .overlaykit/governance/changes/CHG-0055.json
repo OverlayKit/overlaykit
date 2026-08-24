@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0055",
   "title": "Unify collections storage and add a Show-scoped create-Scene endpoint",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "architecture",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,18 @@
       "kind": "assumption",
       "statement": "Routing collections through the injected storage and adding a Show-scoped create-Scene endpoint proves a Show and its Scenes resolve through one storage and a new Scene is created bound to the Show; wiring the Studio Scenes surface's New Scene control to this endpoint and the full opens-in-Editor browser flow are follow-ons.",
       "evidence": "server/tests/unit/collectionsStorageUnify.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0055: the collections router is a factory over the injected storage, so a Show and its Scenes resolve through one storage, and a Show-scoped POST /api/shows/:showId/scenes creates a Scene bound to the Show at revision 1 (AC-006 server capability). The Studio New Scene wiring and the opens-in-Editor browser flow stay deferred.",
+      "evidence": "server/src/routes/collections.ts, server/src/index.ts, server/tests/unit/collectionsStorageUnify.test.ts, the passing full server suite under npm run check, and the CHG-0055 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Production behavior is unchanged because the default injected storage is the same singleton; the refactor only affects tests that inject a distinct storage and closes the CHG-0050 divergence.",
+      "evidence": "server/src/index.ts createApp dataStorage default and the full server suite.",
       "blocking": false
     },
     {
@@ -88,7 +100,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
