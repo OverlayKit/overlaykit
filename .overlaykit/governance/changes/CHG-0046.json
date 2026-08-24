@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0046",
   "title": "Keep Output credentials out of proxy request targets",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "critical",
   "owner": "@rodrigoteamx",
@@ -52,6 +52,18 @@
       "blocking": false
     },
     {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the agent that produced the acceptance corrections for CHG-0046 under human principal @rodrigoteamx after the 2026-08-23 directive 'dale cerrar PR 45'. That directive authorizes acceptance and merge of this exact bounded slice; it does not authorize a claim of real OBS acceptance, which is delegated to a bounded successor.",
+      "evidence": "AGENTS.md and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0046 for the exact standards-based browser and local TLS-termination boundary: fragment-only bearer, bounded first-frame authentication observed in the browser as authentication.confirmed preceding production.subscription.confirmed, same-origin WSS derivation, legacy query rejection, exact-Show Program delivery, Preview denial and immediate rotation retirement. Acceptance first corrected one evidence defect: the retained report had recorded the authentication ordering as a literal rather than as an observed browser frame order. The inference does not establish real OBS execution, public PKI or DNS, external proxy products, network loss, long-running refresh, perceptual quality or multi-destination credentials.",
+      "evidence": "GitHub Actions Constitution run 31855484649 at 1436ddb522932dd0dcfd1ead66ecb5bc2ebe7ff1, the regenerated docs/evidence/CHG-0046 proof produced by the corrected test, and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
       "kind": "unknown",
       "statement": "Whether a real OBS process loads, refreshes and composites the successor URL correctly remains unknown because OBS is not installed in this environment; branded Chrome is only a standards-based browser boundary probe.",
       "evidence": "Local executable inventory and ADR-0037 evidence boundary.",
@@ -61,6 +73,12 @@
       "kind": "unknown",
       "statement": "Public DNS and CA behavior, third-party proxy products, hostile-network conditions, network loss, long-running refresh behavior, perceptual broadcast quality and multi-destination credentials remain untested and deferred.",
       "evidence": "The minimal slice uses one local TLS terminator, the real client, the existing single Output authority and deterministic browser assertions only.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether an interactive Studio session cookie presented on the /ws upgrade should ever take precedence over Output authentication remains untested: the handler authenticates the session before any application frame, so an Output page opened in a browser profile that already holds a Studio session on the same host runs on a session-authority connection. This has no effect inside OBS or on split-host deployments and is deferred to a bounded successor.",
+      "evidence": "server/src/handlers/websocket.ts session authentication path reviewed during acceptance on 2026-08-23; no test covers it.",
       "blocking": false
     }
   ],
@@ -110,7 +128,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, formatting, lint, type-check, focused and full tests, build, dependency audit, clean installation and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, npm ci, focused proof, Prettier and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit, npm ci, npm run proof:output-transport, Prettier, git diff --check and GitHub Actions Constitution run 31855484649 at 1436ddb522932dd0dcfd1ead66ecb5bc2ebe7ff1; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }

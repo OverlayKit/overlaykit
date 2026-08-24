@@ -466,6 +466,12 @@ describe.sequential('authenticated Program rendering proof', () => {
     outputUrl.hash = new URLSearchParams({ output: token }).toString();
     await page.goto(outputUrl.toString(), { waitUntil: 'domcontentloaded' });
     await expect.poll(() => receivedTypes).toContain('production.subscription.confirmed');
+    const authenticationIndex = receivedTypes.indexOf('authentication.confirmed');
+    const subscriptionIndex = receivedTypes.indexOf('production.subscription.confirmed');
+    expect(authenticationIndex).toBeGreaterThanOrEqual(0);
+    expect(authenticationIndex).toBeLessThan(subscriptionIndex);
+    const authenticationFramePrecedesSubscription =
+      authenticationIndex >= 0 && authenticationIndex < subscriptionIndex;
     const outputWebSocketUrls = browserWebSocketUrls.filter(
       (url) => new URL(url).pathname === '/ws'
     );
@@ -584,7 +590,7 @@ describe.sequential('authenticated Program rendering proof', () => {
         bearerInPageRequestTarget: false,
         bearerInUpgradeRequestTarget: false,
         upgradePath: '/ws',
-        authenticationFramePrecedesSubscription: true,
+        authenticationFramePrecedesSubscription,
       },
       firstTake: {
         operationId: 'chg-0046-take-1',

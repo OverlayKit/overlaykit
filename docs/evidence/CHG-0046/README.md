@@ -9,7 +9,8 @@ Observed results:
 
 - the Output page loaded over HTTPS and derived same-origin WSS at `/ws`;
 - the page and WebSocket upgrade request targets contained no Output bearer;
-- the `authenticate.output` frame preceded the Program subscription;
+- the browser received `authentication.confirmed` before `production.subscription.confirmed`, so
+  the `authenticate.output` frame preceded the Program subscription;
 - cross-Show Program and same-Show Preview subscriptions remained denied;
 - Program contained 0 visible pixels before Take;
 - Program contained 49,560 visible pixels after Take while 2,024,040 pixels remained transparent;
