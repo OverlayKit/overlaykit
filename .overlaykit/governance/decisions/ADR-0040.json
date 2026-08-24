@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0040",
+  "title": "Studio user flows are verified at the browser tier by a real-server harness",
+  "status": "accepted",
+  "date": "2026-08-23",
+  "supersedes": null,
+  "governs": ["studio-browser-verification", "studio-authentication-flow", "spec-acceptance-tier"],
+  "context": "SPEC-0001 states E2E verification for the Studio-facing acceptance criteria (AC-001 first-run bootstrap and guarded routes, AC-003 sign-in and redirect, AC-005 Shows to Production, AC-006 through AC-009 authoring and library, AC-011 and AC-012 production and Take). Until now the only browser-driven tests were server/tests/e2e, which load the client Output renderer, never the Studio SPA; Studio route guards, sign-in and navigation were covered only at the server HTTP tier or by isolated happy-dom unit tests that never mount the router. Studio is a Vue SPA whose router guard calls the real server for auth status and whose api client sends credentialed fetches; the editor and panel surfaces use /ws while the Studio shell drives production over REST. A browser harness must therefore serve the unmodified Studio bundle against the real server, carry the SameSite=Strict session cookie, and satisfy the server origin allowlist, which enforceBrowserOrigin snapshots at application construction.",
+  "decision": "Studio user-flow acceptance is verified at the browser tier by a harness that serves the unmodified Studio SPA through Vite and drives it with a real browser against the real server. The Studio bundle's API base points at the real server on the same loopback host so the SameSite=Strict session cookie is carried across ports, and the page origin is allow-listed for credentialed requests before the application is constructed. The harness reuses the real authentication routes, real AuthService and real production service, adds no test-only affordance or hook to the Studio source, and asserts observable flow — the URL the router resolves to and the surface it renders — rather than internal state or pixels. This decision establishes the reusable harness and covers the first-run and authentication guards; the remaining Studio acceptance criteria are proven by later slices that reuse it.",
+  "consequences": [
+    "Studio route-guard, first-run and sign-in behavior is proven end to end against the real server, not only at the HTTP tier.",
+    "A test that drives the real Studio needs the page origin allow-listed before createApp, because enforceBrowserOrigin builds its origin Set at construction time.",
+    "The harness runs branded Chrome under vitest, so it needs a browser on the runner (as the existing Output proofs already do) and asserts observable flow rather than pixels.",
+    "No test-only code path is added to the Studio SPA; the harness exercises exactly the shipped bundle.",
+    "The remaining Studio acceptance criteria stay unproven at the browser tier until successor slices reuse this harness."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "studio-browser-harness-uses-real-server",
+      "statement": "A Studio browser test must drive the unmodified Studio bundle against the real authentication and production routes, not a mock or a happy-dom stub."
+    },
+    {
+      "kind": "rule",
+      "id": "studio-browser-harness-adds-no-test-hook",
+      "statement": "A Studio browser harness must not add a test-only affordance to the Studio source; it asserts observable flow (resolved route and rendered surface)."
+    },
+    {
+      "kind": "rule",
+      "id": "page-origin-allowlisted-before-app",
+      "statement": "A credentialed browser harness must allow-list the page origin before constructing the server application, because the origin allowlist is snapshotted at construction."
+    }
+  ]
+}

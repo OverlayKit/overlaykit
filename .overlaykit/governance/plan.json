@@ -390,6 +390,14 @@
       "id": "ADR-0039",
       "supersededBy": null,
       "title": "Output authentication overrides ambient session authority on the shared WebSocket transport"
+    },
+    {
+      "contentHash": "3a5eddbe8205e6a5c896001cb6c51b2f747ccf732ebebce1ada1b995f91640ca",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0040",
+      "supersededBy": null,
+      "title": "Studio user flows are verified at the browser tier by a real-server harness"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -524,10 +532,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "302b0ff1d4c67dd1a27623ca7130eeaee02e4f036605c27f9c2d818b8627cfd9",
-  "profileHash": "6a7c6c1418b53ab3d86c06b21cdfd3fd835a96eedc8ca582b0cb3379d17a9f0d",
+  "planHash": "e166a64dcc6244bbe8e631cd78c1c50f518203e73204b55564785990205fc921",
+  "profileHash": "a6f7dee382fb58eab4dbe105b33a9f6201d74d5077aff13ba79cfa36c2f2d171",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.35.0",
+  "profileVersion": "2.36.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1730,6 +1738,12 @@
       "statement": "Absent an explicit endpoint, the browser output must derive /ws from its page origin and select WSS whenever the page uses HTTPS."
     },
     {
+      "id": "page-origin-allowlisted-before-app",
+      "kind": "rule",
+      "sourceDecision": "ADR-0040",
+      "statement": "A credentialed browser harness must allow-list the page origin before constructing the server application, because the origin allowlist is snapshotted at construction."
+    },
+    {
       "id": "partial-execution-is-explicit",
       "kind": "rule",
       "sourceDecision": "ADR-0006",
@@ -2034,6 +2048,18 @@
       "kind": "rule",
       "sourceDecision": "ADR-0004",
       "statement": "Every saved scene, production session, output, and show-local control belongs to an explicit Show."
+    },
+    {
+      "id": "studio-browser-harness-adds-no-test-hook",
+      "kind": "rule",
+      "sourceDecision": "ADR-0040",
+      "statement": "A Studio browser harness must not add a test-only affordance to the Studio source; it asserts observable flow (resolved route and rendered surface)."
+    },
+    {
+      "id": "studio-browser-harness-uses-real-server",
+      "kind": "rule",
+      "sourceDecision": "ADR-0040",
+      "statement": "A Studio browser test must drive the unmodified Studio bundle against the real authentication and production routes, not a mock or a happy-dom stub."
     },
     {
       "id": "studio-is-one-shell",
