@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0048",
+  "title": "Bind Output transport authority to the Output credential, not an ambient session",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0022", "ADR-0029", "ADR-0037", "ADR-0039"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0048 under human principal @rodrigoteamx, on the 2026-08-23 directive to continue with the deferred /ws session-precedence slice from CHG-0046. This does not authorize automatic merge of CHG-0048.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0046 recorded a deferred unknown: an interactive Studio session cookie presented on the /ws upgrade takes precedence over Output authentication because the handler authenticates the session before any application frame and rejects a later authenticate.output with ALREADY_AUTHENTICATED, so an Output page opened in a browser holding a same-origin Studio session runs on session authority. CHG-0046 merged to main at 637d280def3cb6bcb6ebf1a5efd7b06cb40d79dd (PR 45/46 lineage) with that unknown deferred.",
+      "evidence": "CHG-0046 claims and server/src/handlers/websocket.ts at 637d280def3cb6bcb6ebf1a5efd7b06cb40d79dd.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The /ws transport is shared: the browser Output overlay (client/src/components/ProductionView.vue) sends authenticate.output as its first frame when its fragment carries an Output token, while the editor (editor/src/App.vue, editor/src/components/LayoutComposer.vue) and panel (panel/src/App.vue) send a channel or production subscribe as their first frame and rely on the Studio session cookie. The Studio shell itself does not connect to /ws; it drives production over REST.",
+      "evidence": "client, editor, panel and studio source at 637d280def3cb6bcb6ebf1a5efd7b06cb40d79dd.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Browser cookies are scoped by host, not by port or path, so a same-origin Output-and-Studio deployment, or local development, shares the session cookie across the Output page and Studio.",
+      "evidence": "RFC 6265 cookie scoping and the local development ports in client/vite.config.ts and studio/vite.config.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An Output connection's authority must be declared by its Output credential, not inherited from ambient browser state. Governed discovery therefore reordered the fix from removing session authentication on /ws (which the editor and panel legitimately use) to making authenticate.output override any session-derived authority, so the fix is a strict de-escalation that leaves interactive surfaces untouched.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23, ADR-0039, and the editor and panel first-frame subscribe behavior.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Treating authenticate.output as a de-escalation that overrides session authority, enrolls the socket for rotation, and fails closed on a bad token is the smallest correct fix that closes the credential-scoping leak for every credentialed Output connection without a client change and without weakening editor or panel session authority.",
+      "evidence": "The focused de-escalation, fail-closed, studio-preservation and rotation-retirement tests are the falsification mechanisms.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "A degenerate Output page loaded with no credential in its fragment sends no authenticate.output; if a same-origin Studio session cookie is present it is treated as an ordinary authenticated Studio connection. This is not a credentialed Output connection and is out of scope; a transport-level Output role declaration that would strip session authority even without a token is deferred.",
+      "evidence": "ADR-0039 scope and the Output client bootstrap behavior.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Whether a distinct Output transport identity (subprotocol or dedicated path) should replace the shared /ws endpoint remains unresolved and is deferred; this slice keeps the same-origin /ws derivation established by ADR-0037.",
+      "evidence": "ADR-0037 same-origin derivation and the deferred transport-identity question.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "An authenticate.output frame carrying a valid Output token on a connection that presents a valid Studio session cookie installs read-only, exact-Show Output authority, denies Preview and mutation, subscribes to Program, and is retired with policy code 1008 when the Output credential is rotated.",
+      "verification": "Focused WebSocket test with a cookie-bearing connection that declares Output intent, asserts Program-only scope and rotation retirement."
+    },
+    {
+      "id": "SC-002",
+      "statement": "An authenticate.output frame carrying an invalid or retired token on a connection that presents a valid Studio session cookie closes the connection and does not fall back to session authority.",
+      "verification": "Focused WebSocket test asserting the cookie-bearing connection closes on a bad Output token."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A connection that presents a Studio session cookie and never sends authenticate.output retains Studio authority for channel and production subscriptions, and a connection already authenticated as Output rejects a repeated authenticate.output with ALREADY_AUTHENTICATED.",
+      "verification": "Focused WebSocket tests for studio preservation and repeated-authentication rejection, plus the unchanged existing rotating-output-token test."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "ADR-0039 and CHG-0048 record authority, the shared-transport facts, the governed-discovery reorder, the de-escalation and fail-closed rules and the deferred scope before implementation.",
+      "evidence": "Schema-valid records and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "setupWebSocketHandler treats authenticate.output as a de-escalation that overrides session authority and enrols the socket for rotation, with no client change and no weakening of editor or panel session authority.",
+      "evidence": "Path-scoped implementation review of server/src/handlers/websocket.ts and unchanged client, editor and panel sources."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Focused tests cover de-escalation from a session-bearing connection, fail-closed on an invalid token, studio preservation, repeated-authentication rejection and rotation retirement, and the existing WebSocket authentication tests still pass.",
+      "evidence": "server/tests/unit/outputSessionPrecedence.test.ts and server/tests/unit/authHttp.test.ts."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+    }
+  ]
+}

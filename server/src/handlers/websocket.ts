@@ -76,11 +76,14 @@ export function setupWebSocketHandler(
     ws.on('message', (data: Buffer) => {
       try {
         const message: unknown = JSON.parse(data.toString());
-        if (!access) {
-          if (!isOutputAuthenticationMessage(message)) {
-            ws.close(1008, 'Output authentication required');
-            return;
-          }
+        // An authenticate.output frame declares Output intent and overrides any session-derived
+        // authority: the connection's authority comes from the page-scoped Output credential, never
+        // from an ambient Studio session cookie carried on the same-host /ws upgrade. This is a
+        // strict de-escalation (studio -> read-only output) and enrolls the socket for credential
+        // rotation, so a declared-Output connection can never inherit an interactive session. A
+        // connection already authenticated as output falls through to handleClientMessage, which
+        // rejects a repeated authenticate.output with ALREADY_AUTHENTICATED.
+        if (access?.kind !== 'output' && isOutputAuthenticationMessage(message)) {
           const authority = auth.authenticateOutputToken(message.token);
           if (!authority) {
             ws.close(1008, 'Output authentication failed');
@@ -96,6 +99,10 @@ export function setupWebSocketHandler(
             type: 'authentication.confirmed',
             access: 'output',
           } satisfies ServerMessage));
+          return;
+        }
+        if (!access) {
+          ws.close(1008, 'Output authentication required');
           return;
         }
         handleClientMessage(ws, message as ClientMessage, subscriptions, access, production);
