@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0051",
+  "title": "Open a created Show on its Production surface",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0040"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0051 under human principal @rodrigoteamx, on the 2026-08-23 directive to advance to the next frontier node after CHG-0050. This does not authorize automatic merge of CHG-0051.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-23 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0050 recorded AC-005 as unimplemented: creating a Show added it to the list without navigating, so OverlayKit did not open the Show on its Production surface as SPEC-0001 AC-005 specifies. This change closes that gap.",
+      "evidence": "CHG-0050 deferred unknown and studio/src/views/ShowsView.vue createShow before this change.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fix adds a router navigation to the created Show's Production route in the Studio create flow; the CHG-0049 browser harness proves the observable behavior end to end against the real server.",
+      "evidence": "studio/src/views/ShowsView.vue and server/tests/e2e/studioAuthoring.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: the AC-005 gap was a missing single-page navigation, not a deeper issue, so the slice is a small product fix plus a browser proof, and the harder Editor authoring criteria stay deferred.",
+      "evidence": "Governed-discovery reorder check on 2026-08-23 and the createShow implementation.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Navigating to /shows/:showId/production after create satisfies 'OverlayKit opens that Show on its Production surface with isolated resources'; the isolated-resource boundary is already enforced by the Show-scoped routes proven elsewhere.",
+      "evidence": "The browser proof that a created Show lands on its Production surface with its own workspace is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0051: the Studio create flow now routes to the created Show's Production surface, so creating a Show with valid metadata opens it on Production in a real browser (AC-005). The change is a five-line single-page navigation in ShowsView; the Editor authoring and Library criteria stay deferred.",
+      "evidence": "studio/src/views/ShowsView.vue, server/tests/e2e/studioAuthoring.test.ts (fails before the fix, passes after), the passing Studio unit suite and full server suite under npm run check, the CHG-0051 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-23.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds only the Studio create-flow navigation; no server or protocol behavior changes, the Studio unit tests and full server suite pass, and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0051 branch (studio/src/views/ShowsView.vue plus server/tests and governance) and the pull-request validate job.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "AC-006, AC-007 and AC-008 Editor authoring and Send to Preview, and AC-009 Library, remain unproven at the browser tier because they run through the iframed legacy Editor and a placeholder Library; they are deferred to successors that reuse the harness.",
+      "evidence": "studio/src/views/EditorView.vue and studio/src/views/LibraryView.vue.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Creating a Show with valid metadata opens it on its Production surface in a real browser, with the created Show's own workspace (AC-005).",
+      "verification": "Browser harness creates a Show and asserts the Production route, heading and the created Show name in the workspace."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The change adds only the Studio create-flow navigation; the existing Studio unit tests and the full server suite pass and no other product behavior changes.",
+      "verification": "Path-scoped review of studio/src/views/ShowsView.vue plus npm run check and the Studio unit suite."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0051 records the AC-005 closure and the deferred Editor and Library authoring criteria before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The Studio create flow navigates to the created Show's Production surface and a browser test proves the observable behavior.",
+      "evidence": "studio/src/views/ShowsView.vue and server/tests/e2e/studioAuthoring.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser test passes and the Studio unit tests and full server suite pass, with the OBS proof skipping on runners without OBS.",
+      "evidence": "npm run check, the Studio unit suite and the focused authoring run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

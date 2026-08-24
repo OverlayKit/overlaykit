@@ -1,12 +1,21 @@
 id: studio-authoring-browser-covered
-statement: The Studio authoring criteria (AC-005 open-on-create, AC-006/007/008 Editor Send-to-Preview, AC-009 Library) are proven at the browser tier or their product gaps are closed by successors.
+statement: AC-005 (creating a Show opens it on Production) is closed and proven at the browser tier; the Editor/Library authoring criteria (AC-006/007/008/009) remain for later successors.
 anchors:
   - path:studio/src/views/ShowsView.vue
-  - path:studio/src/views/EditorView.vue
+  - path:server/tests/e2e/studioAuthoring.test.ts
+  - path:.overlaykit/governance/changes/CHG-0051.json
 requires:
   promises:
     - studio-acs-browser-covered
   conditions: []
 fulfilled_when:
-  type: path-exists
-  path: server/tests/e2e/studioAuthoring.test.ts
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/e2e/studioAuthoring.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0051.json
+        matches: '"status": "implemented"'
