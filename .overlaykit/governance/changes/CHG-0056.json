@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0056",
   "title": "Create a Scene and open the Editor from New Scene",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,18 @@
       "kind": "assumption",
       "statement": "Routing New Scene through the create endpoint and asserting the Editor opens on the created Scene, which then appears on the Scenes surface, proves AC-006's browser-tier create-and-open behavior without a Template chooser.",
       "evidence": "server/tests/e2e/studioNewScene.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0056: choosing New Scene on the Studio Scenes surface creates a new independent Scene in the Show through the create endpoint and opens the Editor on it, and the Scene appears on the Scenes surface (AC-006 UI half), proven in a real browser. Template creation and Scene-id scoping stay deferred.",
+      "evidence": "studio/src/views/ScenesView.vue, server/tests/e2e/studioNewScene.test.ts (fails before the wiring, passes after), the passing Studio unit suite and full server suite under npm run check, the CHG-0056 pull-request Constitution run (all eight jobs), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is a twenty-five-line Studio Scenes surface edit; no server or protocol behavior changes and the OBS proof continues to skip where OBS is absent.",
+      "evidence": "git diff of the CHG-0056 branch and the pull-request validate job.",
       "blocking": false
     },
     {
@@ -88,7 +100,7 @@
     {
       "id": "DOD-004",
       "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
-      "evidence": "npm run governance:check, npm run check, npm run build, npm audit and git diff --check."
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, vue-tsc and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
     }
   ]
 }
