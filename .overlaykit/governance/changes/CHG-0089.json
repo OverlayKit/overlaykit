@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0089",
+  "title": "Consume the Take action in the Companion adapter",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0005", "ADR-0015", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0089 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale merge y a lo que sigue' — the adapter-side consumption of the Take action (AC-017 discovery and AC-018 request), completing the operator-facing Take from the Companion adapter's projection and request layers. This does not authorize automatic merge of CHG-0089.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-017 / AC-018, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "projectCompanionTakeActions(catalog) surfaces a Show-level Take action from the optional catalog.showActions sibling (filtering kind production.take) as a CompanionTakeActionDefinition; a catalog without the production:take scope yields no Take action. buildTakeCommandRequest(showId, execution) turns a Take intent into the exact device Take request — POST /api/device/shows/:showId/production/take with the Show id percent-encoded and a body of precisely { operationId, expectedPreviewRevision }. Both mirror the already-reviewed visibility projection and request builder, and Take rides only on showActions, never the visibility actions array.",
+      "evidence": "companion/src/take.ts; the visibility analogues companion/src/catalog.ts and companion/src/command.ts; server/src/routes/deviceControl.ts Take route as the contract source.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "These are pure, total projections and request construction with no I/O, parsing, or branching beyond the showActions filter — the same shape as the visibility project and build that were adversarially reviewed. The contract test and the type-checker cover them without a separate review; a catalog-driven test asserts the Take action appears iff showActions is present and that the request matches the route and body exactly.",
+      "evidence": "companion/tests/take.contract.test.ts; companion/src/take.ts (delegation and construction only).",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Additive to the @overlaykit/companion package; no server, protocol, or Studio change. This slice delivers the adapter Take projection and request only — dispatching the Take over the transport (a Take executor), registering the Take in the module and facade, durable/signed Take execution, and Scene/trigger actions remain deferred (frontier nodes adapter-take-consumption delivered; companion-catalog-take-trigger-actions holds the remainder).",
+      "evidence": "companion/src/take.ts (no transport dispatch); companion/src/index.ts exports; the deferred frontier nodes.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The adapter surfaces a Take action from a catalog that carries showActions and none from one that does not.",
+      "verification": "companion/tests/take.contract.test.ts asserts projectCompanionTakeActions over catalogs with and without the production:take scope."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The adapter builds the exact device Take request, percent-encoding the Show id and carrying only operationId and expectedPreviewRevision.",
+      "verification": "Tests assert the method, path, encoding, and the two body keys."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the adapter stays dependency-isolated.",
+      "verification": "npm run check and npm run build pass across all workspaces; companion depends only on @overlaykit/protocol."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0089 records the adapter Take projection and request and the deferred dispatch/module/durable residuals before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "projectCompanionTakeActions and buildTakeCommandRequest surface and construct the Take from the catalog and intent.",
+      "evidence": "companion/src/take.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A contract test proves Take discovery and request construction; the full check passes.",
+      "evidence": "companion/tests/take.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

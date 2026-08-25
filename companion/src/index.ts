@@ -1,5 +1,11 @@
 export type { CompanionActionDefinition, CompanionActionOption } from './types.js';
 export { projectCompanionActions } from './catalog.js';
+export type {
+  CompanionTakeActionDefinition,
+  TakeCommandRequest,
+  TakeExecution,
+} from './take.js';
+export { buildTakeCommandRequest, projectCompanionTakeActions } from './take.js';
 export type { CompanionAdapter, CompanionAdapterConfig, DiscoverResult } from './adapter.js';
 export { createCompanionAdapter } from './adapter.js';
 export type {

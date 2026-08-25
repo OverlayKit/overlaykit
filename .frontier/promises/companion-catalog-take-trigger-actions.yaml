@@ -1,13 +1,15 @@
 id: companion-catalog-take-trigger-actions
-statement: "REQ-INT-002 / AC-017 remainder — beyond Take discovery (catalog-take-http-discovery) and execution (catalog-take-execution): the adapter and module consuming the Take action to surface and run a Take, durable/signed/restart-safe device Take (routing through the signed command journal like executeDeviceVisibilityCommand for an audited ProductionCommandRecord/globalSequence and restart-durable idempotency), Scene activation and trigger (cue:execute) actions, and — only if a use case needs WS/offline frame discovery — frame-level Take via a coordinated DEVICE_CONTROL_CATALOG_VERSION/DEVICE_CONTROL_FRAME_VERSION bump. Deferred."
+statement: "REQ-INT-002 / AC-017 remainder — beyond Take discovery, execution, and adapter projection/request: dispatch the adapter Take over the transport (a Take executor) and register Take in the module action definitions and facade; durable/signed/restart-safe device Take (routing through the signed command journal like executeDeviceVisibilityCommand for an audited ProductionCommandRecord/globalSequence and restart-durable idempotency); and Scene activation and trigger (cue:execute) actions in the catalog. Deferred."
 anchors:
-  - path:companion/src/catalog.ts
+  - path:companion/src
   - path:server/src/services/SqliteProductionStateStore.ts
+  - path:protocol/src/control-action-catalog.ts
 requires:
   promises:
+    - adapter-take-consumption
     - catalog-take-execution
   conditions: []
 fulfilled_when:
   type: command-succeeds
-  name: companion-take-remainder
-  command: "grep -qrE 'production\\.take' companion/src"
+  name: companion-take-trigger-remainder
+  command: "grep -qE 'CUE_ACTION_KIND|SCENE_ACTION_KIND' protocol/src/control-action-catalog.ts"
