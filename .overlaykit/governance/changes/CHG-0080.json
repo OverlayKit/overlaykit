@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0080",
   "title": "Build the Control API visibility command from a discovered Companion action",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "The slice builds the request only; it does not send it. The HTTP transport (Bearer auth header, dispatch, retry, and interpreting the receipt/command/state response), the AC-018 state-feedback half, the core catalog extension for Take and triggers, and a runnable Companion module remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). The change is additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src/command.ts (no network client); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0080: buildVisibilityCommandRequest turns a discovered Companion action plus the operator toggle into the exact device visibility request — target-routed and percent-encoded path with a body of precisely visible, operationId, and expectedRevision — proven by a contract test that composes the real discovery projection with the builder (AC-018 command half). Sending the request, AC-018 feedback, the Take/trigger catalog extension, and a runnable module remain deferred as .frontier nodes.",
+      "evidence": "companion/src/command.ts and companion/tests/command.contract.test.ts; npm run check, the CHG-0080 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
