@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0069",
   "title": "Revoke an open Studio WebSocket on logout or session expiry",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "medium",
   "owner": "@rodrigoteamx",
@@ -55,6 +55,12 @@
       "kind": "inference",
       "statement": "A focused adversarial review found the change clean — no defects: re-validation runs before dispatch for every studio frame and never for output frames, the authenticate.output de-escalation runs first, refreshing the user each frame is idempotent (roles are frozen per session), the captured token is always the cookie that authenticated the upgrade, and the double-unsubscribe is idempotent and leak-free. Its one suggestion was applied: the logout test now revokes on a mutating frame (scene_activate), documenting that authority itself is revoked pre-dispatch.",
       "evidence": "server/src/handlers/websocket.ts and server/tests/unit/studioWebSocketRevocation.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0069: a Studio /ws socket is revoked (closed 1008) on its next frame after logout or session TTL expiry via per-frame session re-validation, so the authority captured at upgrade no longer outlives the session; the authenticate.output de-escalation path is unaffected. Proven for logout and expiry; revocation is on next action.",
+      "evidence": "server/src/handlers/websocket.ts, server/tests/unit/studioWebSocketRevocation.test.ts, the passing full server suite under npm run check, the CHG-0069 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
