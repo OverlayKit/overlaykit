@@ -216,8 +216,15 @@ export class SqliteDeviceCredentialStore {
     let database: DatabaseSync | null = null;
     try {
       await fs.mkdir(path.dirname(this.databasePath), { recursive: true, mode: 0o700 });
+      // mkdir's mode is ignored for a pre-existing directory, so tighten it explicitly — this also
+      // protects the transient -journal sidecar, which is created under the process umask.
+      await this.restrictPath(path.dirname(this.databasePath), 0o700);
       const legacyRaw = await readOptional(this.legacyFilePath);
       database = this.openDatabase(this.databasePath);
+      // Restrict the authority file to owner-only BEFORE any secret (the Ed25519 signing key and the
+      // sealed verifiers) is written and before any fallible init step, so it is never world-readable
+      // — not during init, and not if a later step throws before the final chmod.
+      await this.restrictPath(this.databasePath, 0o600);
       this.configure(database);
       this.initializeSchema(database, legacyRaw);
       this.assertIntegrity(database);
@@ -225,9 +232,8 @@ export class SqliteDeviceCredentialStore {
       this.database = database;
       this.prepareStatements(database);
       if (legacyRaw !== null) await this.archiveCommittedLegacy(database, legacyRaw);
-      await fs.chmod(this.databasePath, 0o600).catch((error: NodeJS.ErrnoException) => {
-        if (process.platform !== 'win32') throw error;
-      });
+      // Belt-and-suspenders: re-assert owner-only perms after the legacy archive step.
+      await this.restrictPath(this.databasePath, 0o600);
     } catch (error) {
       this.selectStatement = null;
       this.listByShowStatement = null;
@@ -505,6 +511,13 @@ export class SqliteDeviceCredentialStore {
       );
     }
     return statement;
+  }
+
+  // chmod a path to owner-only, tolerating platforms (Windows) where POSIX permissions do not apply.
+  private async restrictPath(target: string, mode: number): Promise<void> {
+    await fs.chmod(target, mode).catch((error: NodeJS.ErrnoException) => {
+      if (process.platform !== 'win32') throw error;
+    });
   }
 
   private requiredDatabase(): DatabaseSync {
