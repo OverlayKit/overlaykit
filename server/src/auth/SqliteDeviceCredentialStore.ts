@@ -23,6 +23,10 @@ import {
   type SqliteProductionStateStoreOptions,
 } from '../services/SqliteProductionStateStore';
 import {
+  initializeDeviceCredentialEventSchema,
+  SqliteDeviceCredentialEventLog,
+} from './SqliteDeviceCredentialEventLog';
+import {
   DEVICE_SIGNING_SCHEMA_VERSION,
   DeviceSigningIdentityError,
   initializeDeviceSigningIdentitySchema,
@@ -286,6 +290,12 @@ export class SqliteDeviceCredentialStore {
     });
   }
 
+  createCredentialEventLog(): SqliteDeviceCredentialEventLog {
+    return new SqliteDeviceCredentialEventLog({
+      database: () => this.requiredDatabase(),
+    });
+  }
+
   getSigningAuthority(): SqliteDeviceSigningAuthority {
     if (!this.database || !this.signingAuthority) {
       throw new DeviceCredentialStoreError(
@@ -374,6 +384,7 @@ export class SqliteDeviceCredentialStore {
       `);
       initializeDeviceTransitionLedgerSchema(database);
       initializeProductionStateSchema(database);
+      initializeDeviceCredentialEventSchema(database);
       const userVersion = database.prepare('PRAGMA user_version').get() as
         { user_version?: number } | undefined;
       const previousSchemaVersion = userVersion?.user_version ?? 0;

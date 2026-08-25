@@ -398,6 +398,14 @@
       "id": "ADR-0040",
       "supersededBy": null,
       "title": "Studio user flows are verified at the browser tier by a real-server harness"
+    },
+    {
+      "contentHash": "82586f7302eaaa4d89c1cd432156ac55a4bc1060e199e2d13363854cc463bc73",
+      "declaredStatus": "accepted",
+      "effectiveStatus": "accepted",
+      "id": "ADR-0041",
+      "supersededBy": null,
+      "title": "Device-credential lifecycle events are an append-only local audit log"
     }
   ],
   "engineVersion": "overlaykit-governance-host/v2",
@@ -532,10 +540,10 @@
     }
   ],
   "mechanismsHash": "9c3da015cdacfbb012a076420bfe1eb62e81b533eb6d853e1f557d70c070a671",
-  "planHash": "e166a64dcc6244bbe8e631cd78c1c50f518203e73204b55564785990205fc921",
-  "profileHash": "a6f7dee382fb58eab4dbe105b33a9f6201d74d5077aff13ba79cfa36c2f2d171",
+  "planHash": "57fc887cdfead9b9d3ae0c675f2e48cd7a7e0c65d09441fb63d1719155a43861",
+  "profileHash": "7eaf4eb63f90dfb79e8cd43910ccad3bb6c6c8023597f7239a59a8d3d451a7bb",
   "profileName": "overlaykit-oss",
-  "profileVersion": "2.36.0",
+  "profileVersion": "2.37.0",
   "rules": [
     {
       "id": "accepted-decisions-are-immutable",
@@ -1118,6 +1126,48 @@
       "kind": "rule",
       "sourceDecision": "ADR-0027",
       "statement": "Issue, rotation, revocation, and effective expiration must publish immutable post-commit authority or null to current affected listeners before the corresponding Owner mutation may report success."
+    },
+    {
+      "id": "device-credential-event-carries-no-secret",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "A device-credential lifecycle event may record only credentialId, showId, kind, actor, generation, timestamp and sequence, and must never contain a bearer token, the sealed secret verifier, or any other secret material."
+    },
+    {
+      "id": "device-credential-event-claims-are-bounded",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "The local append-only event log may not be represented as a signed, replicated, cryptographically chained, device-attributed, or per-field-diff audit record; those require separate evidence."
+    },
+    {
+      "id": "device-credential-event-is-append-only",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "The device-credential event log must reject updates and deletes at the storage layer so recorded history cannot be rewritten."
+    },
+    {
+      "id": "device-credential-event-is-owner-and-show-scoped",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "Device-credential events must be readable only by the owner and only for their Show, through the same owner-gated, Show-scoped router as the other credential routes."
+    },
+    {
+      "id": "device-credential-event-orders-by-sequence",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "Device-credential event history must be ordered by a monotonic, clock-independent sequence assigned at record time rather than by the event timestamp."
+    },
+    {
+      "id": "device-credential-event-recording-is-best-effort-after-commit",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "Recording a device-credential event must occur after the credential mutation has committed and must never fail or roll back that mutation; a failed append is a background error and the log is an after-the-fact audit trail, not a transactional guarantee."
+    },
+    {
+      "id": "device-credential-event-records-the-acting-owner",
+      "kind": "rule",
+      "sourceDecision": "ADR-0041",
+      "statement": "Each device-credential event must record its actor as the authenticated owner principal that performed the mutation."
     },
     {
       "id": "device-credential-legacy-json-is-migration-input-only",

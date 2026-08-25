@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "overlaykit-governance-decision/v1",
+  "id": "ADR-0041",
+  "title": "Device-credential lifecycle events are an append-only local audit log",
+  "status": "accepted",
+  "date": "2026-08-24",
+  "supersedes": null,
+  "governs": [
+    "device-credential-event-recording",
+    "device-credential-event-secrecy",
+    "device-credential-event-ordering",
+    "device-credential-event-scope",
+    "device-credential-event-durability"
+  ],
+  "context": "CHG-0061 through CHG-0064 built the device-credential lifecycle on the Studio Integrations surface (issue, list, rotate, revoke) and a derived per-credential lifecycle summary. CHG-0064's governed close proved that a summary derived from current credential state is lossy for auditing: the generation counter conflates rotations and the revocation, a single updatedAt loses per-rotation timestamps, and issuedBy records only the issuer rather than who performed each later change. That limit was the recorded evidence that a per-event audit trail requires its own persisted record, deferred as an ADR candidate (frontier node persisted-credential-event-log). Discovery for CHG-0065 bounded the first slice to a server-side, append-only local event log proven at the HTTP and storage tiers, with the UI timeline deferred, mirroring how AC-016 itself was proven server-first (CHG-0060) before its UI (CHG-0061). The single serialized choke point for issue, rotate and revoke is the ObservableDeviceCredentialLifecycle wrapper, which already runs each mutation inside an exclusive mutex and receives the acting owner principal; the SqliteDeviceCredentialStore already owns one exclusive SQLite connection and hosts append-only sub-stores (the device transition ledger) whose pattern this log copies. The deterministic-clock test harness fixes now() at a constant, so an event log cannot order history by timestamp and must use a monotonic, clock-independent sequence. The slice was proven by an HTTP test that issues, rotates and revokes one credential and reads three ordered events carrying the acting owner and no secret material, and by a storage test that the append-only triggers reject updates and deletes and that ordering follows the rowid sequence when timestamps collide.",
+  "decision": "OverlayKit records each successful device-credential issue, rotate and revoke as one immutable event in a local append-only log. An event carries only lifecycle metadata: the credentialId, the showId, the kind (issued, rotated or revoked), the actor as the authenticated owner principal that performed the mutation, the resulting credential generation, a timestamp, and a monotonic clock-independent sequence assigned by storage. An event must never contain a bearer token or the sealed secret verifier or any other secret material. The log is append-only: updates and deletes are rejected at the storage layer. History is ordered by the monotonic sequence, not by the timestamp, so ordering stays deterministic when events share a clock reading. Recording happens after the credential mutation has committed, inside the same serialized lifecycle section, and is best effort: a failed append is surfaced as a background error and must never fail or roll back the credential mutation. The log is therefore an after-the-fact audit trail rather than a transactional part of the mutation. Events are readable only by the owner and only for their Show, over the owner-gated device-credentials router with the same Show guards as the sibling routes. This log is local to the single-host runtime and is tamper-resistant only through its append-only storage triggers; it is not signed, replicated, cryptographically chained, or attributed to devices or non-owner principals, and it does not capture per-field diffs of what a rotation changed. Those guarantees require separate evidence.",
+  "consequences": [
+    "An owner can audit who issued, rotated or revoked which device credential and in what order, beyond what the derived per-credential summary could show.",
+    "Because recording is best effort after commit, the log can under-record a tail event if the process fails between the mutation and the append, but it never over-records and never rewrites earlier history.",
+    "Ordering by a monotonic sequence keeps history deterministic even under a fixed or coarse clock, at the cost of the sequence rather than the timestamp being the authoritative order.",
+    "Events attribute each action to the acting owner principal only; they do not attribute an action to a device, a delegated actor, or a non-owner, and the current model performs every mutation as the owner.",
+    "The log is single-host and local: it is not replicated or signed, so it defends against in-database rewrite through append-only triggers but not against a compromised host or storage medium.",
+    "The log records the kind and resulting generation of each change but not the specific fields a rotation altered; a per-field change history would need separate evidence."
+  ],
+  "policies": [
+    {
+      "kind": "rule",
+      "id": "device-credential-event-carries-no-secret",
+      "statement": "A device-credential lifecycle event may record only credentialId, showId, kind, actor, generation, timestamp and sequence, and must never contain a bearer token, the sealed secret verifier, or any other secret material."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-is-append-only",
+      "statement": "The device-credential event log must reject updates and deletes at the storage layer so recorded history cannot be rewritten."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-orders-by-sequence",
+      "statement": "Device-credential event history must be ordered by a monotonic, clock-independent sequence assigned at record time rather than by the event timestamp."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-records-the-acting-owner",
+      "statement": "Each device-credential event must record its actor as the authenticated owner principal that performed the mutation."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-is-owner-and-show-scoped",
+      "statement": "Device-credential events must be readable only by the owner and only for their Show, through the same owner-gated, Show-scoped router as the other credential routes."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-recording-is-best-effort-after-commit",
+      "statement": "Recording a device-credential event must occur after the credential mutation has committed and must never fail or roll back that mutation; a failed append is a background error and the log is an after-the-fact audit trail, not a transactional guarantee."
+    },
+    {
+      "kind": "rule",
+      "id": "device-credential-event-claims-are-bounded",
+      "statement": "The local append-only event log may not be represented as a signed, replicated, cryptographically chained, device-attributed, or per-field-diff audit record; those require separate evidence."
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0065",
+  "title": "Persist an append-only device-credential lifecycle event log",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "medium",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040",
+    "ADR-0041"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0065 under human principal @rodrigoteamx, on the 2026-08-24 directive to build the next frontier node after CHG-0064 ('dale al merge y a lo que sigue'), activating ADR-0041. This does not authorize automatic merge of CHG-0065.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0064's governed close recorded that a derived per-credential summary is lossy for auditing and deferred a persisted per-event log as an ADR candidate. CHG-0065 activates that decision as ADR-0041 with an append-only local event log.",
+      "evidence": "CHG-0064 claims and frontier node persisted-credential-event-log; .overlaykit/governance/decisions/ADR-0041.json.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds an append-only SQLite event store (device_credential_events with a rowid sequence, a show_id index, a CHECK on kind, and append-only UPDATE/DELETE triggers), records one event on each successful issue, rotate and revoke through the ObservableDeviceCredentialLifecycle wrapper (actor = the acting owner principal, generation off the mutated credential, timestamp from the injected clock), exposes it on the runtime, and serves it over a new owner-gated, Show-scoped GET events route. The event carries only metadata — never a token or the sealed verifier.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialEventLog.ts, server/src/auth/ObservableDeviceCredentialLifecycle.ts, server/src/auth/DeviceCredentialRuntime.ts, server/src/auth/SqliteDeviceCredentialStore.ts, server/src/routes/deviceCredentials.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work to prove the persistence and security contract at the HTTP and storage tiers first, deferring the UI timeline — mirroring AC-016's server-first proof (CHG-0060) before its UI (CHG-0061). The load-bearing risk is a new persisted store leaking secrets or being rewritable, not the timeline.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; the metadata-only assertions and append-only storage test.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Issuing, rotating and revoking one credential and reading three append-only events (kinds issued, rotated, revoked; ordered by a clock-independent sequence; actor = the authenticated owner; no secret by value), plus a storage test that updates and deletes are rejected and that ordering follows the sequence when timestamps collide, proves the persisted event log.",
+      "evidence": "server/tests/unit/deviceCredentialsHttp.test.ts and server/tests/unit/deviceCredentialEventLog.test.ts are the falsification mechanisms.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Recording is best-effort after commit — a failed append is logged via onBackgroundError and never fails the credential mutation, so a crash between the mutation and the append can drop the tail event; the log is an after-the-fact audit trail. It is local, unsigned, unreplicated, records the acting owner only, and captures no per-field diffs, per ADR-0041.",
+      "evidence": "ADR-0041 policies; server/src/auth/DeviceCredentialRuntime.ts onBackgroundError wiring; server/tests/unit/observableDeviceCredentialLifecycle.test.ts best-effort test.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An adversarial diverse-lens review (secret-leak, authorization, recording-integrity, persistence-correctness, test-adequacy) surfaced ten confirmed findings — including a high-severity phantom 'revoked' event on an idempotent re-revoke, silent dropping of failed appends, prepared-statement caching across a reopened connection, a missing CHECK on the kind column, and several test gaps — all fixed before handoff; five further findings were refuted.",
+      "evidence": "The idempotent-revoke guard in ObservableDeviceCredentialLifecycle.revoke, the onBackgroundError wiring and kind CHECK, the reopen-safe statements in SqliteDeviceCredentialEventLog, and the new best-effort, re-revoke, ordering, actor and events-null-fallback tests.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0065: device-credential issue, rotate and revoke append to a local append-only lifecycle event log carrying only metadata (credential, Show, kind, acting owner, generation, timestamp, sequence), owner-only and Show-scoped, ordered by a clock-independent sequence and tamper-resistant via append-only triggers, activating ADR-0041 and proven at the HTTP and storage tiers. An adversarial review's ten confirmed findings — including a phantom revoke event — were fixed. Recording is best-effort after commit and the log is unsigned and local; the UI timeline stays deferred.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialEventLog.ts, server/tests/unit/deviceCredentialEventLog.test.ts, server/tests/unit/deviceCredentialsHttp.test.ts, the passing full server suite under npm run check, the CHG-0065 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Surfacing the event log as a lifecycle timeline on the Studio Integrations surface remains deferred to a successor.",
+      "evidence": "server/src/routes/deviceCredentials.ts serves the events; studio/src/views/IntegrationsView.vue does not yet render them.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only (persistence, recording, route and tests) plus ADR-0041 and the profile bump to 2.37.0; no Studio or protocol code changes.",
+      "evidence": "git diff of the CHG-0065 branch.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Each successful issue, rotate and revoke appends one append-only event carrying the credential, Show, kind, acting owner, generation and timestamp, and no secret; an idempotent re-revoke appends nothing.",
+      "verification": "The HTTP test drives the lifecycle and asserts three ordered events with the owner as actor and no secret by value, then a second revoke leaves the log unchanged at three events."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The event log is owner-only, Show-scoped, ordered by a clock-independent sequence, and rejects rewrites.",
+      "verification": "The HTTP test asserts 401 unauthenticated, 403 non-owner, 404 missing and 409 archived, and Show partitioning; the storage test asserts UPDATE and DELETE are rejected and that ordering follows the sequence when timestamps collide."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and recording never fails a mutation.",
+      "verification": "The full server suite passes; a unit test asserts a failing recorder is surfaced via onBackgroundError without failing issue, rotate or revoke."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0065 records the persisted event-log slice — the append-only contract, secret-freeness, owner and Show scoping, the best-effort boundary, and the deferred UI timeline — and activates ADR-0041 before implementation.",
+      "evidence": "Schema-valid record, ADR-0041, and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "An append-only event store records issue, rotate and revoke, and a new owner-gated route serves the events.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialEventLog.ts and server/src/routes/deviceCredentials.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "HTTP and storage tests prove the append-only, ordered, metadata-only, owner-scoped log, and the full server suite passes.",
+      "evidence": "npm run check and the CHG-0065 pull-request Constitution run."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff, and the adversarial review's confirmed findings are resolved.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

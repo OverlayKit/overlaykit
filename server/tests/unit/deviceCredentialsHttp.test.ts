@@ -5,6 +5,7 @@ import path from 'node:path';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseDeviceTrustBundle } from '@overlaykit/protocol/device-trust';
+import { MemoryDeviceCredentialStore } from '@overlaykit/protocol/device-credential';
 import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { createDeviceCredentialCryptoOptions } from '../../src/auth/DeviceCredentialCrypto';
@@ -49,6 +50,11 @@ class TestStorage implements Storage {
   async getAction(_tenantId: string, _id: string): Promise<ActionRecord | null> { return null; }
   async saveAction(_record: ActionRecord): Promise<void> {}
   async deleteAction(_tenantId: string, _id: string): Promise<boolean> { return false; }
+}
+
+// A device-credential store with no SQLite backing, so the runtime exposes no event log.
+class EventlessDeviceCredentialStore extends MemoryDeviceCredentialStore {
+  async init(): Promise<void> {}
 }
 
 function show(id: string, archivedAt: number | null = null): ShowRecord {
@@ -238,6 +244,9 @@ describe('Owner device credential HTTP lifecycle', () => {
       .get('/shows/show-1/integrations/device-credentials')
       .expect(403);
     await request(app)
+      .get('/shows/show-1/integrations/device-credentials/events')
+      .expect(403);
+    await request(app)
       .post('/shows/show-1/integrations/device-credentials')
       .send({})
       .expect(403);
@@ -378,5 +387,168 @@ describe('Owner device credential HTTP lifecycle', () => {
     });
     expect(JSON.stringify(afterRevoke.body)).not.toContain('sealedSecret');
     expect(JSON.stringify(afterRevoke.body)).not.toContain('okdv1$sha256$');
+  });
+
+  it('records an append-only lifecycle event log with actor and no secret material', async () => {
+    let entropyByte = 0;
+    const databasePath = path.join(directory, 'device-credentials.sqlite');
+    const runtime = await createDeviceCredentialRuntime({
+      store: new SqliteDeviceCredentialStore({ databasePath }),
+      lifecycleOptions: createDeviceCredentialCryptoOptions({
+        now: () => 1_000,
+        primitives: {
+          randomUUID: () => 'device-1',
+          randomBytes: (size) => new Uint8Array(size).fill(++entropyByte),
+        },
+      }),
+    });
+    runtimes.push(runtime);
+    const auth = new AuthService(new MemoryAuthStore());
+    await auth.init();
+    const storage = new TestStorage();
+    storage.shows.set('show-1', show('show-1'));
+    storage.shows.set('other-show', show('other-show'));
+    storage.shows.set('archived-show', show('archived-show', 2_000));
+    const app = createApp({ auth, dataStorage: storage, deviceCredentials: runtime });
+    const agent = request.agent(app);
+
+    // The events route shares the owner + Show guards.
+    await request(app)
+      .get('/api/shows/show-1/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(401);
+    const setup = await agent.post('/api/auth/setup').set('Origin', ORIGIN).send(OWNER).expect(201);
+    const ownerId = setup.body.data.session.user.id as string;
+    await agent
+      .get('/api/shows/missing/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(404);
+    await agent
+      .get('/api/shows/archived-show/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(409);
+
+    // No lifecycle activity yet.
+    const empty = await agent
+      .get('/api/shows/show-1/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(empty.body.data.events).toEqual([]);
+
+    // Drive the full lifecycle on one credential.
+    const issued = await agent
+      .post('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .send({
+        label: 'Stream Deck',
+        targets: ['program'],
+        controlIds: ['lower-third.visibility'],
+        scopes: ['component.visibility:write'],
+        expiresAt: 10_000,
+      })
+      .expect(201);
+    const token = issued.body.data.token as string;
+    await agent
+      .post('/api/shows/show-1/integrations/device-credentials/device-1/rotate')
+      .set('Origin', ORIGIN)
+      .send({ expiresAt: 20_000 })
+      .expect(201);
+    await agent
+      .delete('/api/shows/show-1/integrations/device-credentials/device-1')
+      .set('Origin', ORIGIN)
+      .expect(200);
+
+    const response = await agent
+      .get('/api/shows/show-1/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(response.headers['cache-control']).toContain('no-store');
+    const log = response.body.data.events as Array<{
+      sequence: number;
+      kind: string;
+      generation: number;
+      actor: string;
+      credentialId: string;
+      showId: string;
+      at: number;
+    }>;
+    expect(log).toHaveLength(3);
+    // Clock-independent, append-only order: the fixed clock makes every 'at' equal, so ordering
+    // comes from the monotonic rowid sequence, not the timestamp.
+    expect(log.map((event) => event.sequence)).toEqual([1, 2, 3]);
+    expect(log.map((event) => event.kind)).toEqual(['issued', 'rotated', 'revoked']);
+    expect(log.map((event) => event.generation)).toEqual([1, 2, 3]);
+    for (const event of log) {
+      // The actor is the authenticated owner that performed the mutation.
+      expect(event).toMatchObject({ credentialId: 'device-1', showId: 'show-1', at: 1_000, actor: ownerId });
+    }
+
+    // The audit log carries no secret material.
+    const persisted = await runtime.store.get('device-1');
+    const logJson = JSON.stringify(response.body);
+    expect(logJson).not.toContain('sealedSecret');
+    expect(logJson).not.toContain('okdv1$sha256$');
+    expect(logJson).not.toContain(persisted?.sealedSecret ?? 'sealed-secret-missing');
+    expect(logJson).not.toContain('ok_device_');
+    expect(logJson).not.toContain(token);
+
+    // Show-scoped: another Show's log is empty.
+    const otherLog = await agent
+      .get('/api/shows/other-show/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(otherLog.body.data.events).toEqual([]);
+
+    // A retried revoke is an idempotent no-op and must NOT append a phantom event: the log stays
+    // exactly [issued, rotated, revoked].
+    await agent
+      .delete('/api/shows/show-1/integrations/device-credentials/device-1')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    const afterRetry = await agent
+      .get('/api/shows/show-1/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(afterRetry.body.data.events).toHaveLength(3);
+    expect(afterRetry.body.data.events.map((event: { kind: string }) => event.kind)).toEqual([
+      'issued',
+      'rotated',
+      'revoked',
+    ]);
+  });
+
+  it('serves an empty event log when the runtime has no event store', async () => {
+    const runtime = await createDeviceCredentialRuntime({
+      store: new EventlessDeviceCredentialStore(),
+      lifecycleOptions: createDeviceCredentialCryptoOptions({
+        now: () => 1_000,
+        primitives: { randomUUID: () => 'device-1', randomBytes: (size) => new Uint8Array(size).fill(1) },
+      }),
+    });
+    runtimes.push(runtime);
+    expect(runtime.events).toBeNull();
+    const auth = new AuthService(new MemoryAuthStore());
+    await auth.init();
+    const storage = new TestStorage();
+    storage.shows.set('show-1', show('show-1'));
+    const app = createApp({ auth, dataStorage: storage, deviceCredentials: runtime });
+    const agent = request.agent(app);
+    await agent.post('/api/auth/setup').set('Origin', ORIGIN).send(OWNER).expect(201);
+    await agent
+      .post('/api/shows/show-1/integrations/device-credentials')
+      .set('Origin', ORIGIN)
+      .send({
+        label: 'Stream Deck',
+        targets: ['program'],
+        controlIds: ['lower-third.visibility'],
+        scopes: ['component.visibility:write'],
+        expiresAt: 10_000,
+      })
+      .expect(201);
+    const events = await agent
+      .get('/api/shows/show-1/integrations/device-credentials/events')
+      .set('Origin', ORIGIN)
+      .expect(200);
+    expect(events.body.data.events).toEqual([]);
   });
 });

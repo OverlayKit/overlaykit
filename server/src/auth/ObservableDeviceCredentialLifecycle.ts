@@ -9,6 +9,10 @@ import type {
 } from '@overlaykit/protocol/device-credential' with { 'resolution-mode': 'import' };
 import type { DeviceAuthorityObservationSource } from '../services/DeviceConnectionAuthorityMonitor';
 import type {
+  DeviceCredentialEventInput,
+  DeviceCredentialEventKind,
+} from './SqliteDeviceCredentialEventLog';
+import type {
   DeviceCredentialLifecyclePort,
   InitializableDeviceCredentialStore,
 } from './DeviceCredentialRuntime';
@@ -44,6 +48,9 @@ export interface ObservableDeviceCredentialLifecycleOptions {
   readonly store: InitializableDeviceCredentialStore;
   readonly now?: () => number;
   readonly onBackgroundError?: (error: unknown) => void;
+  // Best-effort append of a lifecycle event after each successful mutation. A failure here is
+  // routed to onBackgroundError and never fails the credential mutation itself.
+  readonly recordEvent?: (event: DeviceCredentialEventInput) => void | Promise<void>;
 }
 
 export class ObservableDeviceCredentialLifecycle
@@ -52,6 +59,7 @@ implements DeviceCredentialLifecyclePort, DeviceAuthorityObservationSource {
   private readonly store: InitializableDeviceCredentialStore;
   private readonly now: () => number;
   private readonly onBackgroundError: (error: unknown) => void;
+  private readonly recordEvent?: (event: DeviceCredentialEventInput) => void | Promise<void>;
   private readonly listeners = new Map<string, Set<AuthorityListener>>();
   private readonly expirationTimers = new Map<string, ExpirationTimer>();
   private queue: Promise<void> = Promise.resolve();
@@ -62,6 +70,28 @@ implements DeviceCredentialLifecyclePort, DeviceAuthorityObservationSource {
     this.store = options.store;
     this.now = options.now ?? Date.now;
     this.onBackgroundError = options.onBackgroundError ?? (() => undefined);
+    this.recordEvent = options.recordEvent;
+  }
+
+  private async recordLifecycleEvent(
+    kind: DeviceCredentialEventKind,
+    owner: DeviceCredentialOwner,
+    credential: DeviceCredential,
+  ): Promise<void> {
+    const recordEvent = this.recordEvent;
+    if (!recordEvent) return;
+    try {
+      await recordEvent({
+        credentialId: credential.credentialId,
+        showId: credential.showId,
+        kind,
+        actor: owner.principalId,
+        generation: credential.generation,
+        at: this.now(),
+      });
+    } catch (error) {
+      this.onBackgroundError(error);
+    }
   }
 
   isAvailable(): boolean {
@@ -98,6 +128,7 @@ implements DeviceCredentialLifecyclePort, DeviceAuthorityObservationSource {
   ): Promise<IssuedDeviceCredential> {
     return this.exclusive(async () => {
       const issued = await this.lifecycle.issue(owner, input);
+      await this.recordLifecycleEvent('issued', owner, issued.credential);
       const authority = immutableAuthority(issued.credential);
       this.scheduleExpiration(authority);
       await this.publish(authority.credentialId, authority);
@@ -112,6 +143,7 @@ implements DeviceCredentialLifecyclePort, DeviceAuthorityObservationSource {
   ): Promise<IssuedDeviceCredential> {
     return this.exclusive(async () => {
       const issued = await this.lifecycle.rotate(owner, credentialId, input);
+      await this.recordLifecycleEvent('rotated', owner, issued.credential);
       const authority = immutableAuthority(issued.credential);
       this.scheduleExpiration(authority);
       await this.publish(authority.credentialId, authority);
@@ -121,7 +153,14 @@ implements DeviceCredentialLifecyclePort, DeviceAuthorityObservationSource {
 
   revoke(owner: DeviceCredentialOwner, credentialId: string): Promise<DeviceCredential> {
     return this.exclusive(async () => {
+      // Protocol revoke is idempotent: revoking an already-revoked credential is a no-op that
+      // returns the current record without a state change. Only record when this call actually
+      // retires an active credential, so a retried DELETE cannot append a phantom 'revoked' event.
+      const before = await this.store.get(credentialId);
       const credential = await this.lifecycle.revoke(owner, credentialId);
+      if (before && before.revokedAt === null) {
+        await this.recordLifecycleEvent('revoked', owner, credential);
+      }
       this.cancelExpiration(credential.credentialId);
       await this.publish(credential.credentialId, null);
       return credential;

@@ -117,6 +117,18 @@ export function createDeviceCredentialsRouter(
     }
   });
 
+  router.get('/shows/:showId/integrations/device-credentials/events', async (req, res) => {
+    try {
+      if (!(await requireActiveShow(storage, req.params.showId, res))) return;
+      // Append-only lifecycle events (ADR-0041) carry only metadata — no token, no sealed verifier.
+      const events = runtime.events ? await runtime.events.listByShow(req.params.showId) : [];
+      noStore(res);
+      res.json({ data: { events } });
+    } catch (error) {
+      sendDeviceError(res, error);
+    }
+  });
+
   router.post('/shows/:showId/integrations/device-credentials', async (req, res) => {
     try {
       if (!(await requireActiveShow(storage, req.params.showId, res))) return;

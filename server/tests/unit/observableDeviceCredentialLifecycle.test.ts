@@ -5,6 +5,7 @@ import {
 } from '@overlaykit/protocol/device-credential';
 import { createDeviceCredentialCryptoOptions } from '../../src/auth/DeviceCredentialCrypto';
 import { ObservableDeviceCredentialLifecycle } from '../../src/auth/ObservableDeviceCredentialLifecycle';
+import type { DeviceCredentialEventInput } from '../../src/auth/SqliteDeviceCredentialEventLog';
 import { DeviceConnectionAuthorityCoordinator } from '../../src/services/DeviceConnectionAuthorityCoordinator';
 import { DeviceConnectionAuthorityMonitor } from '../../src/services/DeviceConnectionAuthorityMonitor';
 
@@ -207,5 +208,69 @@ describe('ObservableDeviceCredentialLifecycle', () => {
     expect(coordinator.isEffective(lease)).toBe(false);
     await vi.waitFor(() => expect(close).toHaveBeenCalledWith('authority.changed'));
     await lifecycle.close();
+  });
+});
+
+describe('ObservableDeviceCredentialLifecycle event recording', () => {
+  const clock = () => 1_000;
+
+  function eventfulHarness(
+    recordEvent: (event: DeviceCredentialEventInput) => void | Promise<void>,
+  ) {
+    const store = new InitializableMemoryStore();
+    const onBackgroundError = vi.fn();
+    const persisted = new DeviceCredentialLifecycle(
+      store,
+      createDeviceCredentialCryptoOptions({ now: clock }),
+    );
+    const lifecycle = new ObservableDeviceCredentialLifecycle({
+      lifecycle: persisted,
+      store,
+      now: clock,
+      recordEvent,
+      onBackgroundError,
+    });
+    return { lifecycle, onBackgroundError };
+  }
+
+  it('records issued, rotated and revoked with the acting owner and generation', async () => {
+    const events: DeviceCredentialEventInput[] = [];
+    const { lifecycle } = eventfulHarness((event) => {
+      events.push(event);
+    });
+    const issued = await lifecycle.issue(owner, issueInput(2_000));
+    const credentialId = issued.credential.credentialId;
+    await lifecycle.rotate(owner, credentialId, { expiresAt: 3_000 });
+    await lifecycle.revoke(owner, credentialId);
+    expect(events.map((event) => event.kind)).toEqual(['issued', 'rotated', 'revoked']);
+    expect(events.map((event) => event.generation)).toEqual([1, 2, 3]);
+    expect(events.every((event) => event.actor === 'owner-1')).toBe(true);
+    expect(events.every((event) => event.credentialId === credentialId)).toBe(true);
+    expect(events.every((event) => event.at === 1_000)).toBe(true);
+  });
+
+  it('does not record a phantom event for an idempotent re-revoke', async () => {
+    const events: DeviceCredentialEventInput[] = [];
+    const { lifecycle } = eventfulHarness((event) => {
+      events.push(event);
+    });
+    const issued = await lifecycle.issue(owner, issueInput(2_000));
+    await lifecycle.revoke(owner, issued.credential.credentialId);
+    await lifecycle.revoke(owner, issued.credential.credentialId);
+    expect(events.map((event) => event.kind)).toEqual(['issued', 'revoked']);
+  });
+
+  it('surfaces a failed record via onBackgroundError without failing the mutation', async () => {
+    const { lifecycle, onBackgroundError } = eventfulHarness(() =>
+      Promise.reject(new Error('event store down')),
+    );
+    const issued = await lifecycle.issue(owner, issueInput(2_000));
+    expect(issued.token).toMatch(/^ok_device_/);
+    await expect(
+      lifecycle.rotate(owner, issued.credential.credentialId, { expiresAt: 3_000 }),
+    ).resolves.toBeDefined();
+    await expect(lifecycle.revoke(owner, issued.credential.credentialId)).resolves.toBeDefined();
+    expect(onBackgroundError).toHaveBeenCalledTimes(3);
+    expect(onBackgroundError.mock.calls[0][0]).toBeInstanceOf(Error);
   });
 });
