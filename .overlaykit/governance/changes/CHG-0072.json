@@ -2,12 +2,17 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0072",
   "title": "Bound the ChannelManager last-activity map with an LRU cap",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +48,12 @@
       "kind": "fact",
       "statement": "The default cap is 10000 entries, far above realistic concurrent-plus-recent channel counts; getLastActivity has no current consumer (it is a future live-projection API), but the survives-empty semantic is honored for when it does.",
       "evidence": "server/src/services/ChannelManager.ts maxLastActivityEntries default; no caller of getLastActivity exists in server/src or studio/src.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0072: the ChannelManager lastActivity map is LRU-bounded (default 10000 entries), evicting the least-recently-active channel while surviving an empty channel for the live projection, closing the unbounded-map leak. Delete-on-empty was rejected because it would break the survives-empty semantic.",
+      "evidence": "server/src/services/ChannelManager.ts, server/tests/unit/channelManagerEviction.test.ts, the passing full server suite under npm run check, the CHG-0072 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
