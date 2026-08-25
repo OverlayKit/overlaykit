@@ -4,8 +4,9 @@ import { WebSocket, WebSocketServer, type ClientOptions } from 'ws';
 import { AuthService } from '../../src/auth/AuthService';
 import { MemoryAuthStore } from '../../src/auth/AuthStore';
 import { setupWebSocketHandler } from '../../src/handlers/websocket';
-import { ChannelManager } from '../../src/services/ChannelManager';
+import { ChannelManager, channelManager } from '../../src/services/ChannelManager';
 import { ProductionService } from '../../src/services/ProductionService';
+import { channelKey, DEFAULT_TENANT_ID } from '../../src/tenancy';
 
 const ORIGIN = 'http://localhost:5173';
 const OWNER = {
@@ -135,5 +136,56 @@ describe('Output authentication overrides an ambient Studio session', () => {
     studio.send(JSON.stringify({ type: 'ping' }));
     expect((await pong).type).toBe('pong');
     studio.close();
+  });
+
+  it('rejects a cookie-bearing upgrade that carries no Origin (CHG-0076)', async () => {
+    const { port, auth } = await start();
+    const owner = await auth.setup(OWNER);
+    // A browser always sends Origin; a cookie with no Origin is a raw client replaying the cookie.
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, [], {
+      headers: { Cookie: `overlaykit_session=${owner.token}` },
+    });
+    const code = await new Promise<number>((resolve) => {
+      ws.once('error', () => undefined);
+      ws.once('close', (value) => resolve(value));
+    });
+    expect(code).toBe(1008);
+  });
+
+  it('allows a no-cookie no-Origin connection to authenticate as output (CHG-0076)', async () => {
+    const { port, auth } = await start();
+    const owner = await auth.setup(OWNER);
+    const output = await auth.rotateOutputToken(owner.session.user, 'show-1');
+    // Output/OBS clients carry no cookie and no Origin — they must still reach authenticate.output.
+    const ws = await openWebSocket(`ws://127.0.0.1:${port}`);
+    const confirmed = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'authenticate.output', token: output.token }));
+    expect(await confirmed).toMatchObject({ type: 'authentication.confirmed', access: 'output' });
+    ws.close();
+  });
+
+  it('tears down studio subscriptions when de-escalating to output (CHG-0076)', async () => {
+    const { port, auth } = await start();
+    const owner = await auth.setup(OWNER);
+    const output = await auth.rotateOutputToken(owner.session.user, 'show-1');
+    const channelId = `dee-${process.pid}`;
+    const key = channelKey(DEFAULT_TENANT_ID, channelId);
+
+    const ws = await openWebSocket(`ws://127.0.0.1:${port}`, {
+      origin: ORIGIN,
+      headers: { Cookie: `overlaykit_session=${owner.token}` },
+    });
+    // Subscribe as a studio session.
+    const subscribed = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'subscribe', channelId }));
+    expect((await subscribed).type).toBe('subscription.confirmed');
+    expect(channelManager.getSubscriberCount(key)).toBe(1);
+
+    // De-escalate to output — the studio subscription must be torn down.
+    const confirmed = nextMessage(ws);
+    ws.send(JSON.stringify({ type: 'authenticate.output', token: output.token }));
+    expect(await confirmed).toMatchObject({ type: 'authentication.confirmed', access: 'output' });
+    expect(channelManager.getSubscriberCount(key)).toBe(0);
+    ws.close();
   });
 });

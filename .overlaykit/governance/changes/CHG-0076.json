@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0076",
+  "title": "Harden the shared WebSocket transport: Origin-when-cookie and de-escalation teardown",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0039"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0076 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the tenth and eleventh hardening fixes, closing the two residual /ws findings in one cohesive slice on the same file. This does not authorize automatic merge of CHG-0076.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found the /ws Origin allowlist was skipped entirely when the Origin header was absent, so a raw (non-browser) client presenting a stolen session cookie with no Origin bypassed the origin check; and that authenticate.output de-escalation reassigned the connection to read-only output without tearing down subscriptions established while it held studio authority.",
+      "evidence": "server/src/handlers/websocket.ts prior connection handler; the 2026-08-24 hardening-audit findings hardening-ws-origin-when-cookie and hardening-deescalation-subscription-teardown.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change requires an allow-listed Origin whenever a session cookie is present on the upgrade (origin ? allowlisted : no cookie), and unsubscribes the connection from all its channels and clears its subscription set before reassigning access to output. Output and OBS clients carry no cookie and no Origin and are unaffected.",
+      "evidence": "server/src/handlers/websocket.ts origin check and the authenticate.output teardown loop.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery keyed the Origin requirement on the presence of a session cookie — the only clients that carry one are browsers, which always send Origin — so the check blocks a raw cookie replay without breaking cookieless Output/OBS clients, which reach authenticate.output.",
+      "evidence": "server/src/handlers/websocket.ts: the cookie is captured before the origin check and gates it.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Proving that a cookie-bearing no-Origin upgrade is closed with 1008 while a no-cookie no-Origin connection authenticates as output, and that a studio subscription's subscriber count drops to zero when the connection de-escalates to output, closes both findings.",
+      "evidence": "server/tests/unit/outputSessionPrecedence.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review found the change clean (no defects): the four-case origin logic is correct and breaks no legitimate client, sessionToken ordering is sound, and the de-escalation teardown unsubscribes the right socket with no leak or double-unsubscribe hazard. It recorded the honest bound: the Origin-when-cookie check is defense-in-depth — Origin is unforgeable only within a browser, so a non-browser client can bypass it by sending an allow-listed Origin; the fix reliably blocks a stolen-cookie replay that OMITS Origin, and the standing protections against a stolen cookie remain the httpOnly, SameSite=Strict cookie and the per-frame session re-validation (CHG-0069).",
+      "evidence": "server/src/handlers/websocket.ts origin check and de-escalation teardown; server/tests/unit/outputSessionPrecedence.test.ts; the cookie flags in server/src/auth/http.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0076: the /ws transport requires an allow-listed Origin when a session cookie is present (blocking a no-Origin stolen-cookie replay; cookieless Output/OBS unaffected) and tears down studio subscriptions when de-escalating to output. A focused review found it clean; the Origin check is defense-in-depth (Origin forgeable outside a browser), with the standing cookie protections and per-frame re-validation intact.",
+      "evidence": "server/src/handlers/websocket.ts, server/tests/unit/outputSessionPrecedence.test.ts, the passing full server suite under npm run check, the CHG-0076 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: the /ws connection handler and tests. No protocol or Studio change and no existing behavior regresses (the same-origin browser and cookieless Output paths are unchanged).",
+      "evidence": "git diff of the CHG-0076 branch: server/src/handlers/websocket.ts and server/tests/unit/outputSessionPrecedence.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A /ws upgrade carrying a session cookie but no Origin is rejected.",
+      "verification": "A test connects with a session cookie and no Origin header and asserts the socket closes with 1008."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A cookieless connection with no Origin still authenticates as output.",
+      "verification": "A test connects with no cookie and no Origin, sends authenticate.output, and asserts an output authentication.confirmed."
+    },
+    {
+      "id": "SC-003",
+      "statement": "De-escalating to output tears down studio subscriptions.",
+      "verification": "A test subscribes as a studio session (subscriber count 1), sends authenticate.output, and asserts the subscriber count returns to 0."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0076 records the two residual /ws findings and their fixes before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The /ws handler requires an allow-listed Origin when a cookie is present and tears down subscriptions on de-escalation to output.",
+      "evidence": "server/src/handlers/websocket.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove the cookie-no-Origin rejection, the cookieless output path, and the de-escalation teardown; the full server suite passes.",
+      "evidence": "server/tests/unit/outputSessionPrecedence.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

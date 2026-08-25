@@ -64,14 +64,16 @@ export function setupWebSocketHandler(
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress || 'unknown';
     const origin = req.headers.origin;
-    if (origin && !originAllowlist.has(origin)) {
-      ws.close(1008, 'Origin not allowed');
-      return;
-    }
-
     // The session token is captured once from the upgrade cookie so a studio connection's authority
     // can be re-validated on every frame (subsequent frames carry no cookie).
     const sessionToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    // HARDENED:ws-origin-when-cookie — a browser always sends Origin, so require an allow-listed
+    // Origin whenever a session cookie is present; this blocks a raw (non-browser) client replaying
+    // a stolen session cookie with no Origin. Output/OBS clients carry no cookie and are unaffected.
+    if (origin ? !originAllowlist.has(origin) : sessionToken !== undefined) {
+      ws.close(1008, 'Origin not allowed');
+      return;
+    }
     let access = authenticateSessionConnection(req, auth);
     let authenticationTimeout: ReturnType<typeof setTimeout> | null = null;
     if (!access) {
@@ -109,6 +111,11 @@ export function setupWebSocketHandler(
             clearTimeout(authenticationTimeout);
             authenticationTimeout = null;
           }
+          // HARDENED:deescalation-subscription-teardown — drop any subscriptions established while
+          // this connection held studio authority, so de-escalating to read-only output cannot
+          // retain broader studio subscriptions.
+          for (const key of subscriptions) channelManager.unsubscribe(key, ws);
+          subscriptions.clear();
           access = { kind: 'output', user: null, showId: authority.showId };
           outputConnections.add(ws);
           ws.send(JSON.stringify({
