@@ -12,3 +12,5 @@ export type {
   FetchLike,
 } from './transport.js';
 export { createFetchTransport, executeVisibilityCommand } from './transport.js';
+export type { CompanionFeedbackState } from './feedback.js';
+export { projectCompanionFeedback } from './feedback.js';

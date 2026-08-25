@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0083",
+  "title": "Project server visibility feedback into Companion button states",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0007", "ADR-0017"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0083 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale a lo que sigue' (ultracode on) — the fifth slice of the REQ-INT-002 Companion adapter, opening the feedback half of AC-018. This does not authorize automatic merge of CHG-0083.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-018, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "projectCompanionFeedback(actions, observations, now, timeoutMs?) maps each discovered Companion action's subject (showId, target, controlId) to its button state by reusing the protocol's own feedback projector — createControlFeedbackState, reduceControlFeedback, projectControlFeedback — so a Companion button and a Studio control agree on the same authoritative-server truth, including staleness once an observation ages past the feedback timeout (ADR-0007, ADR-0017). It keeps the highest-revision observation per subject and returns one CompanionFeedbackState per action carrying the protocol's ControlButtonState and ControlFeedbackStatus verbatim.",
+      "evidence": "companion/src/feedback.ts; protocol/src/control-feedback.ts projectControlFeedback status/buttonState outcomes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An adversarial review workflow (four lenses — robustness, correctness, contract-fidelity, test-adequacy — each finding verified by a separate refutation agent) caught a latent boundary-robustness gap: reduceControlFeedback throws on a malformed observation (non-integer or negative revision, non-finite observedAt), and because the reduction ran inside the actions map with no guard, one malformed observation for a matched subject aborted the whole projection and discarded every other action's button state. It is reachable through the typed public API and was unhandled, while the protocol validates these same fields at every other boundary. The fix isolates the per-action reduction in a try/catch that degrades that subject to the fresh never-observed state, keeping the projection total.",
+      "evidence": "the CHG-0083 review workflow result; companion/src/feedback.ts try/catch around reduceControlFeedback; protocol/src/control-feedback.ts reduceControlFeedback throw sites.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The review also closed test gaps that let real defects hide: cross-target and cross-Show subject matching (a key dropping target or showId would leak Program state onto Preview buttons and still pass), the caller-supplied timeoutMs freshness window, the clock-skew (future-dated observation) branch, and the malformed-observation isolation. Twenty-seven companion tests pass.",
+      "evidence": "companion/tests/feedback.contract.test.ts cross-target, cross-Show, timeoutMs, clock-skew, and malformed-isolation cases.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This is a pure projection over a snapshot of observations, not a running Companion module: subscribing to the live signed WebSocket bootstrap and delta stream that delivers observations over the wire, and the module packaging, remain deferred (.frontier nodes companion-adapter-runtime-module and companion-adapter-feedback-transport). The Take/trigger catalog extension also remains deferred. Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src/feedback.ts (pure function over an observations array); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0083: projectCompanionFeedback maps authoritative server visibility observations onto each discovered action's Companion button state by reusing the protocol's feedback projector, so a button and a Studio control agree on the same server truth, and — after an adversarial review hardened it — stays total under a malformed observation and matches strictly by Show, target, and control. The live signed-WS delta subscription that delivers observations, the runnable module, and the Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/feedback.ts and companion/tests/feedback.contract.test.ts; the CHG-0083 review workflow result; npm run check, the CHG-0083 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Each discovered action's button state reflects the current authoritative server observation for its subject, and goes unknown/stale when never observed or aged out.",
+      "verification": "companion/tests/feedback.contract.test.ts asserts current active/inactive, never-observed unknown, and stale-after-timeout for the projected actions."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Feedback is matched strictly by Show, target, and control, and a malformed observation degrades only its own action.",
+      "verification": "Tests assert a Program or foreign-Show observation does not match a Preview action, and a malformed observation leaves other actions' states intact."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The adapter reuses the protocol feedback projector rather than reimplementing freshness, and no existing behavior regresses.",
+      "verification": "projectCompanionFeedback delegates to projectControlFeedback; npm run check and npm run build pass across all workspaces."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0083 records the projection, the adversarial-review hardening, and the deferred live-transport residual before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "projectCompanionFeedback maps observations to per-action button states via the protocol projector and stays total under a malformed observation.",
+      "evidence": "companion/src/feedback.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove current/unknown/stale states, strict subject matching, timeout override, clock skew, and malformed-observation isolation; the full check passes.",
+      "evidence": "companion/tests/feedback.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

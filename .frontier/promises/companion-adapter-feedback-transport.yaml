@@ -1,0 +1,12 @@
+id: companion-adapter-feedback-transport
+statement: "REQ-INT-002 / AC-018 feedback delivery — subscribe to the server's signed WebSocket bootstrap and delta stream so authoritative visibility observations reach the adapter live, then feed them to projectCompanionFeedback. Deferred: CHG-0083 proves the projection over a snapshot; this is the signed-frame delta client (frame verification, ack round-trips, sequence and issuer tracking), part of the runnable module surface."
+anchors:
+  - path:companion/src
+requires:
+  promises:
+    - companion-adapter-feedback
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: companion-adapter-feedback-transport
+  command: "grep -rqE 'device\\.state\\.delta|bootstrapClient|deltaClient|subscribeFeedback' companion/src"

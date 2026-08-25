@@ -1,12 +1,20 @@
 id: companion-adapter-feedback
-statement: "REQ-INT-002 / AC-018 feedback half — the Companion adapter receives live state feedback from the Control API so a button reflects Studio or other-device changes. The command half is companion-adapter-command-request. Deferred: requires a signed WebSocket bootstrap and delta client (or an HTTP feedback endpoint) beyond the CHG-0079 and CHG-0080 headless catalog and command projections."
+statement: "REQ-INT-002 / AC-018 feedback projection — projectCompanionFeedback maps authoritative server visibility observations onto each discovered action's Companion button state, reusing the protocol's feedback projector so a button and a Studio control agree on the same server truth (current, unknown, stale), and it stays total under a malformed observation. Delivered by CHG-0083. Delivering observations over the live wire is companion-adapter-feedback-transport."
 anchors:
-  - path:companion/src
+  - path:companion/src/feedback.ts
+  - path:companion/tests/feedback.contract.test.ts
 requires:
   promises:
     - companion-catalog-visibility-discovery
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: companion-adapter-feedback
-  command: "grep -rqE 'feedback|device\\.state\\.delta' companion/src"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/feedback.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0083.json
+        matches: '"status": "implemented"'
