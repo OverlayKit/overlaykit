@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0076",
   "title": "Harden the shared WebSocket transport: Origin-when-cookie and de-escalation teardown",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -49,6 +49,12 @@
       "kind": "inference",
       "statement": "A focused adversarial review found the change clean (no defects): the four-case origin logic is correct and breaks no legitimate client, sessionToken ordering is sound, and the de-escalation teardown unsubscribes the right socket with no leak or double-unsubscribe hazard. It recorded the honest bound: the Origin-when-cookie check is defense-in-depth — Origin is unforgeable only within a browser, so a non-browser client can bypass it by sending an allow-listed Origin; the fix reliably blocks a stolen-cookie replay that OMITS Origin, and the standing protections against a stolen cookie remain the httpOnly, SameSite=Strict cookie and the per-frame session re-validation (CHG-0069).",
       "evidence": "server/src/handlers/websocket.ts origin check and de-escalation teardown; server/tests/unit/outputSessionPrecedence.test.ts; the cookie flags in server/src/auth/http.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0076: the /ws transport requires an allow-listed Origin when a session cookie is present (blocking a no-Origin stolen-cookie replay; cookieless Output/OBS unaffected) and tears down studio subscriptions when de-escalating to output. A focused review found it clean; the Origin check is defense-in-depth (Origin forgeable outside a browser), with the standing cookie protections and per-frame re-validation intact.",
+      "evidence": "server/src/handlers/websocket.ts, server/tests/unit/outputSessionPrecedence.test.ts, the passing full server suite under npm run check, the CHG-0076 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
