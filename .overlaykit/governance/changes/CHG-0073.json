@@ -2,12 +2,18 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0073",
   "title": "Throttle WebSocket upgrades per IP",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0039"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0039"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +49,12 @@
       "kind": "fact",
       "statement": "The limit keys on the direct peer's remoteAddress, so behind a trusted reverse proxy all connections share one IP and the limit is per-proxy; trusting X-Forwarded-For for the raw socket and making the limits environment-configurable are deferred. Together with the per-frame bound (CHG-0067), this closes the /ws denial-of-service surface for the direct-connection threat.",
       "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts uses request.socket.remoteAddress; the fixed defaults are compiled in.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0073: the /ws upgrade path enforces a per-IP fixed-window rate limit (default 60/60s) at the shared UpgradeRouter, rejecting excess upgrades with 429 before routing, with a self-bounded IP map; with the CHG-0067 frame bound this closes the /ws DoS surface for the direct-connection threat.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts, server/tests/unit/webSocketUpgradeRouter.test.ts, the passing full server suite under npm run check, the CHG-0073 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
