@@ -1,10 +1,19 @@
 id: hardening-channelmanager-eviction
-statement: "HARDENING (medium) — ChannelManager.lastActivity grows without eviction (keyed by channel, never deleted). Fix: delete the entry when subscribers reach zero, or use a TTL/LRU-bounded store."
+statement: HARDENING (medium) — the ChannelManager lastActivity map is LRU-bounded (default 10000 entries), evicting the least-recently-active channel over the cap while still surviving an empty channel for the live projection — is fixed by CHG-0072. A naive delete-on-empty was rejected because it would break the intended survives-empty semantic.
 anchors:
   - path:server/src/services/ChannelManager.ts
+  - path:server/tests/unit/channelManagerEviction.test.ts
+  - path:.overlaykit/governance/changes/CHG-0072.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-channelmanager-eviction-fixed
-  command: "grep -q 'lastActivity.delete' server/src/services/ChannelManager.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/channelManagerEviction.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0072.json
+        matches: '"status": "implemented"'
