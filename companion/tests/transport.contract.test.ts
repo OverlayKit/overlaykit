@@ -93,4 +93,77 @@ describe('executeVisibilityCommand (AC-018 command dispatch)', () => {
       message: 'Preview changed before the command',
     });
   });
+
+  const REQUEST = buildVisibilityCommandRequest(
+    ACTION,
+    { visible: true },
+    { operationId: 'op-1', expectedRevision: 0 },
+  );
+
+  it('degrades a non-JSON body (proxy/gateway error page) to a typed failure instead of throwing', async () => {
+    const result = await executeVisibilityCommand(
+      async () => ({ status: 502, body: '<html><body>502 Bad Gateway</body></html>' }),
+      'http://127.0.0.1:4000',
+      'tok',
+      REQUEST,
+    );
+    expect(result).toEqual({
+      ok: false,
+      status: 502,
+      code: 'MALFORMED_RESPONSE',
+      message: 'Control API returned a non-JSON body (status 502)',
+    });
+  });
+
+  it('degrades an empty body to a typed failure', async () => {
+    const result = await executeVisibilityCommand(
+      async () => ({ status: 504, body: '' }),
+      'http://127.0.0.1:4000',
+      'tok',
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, status: 504, code: 'MALFORMED_RESPONSE' });
+  });
+
+  it('converts a transport (network) rejection into a typed failure', async () => {
+    const result = await executeVisibilityCommand(
+      async () => {
+        throw new Error('connect ECONNREFUSED 127.0.0.1:4000');
+      },
+      'http://127.0.0.1:4000',
+      'tok',
+      REQUEST,
+    );
+    expect(result).toEqual({
+      ok: false,
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: 'connect ECONNREFUSED 127.0.0.1:4000',
+    });
+  });
+
+  it('treats a 2xx envelope without a command as a failure, never { ok: true, outcome: undefined }', async () => {
+    const result = await executeVisibilityCommand(
+      async () => ({ status: 200, body: JSON.stringify({ data: { receipt: {}, state: {} } }) }),
+      'http://127.0.0.1:4000',
+      'tok',
+      REQUEST,
+    );
+    expect(result).toMatchObject({ ok: false, status: 200 });
+  });
+
+  it('falls back to a default code and message when a non-2xx body omits the error object', async () => {
+    const result = await executeVisibilityCommand(
+      async () => ({ status: 500, body: '{}' }),
+      'http://127.0.0.1:4000',
+      'tok',
+      REQUEST,
+    );
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      code: 'UNKNOWN',
+      message: 'Control API request failed',
+    });
+  });
 });

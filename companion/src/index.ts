@@ -9,5 +9,6 @@ export type {
   ControlApiHttpRequest,
   ControlApiHttpResponse,
   ControlApiTransport,
+  FetchLike,
 } from './transport.js';
-export { executeVisibilityCommand } from './transport.js';
+export { createFetchTransport, executeVisibilityCommand } from './transport.js';
