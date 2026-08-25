@@ -1,5 +1,5 @@
 id: companion-adapter-runtime-module
-statement: "REQ-INT-002 — an installable Bitfocus Companion module: connection config (server URL and scoped device token), action callbacks that execute against the Control API, and packaging, verified against real controller behavior. Deferred: CHG-0079 proves headless catalog discovery; the runnable module and hardware verification are a later slice, still with no Elgato SDK in the core runtime."
+statement: "REQ-INT-002 — the thin @companion-module/base InstanceBase wrapper: it registers COMPANION_CONFIG_FIELDS and buildCompanionActionDefinitions from the SDK-free core, wires configFields/init/actions to createCompanionAdapter, supplies the run seam (operationId, expected revision, adapter), binds live feedbacks, and packages the module, verified against real controller behavior. Deferred: the SDK-free core is companion-adapter-module-core; this slice adds the @companion-module/base dependency (pending human approval) and needs hardware to fully verify."
 anchors:
   - path:companion/src
 requires:
@@ -12,8 +12,9 @@ requires:
     - companion-adapter-feedback
     - companion-adapter-feedback-transport
     - companion-adapter-facade
+    - companion-adapter-module-core
   conditions: []
 fulfilled_when:
   type: command-succeeds
   name: companion-adapter-runtime-module
-  command: "grep -rqE 'executeAction|companion-module|InstanceBase|runEntrypoint' companion/src"
+  command: "grep -q '@companion-module/base' companion/package.json"
