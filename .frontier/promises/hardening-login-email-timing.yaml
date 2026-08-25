@@ -1,10 +1,19 @@
 id: hardening-login-email-timing
-statement: "HARDENING (low) — The login path leaks the owner email via a timing side channel (scrypt runs only on email match). Fix: always run a scrypt derivation against a decoy verifier on the no-match path."
+statement: HARDENING (low) — login always runs a scrypt derivation (against a fixed decoy verifier when the email does not match the owner), so login timing cannot reveal the owner's email — is fixed by CHG-0075. The decoy uses the real scrypt parameters.
 anchors:
   - path:server/src/auth/AuthService.ts
+  - path:server/tests/unit/loginTiming.test.ts
+  - path:.overlaykit/governance/changes/CHG-0075.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-login-email-timing-fixed
-  command: "grep -qiE 'decoy|dummyVerifier|constant.time' server/src/auth/AuthService.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/loginTiming.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0075.json
+        matches: '"status": "implemented"'

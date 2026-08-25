@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0075",
+  "title": "Close the login email timing side channel",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0075 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the ninth hardening fix, closing the login email timing side channel. This does not authorize automatic merge of CHG-0075.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found AuthService.login runs the scrypt derivation only when the submitted email matches the owner: the boolean short-circuit skips verifyPassword on a non-matching email, so a matching-email attempt (the derivation runs) is measurably slower than a non-matching one, revealing the owner's email by timing.",
+      "evidence": "server/src/auth/AuthService.ts login prior short-circuit; the 2026-08-24 hardening-audit finding hardening-login-email-timing.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change always runs a password derivation — against a fixed decoy verifier that carries the real scrypt parameters when there is no owner or the email differs — then rejects with INVALID_CREDENTIALS unless the email matched and the password verified.",
+      "evidence": "server/src/auth/AuthService.ts DECOY_PASSWORD_VERIFIER and the rewritten login.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery equalized the derivation, which dominates login cost, so a non-matching email now performs the same scrypt work as a matching one; the decoy reuses the real cost, block size, parallelization and key length so the two paths are equivalent.",
+      "evidence": "server/src/auth/AuthService.ts DECOY_PASSWORD_VERIFIER uses SCRYPT_COST, SCRYPT_BLOCK_SIZE, SCRYPT_PARALLELIZATION and SCRYPT_KEY_LENGTH.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Proving via a derivation hook that a scrypt derivation runs exactly once for a non-matching email, a matching email with the wrong password, and correct credentials, closes the login email timing side channel.",
+      "evidence": "server/tests/unit/loginTiming.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The decoy uses the real scrypt parameters; the empty-password early return in verifyPassword still skips the derivation, but that reflects the caller's own empty input rather than the owner's email, so it is not an email oracle.",
+      "evidence": "server/src/auth/AuthService.ts verifyPassword returns false for an empty password before deriving.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: the login derivation path, a fixed decoy verifier, an optional test hook, and a test. No protocol or Studio change, and login behavior is unchanged for valid and invalid credentials.",
+      "evidence": "git diff of the CHG-0075 branch: server/src/auth/AuthService.ts and server/tests/unit/loginTiming.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A password derivation runs for a non-matching email, not only a matching one.",
+      "verification": "A test with a derivation hook asserts a derivation runs exactly once when logging in with an email that is not the owner's."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A derivation runs on the matching-email and correct-credentials paths too, and behavior is unchanged.",
+      "verification": "The test asserts a derivation runs once for a matching email with a wrong password (rejects) and once for correct credentials (issues a session)."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0075 records the login timing finding and its constant-derivation fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "login always runs a scrypt derivation, against a fixed decoy verifier when there is no owner or the email differs.",
+      "evidence": "server/src/auth/AuthService.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the derivation runs on the non-matching, wrong-password and correct paths; the full server suite passes.",
+      "evidence": "server/tests/unit/loginTiming.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

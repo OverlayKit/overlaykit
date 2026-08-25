@@ -31,7 +31,23 @@ interface SessionRecord {
 export interface AuthServiceOptions {
   sessionTtlMs?: number;
   now?: () => number;
+  // Fired whenever a password derivation (scrypt) runs during login; used by tests to prove the
+  // derivation happens on every path (matching and non-matching email) so timing cannot leak.
+  onPasswordVerification?: () => void;
 }
+
+// A fixed decoy verifier with the real scrypt parameters. login() verifies against it when there is
+// no owner or the email does not match, so a derivation always runs and login timing cannot reveal
+// whether the submitted email is the owner's.
+const DECOY_PASSWORD_VERIFIER: PasswordVerifier = {
+  algorithm: 'scrypt',
+  salt: Buffer.alloc(24).toString('base64url'),
+  cost: SCRYPT_COST,
+  blockSize: SCRYPT_BLOCK_SIZE,
+  parallelization: SCRYPT_PARALLELIZATION,
+  keyLength: SCRYPT_KEY_LENGTH,
+  hash: Buffer.alloc(SCRYPT_KEY_LENGTH).toString('base64url'),
+};
 
 export interface OutputCredentialAuthority {
   showId: string;
@@ -122,6 +138,7 @@ export class AuthService {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly sessionTtlMs: number;
   private readonly now: () => number;
+  private readonly onPasswordVerification: () => void;
   private setupInProgress = false;
   private readonly outputCredentialListeners = new Set<() => void>();
 
@@ -131,6 +148,7 @@ export class AuthService {
   ) {
     this.sessionTtlMs = options.sessionTtlMs ?? 12 * 60 * 60 * 1000;
     this.now = options.now ?? Date.now;
+    this.onPasswordVerification = options.onPasswordVerification ?? (() => undefined);
   }
 
   async init(): Promise<void> {
@@ -190,7 +208,12 @@ export class AuthService {
     const email = normalizeEmail(input.email);
     const password = typeof input.password === 'string' ? input.password : '';
     const owner = this.requireState().owner;
-    if (!owner || email !== owner.email || !(await this.verifyPassword(password, owner.password))) {
+    // Always run a password derivation so login timing cannot reveal whether the email is the
+    // owner's: verify against a fixed decoy verifier when there is no owner or the email differs.
+    const verifier =
+      owner !== null && email === owner.email ? owner.password : DECOY_PASSWORD_VERIFIER;
+    const verified = await this.verifyPassword(password, verifier);
+    if (owner === null || email !== owner.email || !verified) {
       throw new AuthError('INVALID_CREDENTIALS', 401, 'Invalid email or password');
     }
     return this.createSession(publicUser(owner));
@@ -281,6 +304,7 @@ export class AuthService {
 
   private async verifyPassword(password: string, verifier: PasswordVerifier): Promise<boolean> {
     if (!password || verifier.algorithm !== 'scrypt') return false;
+    this.onPasswordVerification();
     const candidate = await deriveKey(password, verifier);
     const stored = Buffer.from(verifier.hash, 'base64url');
     return candidate.length === stored.length && timingSafeEqual(candidate, stored);
