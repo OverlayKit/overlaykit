@@ -22,6 +22,7 @@ const packageRoots = [
   'shared/ui',
   'studio',
   'tools/governance',
+  'companion',
 ];
 const distributionRoots = ['', 'protocol', 'shared', 'shared/ui'];
 const surfacePaths = [

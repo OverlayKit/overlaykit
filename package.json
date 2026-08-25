@@ -21,7 +21,8 @@
     "editor",
     "panel",
     "studio",
-    "landing"
+    "landing",
+    "companion"
   ],
   "engines": {
     "node": ">=24"

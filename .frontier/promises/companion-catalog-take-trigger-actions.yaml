@@ -1,0 +1,13 @@
+id: companion-catalog-take-trigger-actions
+statement: "REQ-INT-002 / AC-017 residual — extend the device action catalog beyond component.visibility to represent Take, Scene activation, and trigger actions (the credential enum already reserves production:take and cue:execute) so the adapter can discover the full authorized action list AC-017 names. Deferred: the visibility subset from CHG-0079 proves the discovery path; this is a core catalog extension needing new descriptors, command messages, and server execution."
+anchors:
+  - path:protocol/src/control-action-catalog.ts
+  - path:server/src/services/DeviceActionCatalogRuntime.ts
+requires:
+  promises:
+    - companion-catalog-visibility-discovery
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: companion-catalog-take-trigger
+  command: "grep -qE 'TAKE_ACTION_KIND|CUE_ACTION_KIND|production\\.take' protocol/src/control-action-catalog.ts"

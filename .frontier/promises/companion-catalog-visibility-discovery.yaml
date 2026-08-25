@@ -1,0 +1,18 @@
+id: companion-catalog-visibility-discovery
+statement: "REQ-INT-002 / AC-017 first slice — the @overlaykit/companion adapter projects the authorized Control API action catalog into Companion action definitions for the component-visibility subset, discovered against the real protocol projector with no Elgato or hardware SDK dependency. Delivered by CHG-0079."
+anchors:
+  - path:companion/src/catalog.ts
+  - path:companion/tests/catalog.contract.test.ts
+requires:
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/catalog.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0079.json
+        matches: '"status": "implemented"'
