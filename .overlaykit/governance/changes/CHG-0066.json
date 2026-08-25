@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0066",
   "title": "Surface the device-credential event log as an activity timeline",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -57,6 +57,12 @@
       "kind": "inference",
       "statement": "A focused adversarial review found the timeline slice functionally clean — no correctness or security defects (error isolation holds, no secret reaches the DOM, field names match the server projection, ordering and keys are sound) — with two suggestions applied: the activity log now surfaces a distinct eventsError instead of silently vanishing on a failed fetch, and the browser test asserts non-kind fields (generation and actor) so a field-mapping regression is caught.",
       "evidence": "studio/src/views/IntegrationsView.vue eventsError handling and server/tests/e2e/studioIntegrations.test.ts non-kind assertions.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0066: the Studio Integrations surface renders the server's append-only device-credential lifecycle event log as an activity timeline (issued, rotated, revoked in recorded order), completing the device-credential lifecycle line. A focused review found it clean; the activity log surfaces a distinct eventsError and the browser test asserts non-kind fields. This does not re-prove the log's integrity, which stays at the storage and HTTP tiers.",
+      "evidence": "studio/src/views/IntegrationsView.vue, server/tests/e2e/studioIntegrations.test.ts, the passing full server suite under npm run check, the CHG-0066 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
