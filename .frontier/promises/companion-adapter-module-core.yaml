@@ -1,0 +1,20 @@
+id: companion-adapter-module-core
+statement: "REQ-INT-002 — the SDK-free core of the Companion module: COMPANION_CONFIG_FIELDS and parseModuleConfig (the baseUrl/token/showId connection config, required and trimmed, reporting all missing fields at once) and buildCompanionActionDefinitions (discovered actions to a record keyed by actionId of name/options/callback, a press running the injected command for that action with the visible option coerced). No @companion-module/base import and no runtime state; the operationId, expected revision, and adapter live behind the run seam. Delivered by CHG-0086. The thin InstanceBase SDK wrapper is companion-adapter-runtime-module."
+anchors:
+  - path:companion/src/module.ts
+  - path:companion/tests/module.contract.test.ts
+requires:
+  promises:
+    - companion-catalog-visibility-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/module.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0086.json
+        matches: '"status": "implemented"'
