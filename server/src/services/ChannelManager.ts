@@ -51,6 +51,26 @@ export class ChannelManager {
   // Feeds the Show live/lastActive projection without persisting ChannelState;
   // survives a channel going empty so "last live 5m ago" still reads true.
   private lastActivity: Map<string, number> = new Map();
+  private readonly maxLastActivityEntries: number;
+
+  constructor(options: { maxLastActivityEntries?: number } = {}) {
+    // Bound the last-activity map so a long-lived process that has seen many distinct channels
+    // cannot leak memory; the live projection only needs recent activity.
+    this.maxLastActivityEntries = options.maxLastActivityEntries ?? 10_000;
+  }
+
+  // Record channel activity, LRU-capped: move the key to the most-recent position, then evict the
+  // oldest once over the cap. An evicted (least-recently-active) channel is by definition no longer
+  // live, so the survives-empty-channel semantic for recent activity is preserved.
+  private touchLastActivity(channelId: string): void {
+    this.lastActivity.delete(channelId);
+    this.lastActivity.set(channelId, Date.now());
+    while (this.lastActivity.size > this.maxLastActivityEntries) {
+      const oldest = this.lastActivity.keys().next().value;
+      if (oldest === undefined) break;
+      this.lastActivity.delete(oldest);
+    }
+  }
 
   /**
    * Get or create a channel
@@ -73,7 +93,7 @@ export class ChannelManager {
   public subscribe(channelId: string, ws: WebSocket): void {
     const channel = this.getOrCreateChannel(channelId);
     channel.subscribers.add(ws);
-    this.lastActivity.set(channelId, Date.now());
+    this.touchLastActivity(channelId);
   }
 
   /**
@@ -113,7 +133,7 @@ export class ChannelManager {
     if (!channel) {
       return;
     }
-    this.lastActivity.set(channelId, Date.now());
+    this.touchLastActivity(channelId);
 
     const messageStr = JSON.stringify(message);
 

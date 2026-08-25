@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0072",
+  "title": "Bound the ChannelManager last-activity map with an LRU cap",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0072 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the sixth hardening fix, closing the ChannelManager unbounded-map finding. This does not authorize automatic merge of CHG-0072.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found ChannelManager.lastActivity grows without eviction: it is set on subscribe and broadcast and never deleted, even after the channel itself is removed when its subscribers reach zero, so a long-lived process that has seen many distinct channels leaks memory.",
+      "evidence": "server/src/services/ChannelManager.ts prior subscribe/broadcast/unsubscribe; the 2026-08-24 hardening-audit finding hardening-channelmanager-eviction.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The lastActivity map is intentionally retained after a channel empties (it feeds the Show live/lastActive projection so 'last live 5m ago' still reads true), so the fix is an LRU size cap (default 10000 entries) rather than delete-on-empty: a touchLastActivity helper re-inserts the key at the most-recent position and evicts the oldest once over the cap, and is called from subscribe and broadcast.",
+      "evidence": "server/src/services/ChannelManager.ts touchLastActivity and the lastActivity comment.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery rejected the naive delete-on-empty fix because the code comment shows lastActivity must survive an empty channel for the live projection; an LRU cap bounds memory while preserving recent activity — an evicted, least-recently-active channel is by definition no longer live.",
+      "evidence": "server/src/services/ChannelManager.ts lastActivity comment (survives a channel going empty) versus the delete-on-empty alternative.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A small-cap instance that evicts the oldest by recency (LRU, proven by re-touching a key so it survives), stays bounded across 100 channels at a cap of 5, and still reports activity for a channel that went empty, proves the bound preserves the survives-empty semantic.",
+      "evidence": "server/tests/unit/channelManagerEviction.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The default cap is 10000 entries, far above realistic concurrent-plus-recent channel counts; getLastActivity has no current consumer (it is a future live-projection API), but the survives-empty semantic is honored for when it does.",
+      "evidence": "server/src/services/ChannelManager.ts maxLastActivityEntries default; no caller of getLastActivity exists in server/src or studio/src.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: a bounded touch helper, a constructor option, and a test. No protocol or Studio change and no existing behavior regresses.",
+      "evidence": "git diff of the CHG-0072 branch: server/src/services/ChannelManager.ts and server/tests/unit/channelManagerEviction.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The last-activity map is bounded to the cap, evicting the least-recently-active channel.",
+      "verification": "A test with a cap of 3 subscribes four channels (re-touching one) and asserts the least-recently-active is evicted while the re-touched and recent ones remain; a cap-of-5 test over 100 channels retains exactly five."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Activity survives a channel going empty.",
+      "verification": "A test subscribes then unsubscribes a channel and asserts getLastActivity still returns a number."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0072 records the unbounded-map finding, the survives-empty constraint, and the LRU-cap fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "subscribe and broadcast record activity through an LRU-capped helper bounded by a configurable maximum.",
+      "evidence": "server/src/services/ChannelManager.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the LRU eviction, the bound across many channels, and the survives-empty semantic; the full server suite passes.",
+      "evidence": "server/tests/unit/channelManagerEviction.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
