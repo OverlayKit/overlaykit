@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0085",
+  "title": "Compose the Companion adapter pieces into one instantiable object",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0085 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale merge y a lo que sigue' (ultracode on) — the seventh slice of the REQ-INT-002 Companion adapter, consolidating the pure pieces into the single object a Companion module instantiates. This does not authorize automatic merge of CHG-0085.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "After six slices the adapter's pieces exist as separate pure functions (fetchAuthorizedCatalog, projectCompanionActions, buildVisibilityCommandRequest, executeVisibilityCommand, projectCompanionFeedback), but a consumer must hand-wire fetch-then-project and build-then-dispatch. The minimal, decision-free next step is a facade holding the base URL, token, and transport once and exposing the two calls a Companion module makes — discover and execute — bridging toward the runnable module without the module SDK dependency that gate still needs a scope decision on.",
+      "evidence": "companion/src/catalog.ts, command.ts, discovery.ts, transport.ts as separate functions before this slice; the deferred companion-adapter-runtime-module node.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "createCompanionAdapter(config) returns a CompanionAdapter whose discover(showId) calls fetchAuthorizedCatalog then projectCompanionActions (returning { ok: true, actions } or passing the fetch failure through unchanged), and whose execute(action, input, execution) calls buildVisibilityCommandRequest then executeVisibilityCommand. Both reuse the held baseUrl, token, and transport and surface the underlying typed results verbatim; the facade adds no error handling of its own. Feedback stays the standalone pure projectCompanionFeedback since it needs no config.",
+      "evidence": "companion/src/adapter.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Asserting that discover issues the catalog GET and returns the projected actions (and passes a 403 through unchanged) and that execute issues the visibility POST with the built body and returns the command outcome — all with the configured base URL and Bearer token over an injected transport — proves the facade composes the pieces correctly with the config held once.",
+      "evidence": "companion/tests/adapter.contract.test.ts asserts the GET and POST requests, the projected actions, the failure passthrough, and the command outcome.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The facade is pure composition of already-reviewed, already-tested pieces with no new I/O, parsing, or branching beyond the ok/failure passthrough (type-checked to match DiscoverResult), so the tests and type-checker cover it without a separate adversarial review. The live delta subscription, the runnable Companion module (InstanceBase, connection config, packaging, the module SDK), and the Take/trigger catalog extension remain deferred (.frontier nodes). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src/adapter.ts (delegation only); the .frontier companion nodes.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "createCompanionAdapter exposes discover and execute that compose the fetch/project and build/dispatch pieces using the configured base URL, token, and transport.",
+      "verification": "companion/tests/adapter.contract.test.ts asserts the GET and POST requests and their results over an injected transport."
+    },
+    {
+      "id": "SC-002",
+      "statement": "discover surfaces a fetch failure unchanged rather than throwing or masking it.",
+      "verification": "A test asserts a 403 fetch failure returns { ok: false, status: 403, code, message }."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the adapter stays dependency-isolated.",
+      "verification": "npm run check and npm run build pass across all workspaces; companion depends only on @overlaykit/protocol."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0085 records the consolidation, the discover/execute surface, and the deferred runnable-module residual before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "createCompanionAdapter composes fetch/project into discover and build/dispatch into execute with the config held once.",
+      "evidence": "companion/src/adapter.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove discover, its failure passthrough, and execute over an injected transport; the full check passes.",
+      "evidence": "companion/tests/adapter.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
