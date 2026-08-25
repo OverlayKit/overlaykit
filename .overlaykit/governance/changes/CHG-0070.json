@@ -2,12 +2,17 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0070",
   "title": "Fail the session cookie safe to Secure in production",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +48,12 @@
       "kind": "fact",
       "statement": "The fail-safe makes the cookie Secure, not the transport HTTPS — a plain-HTTP production deployment will break logins because a Secure cookie is not sent over HTTP. This is the intended forcing function: operators set TRUST_PROXY and serve HTTPS, or set COOKIE_SECURE='never' for local non-HTTPS development.",
       "evidence": "server/.env.example guidance; the SameSite=Strict Secure cookie semantics.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0070: in production, COOKIE_SECURE='auto' resolves to 'always' so the session cookie is always Secure, closing the misconfigured-proxy downgrade; TRUST_PROXY and the fail-safe are documented. This was the owner's explicit policy choice; it forces HTTPS in production.",
+      "evidence": "server/src/config/environment.ts, server/.env.example, server/tests/unit/cookieSecure.test.ts, the passing full server suite under npm run check, the CHG-0070 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
