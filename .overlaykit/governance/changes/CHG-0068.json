@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0068",
+  "title": "Restrict the device signing authority file to owner-only from creation",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0033"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0068 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the second hardening fix, closing the signing-key file-permission finding. This does not authorize automatic merge of CHG-0068.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found the SQLite authority file — which holds the Ed25519 device-signing private key and every sealed verifier — world-readable during init and permanently if init threw before the final chmod: chmod 0o600 was applied last after several fallible steps, and mkdir's 0o700 mode is silently ignored by Node for a pre-existing directory (the common DATA_DIR case).",
+      "evidence": "server/src/auth/SqliteDeviceCredentialStore.ts init() prior order; the 2026-08-24 hardening-audit finding hardening-signing-key-file-perms.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change tightens the directory to 0o700 after mkdir (covering a pre-existing world-readable directory and the transient -journal sidecar created under the process umask) and the file to 0o600 immediately after open — before any secret is written and before any fallible init step — via a win32-guarded restrictPath helper, keeping a final re-assert as belt-and-suspenders.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialStore.ts restrictPath and the reordered init() chmods.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the fix to tighten permissions before the first secret write rather than after init completes, which closes both the init-window exposure and the permanent throw-before-chmod gap, rather than only narrowing the window.",
+      "evidence": "The audit finding and the placement of restrictPath immediately after open, before initializeSchema writes the signing key.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Asserting after init that the directory is 0o700 and the file is 0o600 for a pre-existing world-readable directory, and that the file stays 0o600 when init fails after the file is created, proves the exposure is closed.",
+      "evidence": "server/tests/unit/deviceCredentialStorePermissions.test.ts is the falsification mechanism (POSIX only; skipped on Windows).",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The protection is POSIX filesystem permissions only — a no-op on Windows (guarded so it never fails there), no defense against an owner-level process or a host compromise, and the signing key remains plaintext PKCS8 at rest protected by permissions rather than encryption.",
+      "evidence": "restrictPath swallows chmod errors only on win32; the key is stored as private_key_pkcs8 in SqliteDeviceSigningAuthority.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive; no protocol or Studio change and no functional regression.",
+      "evidence": "git diff of the CHG-0068 branch: server/src/auth/SqliteDeviceCredentialStore.ts and server/tests/unit/deviceCredentialStorePermissions.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "After init, the authority directory is 0o700 and the file is 0o600, even when the directory pre-existed world-readable.",
+      "verification": "A POSIX test pre-creates the directory at 0o755, runs init, and asserts the directory is 0o700 and the file 0o600."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The file is owner-only even when init fails after the file is created.",
+      "verification": "A test injects a beforeCommit failure during schema initialization, asserts init rejects, and asserts the created file is still 0o600."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0068 records the signing-key permission finding and its fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "init() tightens the directory and file to owner-only before any secret is written, via a win32-guarded helper.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialStore.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the directory and file permissions and the failed-init case; the full server suite passes.",
+      "evidence": "server/tests/unit/deviceCredentialStorePermissions.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
