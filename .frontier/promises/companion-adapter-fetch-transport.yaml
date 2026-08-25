@@ -1,0 +1,20 @@
+id: companion-adapter-fetch-transport
+statement: "REQ-INT-002 / AC-018 real transport — createFetchTransport backs the ControlApiTransport with a fetch implementation (structural FetchLike, no DOM or Node fetch type dependency), proven over a real HTTP round-trip, and executeVisibilityCommand degrades every failure mode (network rejection, non-JSON or empty body, malformed 2xx, error-object-less non-2xx) to a typed CommandFailure rather than throwing. Delivered by CHG-0082 after an adversarial review hardened the executor. A fetch-wired runnable module and retry are companion-adapter-runtime-module."
+anchors:
+  - path:companion/src/transport.ts
+  - path:companion/tests/fetchTransport.contract.test.ts
+requires:
+  promises:
+    - companion-adapter-command-transport
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/transport.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0082.json
+        matches: '"status": "implemented"'

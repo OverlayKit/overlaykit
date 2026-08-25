@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0082",
+  "title": "Back the Companion transport with fetch and harden the executor for real responses",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0082 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale a lo que sigue' (ultracode on) — the fourth slice of the REQ-INT-002 Companion adapter, stacked on the unmerged CHG-0081 branch, making the command transport real over HTTP. This does not authorize automatic merge of CHG-0082.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-018, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "createFetchTransport(fetchImpl) backs a ControlApiTransport with a fetch implementation, declared against a structural FetchLike type so the package needs no DOM or Node fetch type dependency. The transport reads the response body as text and never parses it, so a non-JSON body does not throw inside the transport. A real-HTTP round-trip test stands up a local http.Server and drives the built request through the global fetch, asserting the received method, path, Bearer header, and body and the parsed applied outcome.",
+      "evidence": "companion/src/transport.ts createFetchTransport and FetchLike; companion/tests/fetchTransport.contract.test.ts (real http.Server round-trip).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An adversarial review workflow (five independent lenses — robustness, contract-fidelity, correctness, security, test-adequacy — each finding verified by a separate refutation agent, 22 agents total) surfaced that the executor introduced in CHG-0081 was not robust once driven by a real fetch transport. Three distinct real defects were confirmed and fixed: JSON.parse on the response body was unguarded, so a non-JSON or empty body (a proxy or gateway error page, a dropped connection) threw a SyntaxError instead of the promised typed failure; a fetch rejection (host down, DNS, connection refused) propagated as an unhandled throw rather than a CommandFailure; and a 2xx envelope without a command returned { ok: true, outcome: undefined } instead of failing. An injected stub never produces these — only a real transport does — which is why the review was run before finalizing.",
+      "evidence": "the CHG-0082 review workflow result (9 confirmed findings collapsing to these three defects); companion/src/transport.ts executeVisibilityCommand before hardening.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "executeVisibilityCommand now returns a typed CommandFailure for each failure mode: a transport rejection becomes { ok: false, status: 0, code: NETWORK_ERROR }; a non-JSON or empty body becomes { ok: false, status, code: MALFORMED_RESPONSE }; a 2xx without a command falls through to the failure return; and a non-2xx JSON body without an error object falls back to code UNKNOWN. Six tests were added covering each path, including a real refused-connection round-trip, so no failure mode escapes as a throw.",
+      "evidence": "companion/src/transport.ts executeVisibilityCommand; companion/tests/transport.contract.test.ts and companion/tests/fetchTransport.contract.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This is still not a runnable Companion module: no InstanceBase, button callbacks, connection configuration, or retry/backoff. The Companion module packaging, the AC-018 state-feedback half, and the Take/trigger catalog extension remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src (no InstanceBase or retry); the .frontier companion nodes.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The fetch-backed transport carries a built command to a real HTTP endpoint and the applied outcome is returned.",
+      "verification": "companion/tests/fetchTransport.contract.test.ts round-trips through a local http.Server via the global fetch and asserts the received request and the applied outcome."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Every failure mode — network rejection, non-JSON or empty body, malformed success, and error-object-less non-2xx — becomes a typed CommandFailure, never a throw.",
+      "verification": "Tests assert typed failures with status 0 / NETWORK_ERROR, MALFORMED_RESPONSE, a failed 2xx-without-command, and the UNKNOWN fallback."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the adapter stays dependency-isolated.",
+      "verification": "npm run check and npm run build pass across all workspaces; companion depends only on @overlaykit/protocol and needs no fetch type dependency."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0082 records the fetch transport, the adversarial-review findings, and the executor hardening before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "createFetchTransport backs the transport with fetch and executeVisibilityCommand degrades every failure mode to a typed CommandFailure.",
+      "evidence": "companion/src/transport.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Real-HTTP and failure-path tests prove the round-trip and each typed failure; the full check passes.",
+      "evidence": "companion/tests/fetchTransport.contract.test.ts, companion/tests/transport.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
