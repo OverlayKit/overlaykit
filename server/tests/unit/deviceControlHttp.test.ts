@@ -183,6 +183,10 @@ describe('device bearer production control boundary', () => {
     return `/api/device/shows/${showId}/actions`;
   }
 
+  function takeEndpoint(showId = 'show-1'): string {
+    return `/api/device/shows/${showId}/production/take`;
+  }
+
   function command(operationId: string, expectedRevision = 1, visible = false) {
     return { visible, operationId, expectedRevision };
   }
@@ -462,6 +466,62 @@ describe('device bearer production control boundary', () => {
     expect(production.getState('show-1').preview.revision).toBe(1);
   });
 
+  it('promotes Preview to Program for a production:take credential', async () => {
+    const taker = await issue({ scopes: ['production:take'] });
+    expect(production.getState('show-1').program.revision).toBe(1);
+
+    const response = await request(app)
+      .post(takeEndpoint())
+      .set('Authorization', `Bearer ${taker.token}`)
+      .send({ operationId: 'device-take-1', expectedPreviewRevision: 1 })
+      .expect(200);
+
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.body.data.program.revision).toBe(2);
+    expect(response.body.data.lastTake).toMatchObject({
+      operationId: 'device-take-1',
+      previewRevision: 1,
+      programRevision: 2,
+    });
+    expect(production.getState('show-1').program.revision).toBe(2);
+  });
+
+  it('denies Take without the production:take scope, naming that scope in the challenge', async () => {
+    const visibilityOnly = await issue();
+    const denied = await request(app)
+      .post(takeEndpoint())
+      .set('Authorization', `Bearer ${visibilityOnly.token}`)
+      .send({ operationId: 'denied-take', expectedPreviewRevision: 1 })
+      .expect(403);
+    // The challenge must advertise the scope that actually authorizes a Take, not the visibility scope.
+    expect(denied.headers['www-authenticate']).toContain('scope="production:take"');
+    expect(production.getState('show-1').program.revision).toBe(1);
+  });
+
+  it('denies Take for another Show and rejects malformed Take bodies', async () => {
+    const wrongShow = await issue({ showId: 'show-2', scopes: ['production:take'] });
+    await request(app)
+      .post(takeEndpoint('show-1'))
+      .set('Authorization', `Bearer ${wrongShow.token}`)
+      .send({ operationId: 'wrong-show-take', expectedPreviewRevision: 1 })
+      .expect(403);
+
+    const taker = await issue({ scopes: ['production:take'] });
+    // Extra key, and a non-integer revision — both a clean 400, not a misleading 409 revision conflict.
+    await request(app)
+      .post(takeEndpoint())
+      .set('Authorization', `Bearer ${taker.token}`)
+      .send({ operationId: 'bad', expectedPreviewRevision: 1, extra: true })
+      .expect(400);
+    await request(app)
+      .post(takeEndpoint())
+      .set('Authorization', `Bearer ${taker.token}`)
+      .send({ operationId: 'bad', expectedPreviewRevision: '1' })
+      .expect(400);
+
+    expect(production.getState('show-1').program.revision).toBe(1);
+  });
+
   it('surfaces a Show-level Take action in the catalog only for a production:take credential', async () => {
     const taker = await issue({ scopes: ['component.visibility:write', 'production:take'] });
     const takeResponse = await request(app)
@@ -474,6 +534,7 @@ describe('device bearer production control boundary', () => {
         kind: 'production.take',
         showId: 'show-1',
         label: 'Take Preview to Program',
+        input: { expectedPreviewRevision: { type: 'number', required: true } },
       },
     ]);
 

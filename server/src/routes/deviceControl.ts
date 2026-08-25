@@ -13,6 +13,8 @@ import type {
 
 const DEVICE_REALM = 'overlaykit-device';
 const VISIBILITY_SCOPE = 'component.visibility:write' as const;
+const TAKE_SCOPE = 'production:take' as const;
+const TAKE_BODY_FIELDS = new Set(['expectedPreviewRevision', 'operationId']);
 const BODY_FIELDS = new Set(['expectedRevision', 'operationId', 'visible']);
 const BEARER_CREDENTIAL = /^Bearer ([A-Za-z0-9._~+/-]+=*)$/i;
 
@@ -20,10 +22,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function challenge(error?: 'invalid_request' | 'invalid_token' | 'insufficient_scope'): string {
+function challenge(
+  error?: 'invalid_request' | 'invalid_token' | 'insufficient_scope',
+  scope: string = VISIBILITY_SCOPE
+): string {
   const parameters = [`realm="${DEVICE_REALM}"`];
   if (error) parameters.push(`error="${error}"`);
-  if (error === 'insufficient_scope') parameters.push(`scope="${VISIBILITY_SCOPE}"`);
+  if (error === 'insufficient_scope') parameters.push(`scope="${scope}"`);
   return `Bearer ${parameters.join(', ')}`;
 }
 
@@ -43,10 +48,10 @@ function respondAuthenticationRequired(res: Response): void {
     });
 }
 
-function respondAuthorizationForbidden(res: Response): void {
+function respondAuthorizationForbidden(res: Response, scope: string = VISIBILITY_SCOPE): void {
   res
     .status(403)
-    .set('WWW-Authenticate', challenge('insufficient_scope'))
+    .set('WWW-Authenticate', challenge('insufficient_scope', scope))
     .json({
       error: {
         code: 'DEVICE_AUTH_FORBIDDEN',
@@ -128,6 +133,40 @@ function visibilityBody(
     visible: req.body.visible as boolean,
     operationId: req.body.operationId as string,
     expectedRevision: req.body.expectedRevision as number,
+  };
+}
+
+function takeBody(
+  req: Request,
+  res: Response
+): { operationId: string; expectedPreviewRevision: number } | null {
+  if (!isRecord(req.body)) {
+    respondInvalidRequest(res, 'INVALID_TAKE_REQUEST', 'A JSON object body is required');
+    return null;
+  }
+  const keys = Object.keys(req.body);
+  if (keys.length !== TAKE_BODY_FIELDS.size || keys.some((key) => !TAKE_BODY_FIELDS.has(key))) {
+    respondInvalidRequest(
+      res,
+      'INVALID_TAKE_REQUEST',
+      'Only operationId and expectedPreviewRevision are accepted'
+    );
+    return null;
+  }
+  // Validate the revision at the route (as the studio and visibility paths do) so a non-integer
+  // yields a clean 400 rather than falling through take()'s strict comparison to a misleading 409.
+  const expectedPreviewRevision = req.body.expectedPreviewRevision;
+  if (!Number.isInteger(expectedPreviewRevision) || (expectedPreviewRevision as number) < 0) {
+    respondInvalidRequest(
+      res,
+      'INVALID_TAKE_REQUEST',
+      'expectedPreviewRevision must be a non-negative integer'
+    );
+    return null;
+  }
+  return {
+    operationId: req.body.operationId as string,
+    expectedPreviewRevision: expectedPreviewRevision as number,
   };
 }
 
@@ -304,6 +343,49 @@ export function createDeviceControlRouter(
       }
     }
   );
+
+  router.post('/device/shows/:showId/production/take', async (req: Request, res: Response) => {
+    const token = bearerToken(req, res);
+    if (!token) return;
+    const body = takeBody(req, res);
+    if (!body) return;
+    if (!validRouteIdentifier(req.params.showId, 200)) {
+      respondInvalidRequest(res, 'INVALID_DEVICE_AUTH_REQUEST', 'Route identifiers are invalid');
+      return;
+    }
+
+    try {
+      // Take is a Show-level action gated on the production:take scope alone — it has no per-control
+      // binding, so it authenticates and checks showId + scope (mirroring the catalog route) rather
+      // than lifecycle.authorize, which requires a controlId. Take always promotes Preview to Program.
+      const authority = await runtime.lifecycle.authenticate(token);
+      if (!authority) {
+        respondAuthenticationRequired(res);
+        return;
+      }
+      if (authority.showId !== req.params.showId || !authority.scopes.includes(TAKE_SCOPE)) {
+        respondAuthorizationForbidden(res, TAKE_SCOPE);
+        return;
+      }
+
+      const show = await storage.getShow(req.params.showId);
+      if (!show) {
+        res.status(404).json({ error: { code: 'SHOW_NOT_FOUND', message: 'Show not found' } });
+        return;
+      }
+      if (show.archivedAt !== null) {
+        res.status(409).json({
+          error: { code: 'SHOW_ARCHIVED', message: 'Archived Shows cannot be controlled' },
+        });
+        return;
+      }
+
+      const state = production.take(req.params.showId, body.expectedPreviewRevision, body.operationId);
+      res.json({ data: state });
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  });
 
   return router;
 }

@@ -211,6 +211,7 @@ describe('Show-level Take action (scope-gated sibling channel)', () => {
         kind: 'production.take',
         showId: 'show-1',
         label: 'Take Preview to Program',
+        input: { expectedPreviewRevision: { type: 'number', required: true } },
       },
     ]);
   });

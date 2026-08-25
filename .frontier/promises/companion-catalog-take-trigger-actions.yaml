@@ -1,13 +1,13 @@
 id: companion-catalog-take-trigger-actions
-statement: "REQ-INT-002 / AC-017 remainder — beyond HTTP Take discovery (catalog-take-http-discovery): device Take EXECUTION (a POST take command reconciling the Show-wide production:take scope with the per-(target,controlId) authorize model, wired to ProductionService.take), the adapter/module consuming showActions to surface and run a Take, Scene activation and trigger (cue:execute) actions, and — only if a use case needs WS/offline frame discovery — frame-level Take via a coordinated DEVICE_CONTROL_CATALOG_VERSION/DEVICE_CONTROL_FRAME_VERSION bump. Deferred: the design's slices 2-4."
+statement: "REQ-INT-002 / AC-017 remainder — beyond Take discovery (catalog-take-http-discovery) and execution (catalog-take-execution): the adapter and module consuming the Take action to surface and run a Take, durable/signed/restart-safe device Take (routing through the signed command journal like executeDeviceVisibilityCommand for an audited ProductionCommandRecord/globalSequence and restart-durable idempotency), Scene activation and trigger (cue:execute) actions, and — only if a use case needs WS/offline frame discovery — frame-level Take via a coordinated DEVICE_CONTROL_CATALOG_VERSION/DEVICE_CONTROL_FRAME_VERSION bump. Deferred."
 anchors:
-  - path:server/src/routes/deviceControl.ts
-  - path:protocol/src/control-action-catalog.ts
+  - path:companion/src/catalog.ts
+  - path:server/src/services/SqliteProductionStateStore.ts
 requires:
   promises:
-    - catalog-take-http-discovery
+    - catalog-take-execution
   conditions: []
 fulfilled_when:
   type: command-succeeds
-  name: companion-catalog-take-execution
-  command: "grep -qE 'production/take|CUE_ACTION_KIND' server/src/routes/deviceControl.ts protocol/src/control-action-catalog.ts"
+  name: companion-take-remainder
+  command: "grep -qrE 'production\\.take' companion/src"

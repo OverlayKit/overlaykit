@@ -1,0 +1,19 @@
+id: catalog-take-execution
+statement: "REQ-INT-002 / US-010 — a production:take device credential executes a Take (Preview to Program) over POST /device/shows/:showId/production/take, authorized scope-only (Show-level, no per-control binding, mirroring the catalog route), wired to ProductionService.take, with the ShowTakeActionDescriptor input naming expectedPreviewRevision so discovery and execution agree. Security-reviewed: no auth bypass, the denial challenge names production:take, and the body is validated. Delivered by CHG-0088. Honest bound: it mutates durable state but not the signed device command journal — no signed audit record and in-memory-only idempotency; durable, signed, restart-safe Take is deferred."
+anchors:
+  - path:server/src/routes/deviceControl.ts
+requires:
+  promises:
+    - catalog-take-http-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/src/routes/deviceControl.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0088.json
+        matches: '"status": "implemented"'

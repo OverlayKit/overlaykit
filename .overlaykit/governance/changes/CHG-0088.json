@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0088",
+  "title": "Execute a device-authorized Take over a scope-only Show-level route",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0088 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale' approving the design's slice 2 (Take execution) after the scope-only-authorization approach was surfaced and accepted. This does not authorize automatic merge of CHG-0088.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010, and the 2026-08-25 user directive plus the surfaced approach.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A new POST /api/device/shows/:showId/production/take promotes Preview to Program for a device credential. Take is a Show-level action with no per-control binding, so it is authorized scope-only: the route authenticates the bearer token, then requires authority.showId === the route Show and authority.scopes.includes('production:take') — mirroring the catalog GET route rather than lifecycle.authorize (which requires a controlId). This is consistent with CHG-0087's scope-only Take discovery. The body is exactly { operationId, expectedPreviewRevision } and is wired to ProductionService.take; the response is the resulting production state. ShowTakeActionDescriptor gained an input { expectedPreviewRevision } so discovery and execution agree.",
+      "evidence": "server/src/routes/deviceControl.ts take route and takeBody; protocol/src/control-action-catalog.ts ShowTakeActionDescriptor.input; the catalog route it mirrors.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An adversarial security review (authz-boundary, correctness, audit-durability lenses with per-finding verification) found NO authorization bypass — a token without production:take, or for another Show, is correctly denied 403 before any mutation. It confirmed two non-bypass defects, now fixed: the insufficient_scope challenge hardcoded the visibility scope, so a Take denial advertised the wrong required scope (now the challenge names production:take via a threaded scope); and takeBody did not validate expectedPreviewRevision, so a non-integer fell through take()'s strict comparison to a misleading 409 instead of a clean 400 (now validated at the route like the studio and visibility paths).",
+      "evidence": "the CHG-0088 security review; server/src/routes/deviceControl.ts challenge/respondAuthorizationForbidden scope threading and takeBody revision guard; server/tests/unit/deviceControlHttp.test.ts new assertions on the challenge scope and the non-integer 400.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This slice mutates durable production state but does NOT route the Take through the signed device command journal that device visibility commands use (executeDeviceVisibilityCommand): a device Take gets no signed ProductionCommandRecord / globalSequence audit entry, and its operationId idempotency is in-memory only, so a replay across a process restart could double-promote. The review judged this an acceptable, clearly-bounded gap for a discovery-then-execution staging, not a blocker. Durable, signed, restart-safe Take is a deferred slice (it closes the audit and restart-dedup gaps together).",
+      "evidence": "server/src/routes/deviceControl.ts (production.take, not executeDeviceVisibilityCommand); the audit-durability review verdict; the frontier remainder node companion-catalog-take-trigger-actions.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Additive: a new device route and a descriptor input field. No Studio change, no adapter change, and no signed-frame or visibility change — Take still does not appear in signed frames. Frame-level Take, adapter/module consumption of the Take action, durable/signed Take execution, and Scene/trigger actions remain deferred.",
+      "evidence": "git diff of the CHG-0088 branch: server/src/routes/deviceControl.ts and protocol/src/control-action-catalog.ts and their tests; the deferred frontier nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0088: a production:take device credential promotes Preview to Program over a scope-only Show-level route, security-reviewed with no authorization bypass and two non-bypass defects fixed (the denial challenge now names production:take; a non-integer revision is a clean 400). The durable/signed device command journal for Take — with its audit record and restart-durable idempotency — and adapter/module consumption, Scene, and trigger actions remain deferred as frontier nodes.",
+      "evidence": "server/src/routes/deviceControl.ts and server/tests/unit/deviceControlHttp.test.ts; the CHG-0088 security review; npm run check (protocol 82, server 401/1-skipped), the CHG-0088 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A production:take credential promotes Preview to Program via the device Take route; a visibility-only credential and a wrong-Show credential are denied without mutating Program.",
+      "verification": "server/tests/unit/deviceControlHttp.test.ts asserts the 200 promote (program revision 1 to 2), and 403 for missing scope and wrong Show with unchanged program revision."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A Take denial advertises the production:take scope, and a malformed Take body (extra key or non-integer revision) is a clean 400.",
+      "verification": "Tests assert the WWW-Authenticate challenge contains scope=\"production:take\" and that an extra key and a string revision both yield 400."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full protocol and server suites pass; the visibility route's challenge scope is unchanged by the threaded default."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0088 records the scope-only authorization, the security-review fixes, and the deferred durable/signed/audit bound before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The device Take route authorizes scope-only, validates its body, promotes Preview to Program, and names the correct scope on denial.",
+      "evidence": "server/src/routes/deviceControl.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove the promote, the scope and Show denials, the challenge scope, and the malformed-body 400; the full suites pass.",
+      "evidence": "server/tests/unit/deviceControlHttp.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

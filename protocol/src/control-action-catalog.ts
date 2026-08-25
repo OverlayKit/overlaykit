@@ -47,17 +47,20 @@ export interface ComponentVisibilityActionDescriptor {
 
 /**
  * A Show-level action authorized by a device scope rather than a component. Take has no target bus,
- * componentId, or controlId, so it is deliberately NOT a ControlFeedbackSubject and carries no input
- * in this discovery-only form (an execution input is added once the endpoint exists). It is surfaced
- * as an optional sibling of `actions`, never as a member of the monomorphic visibility `actions`
- * array, so the signed device-control-frame and visibility-feedback paths — which read `actions`
- * only — are structurally unaffected.
+ * componentId, or controlId, so it is deliberately NOT a ControlFeedbackSubject. Its input names the
+ * expectedPreviewRevision the execution endpoint requires, so discovery and execution agree. It is
+ * surfaced as an optional sibling of `actions`, never as a member of the monomorphic visibility
+ * `actions` array, so the signed device-control-frame and visibility-feedback paths — which read
+ * `actions` only — are structurally unaffected.
  */
 export interface ShowTakeActionDescriptor {
   readonly actionId: string;
   readonly kind: typeof PRODUCTION_TAKE_ACTION_KIND;
   readonly showId: string;
   readonly label: string;
+  readonly input: {
+    readonly expectedPreviewRevision: { readonly type: 'number'; readonly required: true };
+  };
 }
 
 export interface AuthorizedControlActionCatalog {
@@ -250,6 +253,7 @@ export function projectAuthorizedControlActionCatalog(
       kind: PRODUCTION_TAKE_ACTION_KIND,
       showId,
       label: 'Take Preview to Program',
+      input: { expectedPreviewRevision: { type: 'number', required: true } },
     }]
     : [];
 
