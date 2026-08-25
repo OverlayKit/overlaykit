@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0084",
   "title": "Fetch the authorized action catalog over HTTP for Companion discovery",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,12 @@
       "kind": "fact",
       "statement": "The catalog is an authenticated point-in-time snapshot (ADR-0016); this slice does not subscribe to catalog deltas or run a module. The live signed-WS delta subscription, the runnable Companion module, and the Take/trigger catalog extension remain deferred (.frontier nodes). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src/discovery.ts (a single GET, no subscription); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0084: fetchAuthorizedCatalog issues the catalog GET with the device Bearer credential, parses the { data: catalog } envelope, and degrades network, non-JSON, and error responses to a typed CatalogResult that composes with projectCompanionActions — proven by a real-HTTP round-trip and a focused adversarial review that found no defects, including the optional-body transport change. The live delta subscription, the runnable module, and the Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/discovery.ts and companion/tests/catalogFetch.contract.test.ts; the CHG-0084 focused review; npm run check, the CHG-0084 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
