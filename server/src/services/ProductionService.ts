@@ -38,7 +38,9 @@ import {
 
 interface InternalProductionState extends ProductionState {
   takeOperations: Map<string, TakeReceipt>;
-  controlOperations: Set<string>;
+  // operationId -> fingerprint of the controls intent, so a reused operationId with a different
+  // intent is a conflict (not a silent no-op), mirroring visibilityOperations.
+  controlOperations: Map<string, string>;
   visibilityOperations: Map<
     string,
     {
@@ -710,7 +712,19 @@ export class ProductionService {
     const state = this.getOrCreate(showId);
     this.validateOperationId(operationId);
     const previousReceipt = state.takeOperations.get(operationId);
-    if (previousReceipt) return this.publicState(state);
+    if (previousReceipt) {
+      // A genuine replay names the same Preview revision; a reused operationId for a different Take
+      // is a conflict, not a silent duplicate promotion.
+      if (previousReceipt.previewRevision !== expectedPreviewRevision) {
+        throw new ProductionError(
+          'OPERATION_ID_CONFLICT',
+          'operationId was already used for a different Take',
+          409,
+          { operationId },
+        );
+      }
+      return this.publicState(state);
+    }
     if (state.preview.revision === 0 || !state.preview.scene) {
       throw new ProductionError('PREVIEW_EMPTY', 'Load a Scene into Preview before Take', 409);
     }
@@ -762,7 +776,33 @@ export class ProductionService {
     this.assertTargetAvailable(showId, 'preview');
     const state = this.getOrCreate(showId);
     this.validateOperationId(operationId);
-    if (state.controlOperations.has(operationId)) return this.publicState(state);
+    // Fingerprint the raw intent for idempotency. canonicalProductionJson throws (not returns) on
+    // non-serializable input (Infinity, undefined, etc.); translate that to a clean 400 rather than
+    // letting it surface as a 500 — the per-control validation below still runs for new operations.
+    let controlsFingerprint: string;
+    try {
+      controlsFingerprint = canonicalProductionJson({ expectedPreviewRevision, values });
+    } catch {
+      throw new ProductionError(
+        'INVALID_CONTROL_VALUES',
+        'values must contain 1 to 100 declared controls',
+        400,
+      );
+    }
+    const priorFingerprint = state.controlOperations.get(operationId);
+    if (priorFingerprint !== undefined) {
+      // A genuine replay carries the same intent; a reused operationId with different values or a
+      // different expected revision is a conflict, not a silent success that never applied.
+      if (priorFingerprint !== controlsFingerprint) {
+        throw new ProductionError(
+          'OPERATION_ID_CONFLICT',
+          'operationId was already used for a different controls command',
+          409,
+          { operationId },
+        );
+      }
+      return this.publicState(state);
+    }
     if (state.preview.revision === 0 || !state.preview.scene) {
       throw new ProductionError(
         'PREVIEW_EMPTY',
@@ -811,9 +851,9 @@ export class ProductionService {
       updatedAt: Date.now(),
     };
     this.commitSnapshot(state, candidate, 'preview.controls', operationId);
-    state.controlOperations.add(operationId);
+    state.controlOperations.set(operationId, controlsFingerprint);
     if (state.controlOperations.size > 100) {
-      const firstOperation = state.controlOperations.values().next().value as string | undefined;
+      const firstOperation = state.controlOperations.keys().next().value as string | undefined;
       if (firstOperation) state.controlOperations.delete(firstOperation);
     }
     this.publishCommittedSnapshot(candidate);
@@ -1419,7 +1459,7 @@ export class ProductionService {
       program: emptySnapshot(showId, 'program'),
       lastTake: null,
       takeOperations: new Map(),
-      controlOperations: new Set(),
+      controlOperations: new Map(),
       visibilityOperations: new Map(),
       cueOperations: new Map(),
     };

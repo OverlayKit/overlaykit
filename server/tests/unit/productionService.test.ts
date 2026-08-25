@@ -101,7 +101,8 @@ describe('ProductionService', () => {
   it('atomically copies Preview to Program and is idempotent by operation id', () => {
     production.loadPreview('show-1', scene(), { title: 'Ready' });
     const first = production.take('show-1', 1, 'take-1');
-    const repeated = production.take('show-1', 999, 'take-1');
+    // A genuine replay names the same Preview revision and returns the cached result — no double promote.
+    const repeated = production.take('show-1', 1, 'take-1');
 
     expect(first.program).toMatchObject({
       revision: 1,
@@ -111,6 +112,10 @@ describe('ProductionService', () => {
     expect(first.program.elements).toEqual(first.preview.elements);
     expect(repeated.program.revision).toBe(1);
     expect(repeated.lastTake).toEqual(first.lastTake);
+
+    // A reused operationId for a different Take is a conflict, not a silent duplicate promotion.
+    expect(() => production.take('show-1', 999, 'take-1'))
+      .toThrowError(expect.objectContaining({ code: 'OPERATION_ID_CONFLICT', status: 409 }));
   });
 
   it('broadcasts snapshots and a shared Take acknowledgement', () => {
@@ -158,14 +163,14 @@ describe('ProductionService', () => {
       theme: { accent: 'cyan' },
     });
 
-    const updated = production.applyPreviewControls('show-1', 1, 'controls-1', {
+    const controls = {
       'score.home': 3,
       'score.visible': false,
       'score.accent': 'gold',
-    });
-    const repeated = production.applyPreviewControls('show-1', 999, 'controls-1', {
-      'score.home': 9,
-    });
+    };
+    const updated = production.applyPreviewControls('show-1', 1, 'controls-1', { ...controls });
+    // A genuine replay carries the identical intent and returns the cached result without re-applying.
+    const repeated = production.applyPreviewControls('show-1', 1, 'controls-1', { ...controls });
 
     expect(updated.preview).toMatchObject({
       revision: 2,
@@ -179,6 +184,37 @@ describe('ProductionService', () => {
     expect(updated.program).toMatchObject({ revision: 0, scene: null });
     expect(repeated.preview.revision).toBe(2);
     expect(JSON.stringify(source)).toBe(sourceBefore);
+
+    // A reused operationId with a different intent is a conflict, not a silent no-op that never applies.
+    expect(() =>
+      production.applyPreviewControls('show-1', 999, 'controls-1', { 'score.home': 9 }),
+    ).toThrowError(expect.objectContaining({ code: 'OPERATION_ID_CONFLICT', status: 409 }));
+  });
+
+  it('fingerprints controls: same-revision divergence conflicts, key order is idempotent, malformed values are 400', () => {
+    production.loadPreview('show-1', controlledScene(), {
+      score: { home: 2 },
+      flags: { score: true },
+      theme: { accent: 'cyan' },
+    });
+
+    production.applyPreviewControls('show-1', 1, 'op-a', { 'score.home': 3, 'score.visible': false });
+
+    // Same operationId AND same revision but DIFFERENT values is the exact silent-no-op bug: it must conflict.
+    expect(() =>
+      production.applyPreviewControls('show-1', 1, 'op-a', { 'score.home': 7, 'score.visible': false }),
+    ).toThrowError(expect.objectContaining({ code: 'OPERATION_ID_CONFLICT', status: 409 }));
+
+    // The fingerprint is order-independent: the same intent with keys reordered is a cached replay, not a conflict.
+    const replay = production.applyPreviewControls('show-1', 1, 'op-a', { 'score.visible': false, 'score.home': 3 });
+    expect(replay.preview.revision).toBe(2);
+
+    // Malformed raw values must surface as a clean 400 from validation, not a 500 from the canonical serializer.
+    expect(() => production.applyPreviewControls('show-1', 2, 'op-inf', { 'score.home': Infinity }))
+      .toThrowError(expect.objectContaining({ code: 'INVALID_CONTROL_VALUES', status: 400 }));
+    expect(() =>
+      production.applyPreviewControls('show-1', 2, 'op-missing', undefined as unknown as Record<string, unknown>),
+    ).toThrowError(expect.objectContaining({ code: 'INVALID_CONTROL_VALUES', status: 400 }));
   });
 
   it('rejects stale, undeclared, and invalid control mutations atomically', () => {

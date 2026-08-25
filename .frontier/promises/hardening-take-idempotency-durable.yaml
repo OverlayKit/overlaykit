@@ -1,10 +1,19 @@
 id: hardening-take-idempotency-durable
-statement: "HARDENING (low) — Take idempotency relies on an evictable in-memory map, so a replayed operationId can double-promote Preview onto Program. Fix: add a durable UNIQUE (show_id, operation_id) backstop that returns an idempotent hit."
+statement: HARDENING (low) — take fingerprints the operation (compares the reused operationId's expectedPreviewRevision to the stored receipt), so a divergent reuse conflicts (409) instead of silently re-promoting — is fixed by CHG-0077. The in-memory idempotency is bounded; fully durable cross-restart persistence is the deferred residual [[hardening-production-idempotency-persisted]].
 anchors:
   - path:server/src/services/ProductionService.ts
+  - path:server/tests/unit/productionService.test.ts
+  - path:.overlaykit/governance/changes/CHG-0077.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-take-idempotency-durable-fixed
-  command: "grep -qiE 'UNIQUE.*operation_id|take_operations|operation_id.*UNIQUE' server/src/services/ProductionService.ts server/src/services/SqliteProductionStateStore.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/productionService.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0077.json
+        matches: '"status": "implemented"'

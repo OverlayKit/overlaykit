@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0077",
+  "title": "Detect divergent operationId reuse in Take and Preview controls",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0030"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0077 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the twelfth and thirteenth hardening fixes, closing the two production idempotency findings in one cohesive slice on ProductionService. This does not authorize automatic merge of CHG-0077.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found applyPreviewControls returned success without applying when an operationId was reused — silently hiding a divergent command and its revision conflict — and that take's idempotency ignored the reused operationId's intent (returning cached state regardless of the passed Preview revision) while relying on an evictable in-memory map.",
+      "evidence": "server/src/services/ProductionService.ts prior take and applyPreviewControls; the 2026-08-24 hardening-audit findings hardening-preview-controls-replay and hardening-take-idempotency-durable.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change fingerprints both operations, mirroring the file's existing visibilityOperations pattern: take compares the reused call's expectedPreviewRevision to the stored receipt's previewRevision, and applyPreviewControls compares canonicalProductionJson({ expectedPreviewRevision, values }); a divergent reuse throws OPERATION_ID_CONFLICT (409) while an identical replay returns the cached state. controlOperations became a Map from operationId to fingerprint.",
+      "evidence": "server/src/services/ProductionService.ts take and applyPreviewControls, alongside the existing visibilityOperations fingerprint block.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery made take and controls consistent with the already-correct visibility path (fingerprint, conflict on divergence, cached on identity) rather than leaving them as the two remaining silent-idempotent paths in the same authority.",
+      "evidence": "server/src/services/ProductionService.ts visibilityOperations already implemented this contract.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Proving that an identical replay returns the cached state (no double promotion and no re-apply) while a reused operationId with a different revision or different values throws OPERATION_ID_CONFLICT, for both take and controls, closes the silent-divergent-reuse defect.",
+      "evidence": "server/tests/unit/productionService.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The idempotency remains in-memory and bounded (the oldest of 100 operations is evicted). A replay of an operationId evicted after more than 100 subsequent operations, or across a process restart, is therefore not deduplicated. Fully durable cross-restart idempotency — the model ADR-0030 requires for device commands — is a deferred residual (frontier node hardening-production-idempotency-persisted), judged not to warrant the persistence change for this low-severity, narrow window.",
+      "evidence": "server/src/services/ProductionService.ts bounded operation maps; ADR-0030 for the device-command durable model.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only. Two existing tests were corrected from the old silent-idempotent contract (a divergent reuse returned cached) to the fingerprint contract (identical replay returns cached; divergent reuse conflicts), and one test was added isolating same-revision divergence (409), order-independent-fingerprint replay (cached), and malformed values (400). No protocol or Studio change.",
+      "evidence": "git diff of the CHG-0077 branch: server/src/services/ProductionService.ts and server/tests/unit/productionService.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review of the first fingerprint implementation caught one real regression: canonicalProductionJson throws (it does not return) on non-serializable raw values (Infinity from 1e999, undefined from omitted keys), so fingerprinting the controls intent before validation turned input that previously produced a clean 400 into a 500. The fix wraps the fingerprint computation in try/catch and maps the throw to INVALID_CONTROL_VALUES (400); the review confirmed take's conflict check, the order-independent fingerprint, the eviction bound, and snapshot ordering were otherwise correct. The visibility path never had this defect because it validates before fingerprinting with plain JSON.stringify.",
+      "evidence": "server/src/services/ProductionService.ts applyPreviewControls try/catch around canonicalProductionJson; server/tests/unit/productionService.test.ts malformed-values assertions (op-inf, op-missing) asserting code INVALID_CONTROL_VALUES status 400.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0077: take and applyPreviewControls now fingerprint the operation like the already-correct visibility path — a divergent operationId reuse conflicts (409) instead of silently re-promoting or returning success without applying, and the review-caught malformed-values regression maps to a clean 400 rather than a 500. The idempotency remains in-memory and bounded, with durable cross-restart persistence deferred to hardening-production-idempotency-persisted.",
+      "evidence": "server/src/services/ProductionService.ts take and applyPreviewControls; server/tests/unit/productionService.test.ts; the passing full server suite under npm run check, the CHG-0077 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "An identical Take or controls replay returns the cached result without re-applying or double-promoting.",
+      "verification": "Tests assert a repeated take with the same Preview revision leaves the Program revision unchanged, and a repeated applyPreviewControls with the same intent leaves the Preview revision unchanged."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A reused operationId with a different intent is rejected as a conflict, not silently accepted.",
+      "verification": "Tests assert take with a reused operationId and a different Preview revision throws, and applyPreviewControls with a reused operationId and different values throws."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0077 records the two idempotency findings, the fingerprint fix, and the in-memory bound before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "take and applyPreviewControls fingerprint the operation and conflict on a divergent reuse, mirroring visibilityOperations.",
+      "evidence": "server/src/services/ProductionService.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove identical-replay-returns-cached and divergent-reuse-conflicts for both; the full server suite passes.",
+      "evidence": "server/tests/unit/productionService.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

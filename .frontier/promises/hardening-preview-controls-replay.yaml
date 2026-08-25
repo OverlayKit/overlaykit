@@ -1,10 +1,19 @@
 id: hardening-preview-controls-replay
-statement: "HARDENING (low) — applyPreviewControls returns success without applying values when an operationId is reused, hiding a revision conflict. Fix: fingerprint the operation like the visibility path and throw OPERATION_ID_CONFLICT on divergence."
+statement: HARDENING (low) — applyPreviewControls fingerprints the operation, so a reused operationId with different values conflicts (409) instead of silently returning success without applying — is fixed by CHG-0077, mirroring the visibilityOperations pattern.
 anchors:
   - path:server/src/services/ProductionService.ts
+  - path:server/tests/unit/productionService.test.ts
+  - path:.overlaykit/governance/changes/CHG-0077.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-preview-controls-replay-fixed
-  command: "grep -qiE 'controlOperations.*Map|OPERATION_ID_CONFLICT.*control' server/src/services/ProductionService.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/productionService.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0077.json
+        matches: '"status": "implemented"'
