@@ -69,6 +69,9 @@ export function setupWebSocketHandler(
       return;
     }
 
+    // The session token is captured once from the upgrade cookie so a studio connection's authority
+    // can be re-validated on every frame (subsequent frames carry no cookie).
+    const sessionToken = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     let access = authenticateSessionConnection(req, auth);
     let authenticationTimeout: ReturnType<typeof setTimeout> | null = null;
     if (!access) {
@@ -117,6 +120,19 @@ export function setupWebSocketHandler(
         if (!access) {
           ws.close(1008, 'Output authentication required');
           return;
+        }
+        if (access.kind === 'studio') {
+          // Re-validate the session on every studio frame so a logout or TTL expiry immediately
+          // revokes an already-open socket — the authority captured at upgrade would otherwise
+          // outlive the session. (Output connections are retired separately on credential rotation.)
+          const session = auth.authenticateSession(sessionToken);
+          if (!session) {
+            for (const key of subscriptions) channelManager.unsubscribe(key, ws);
+            subscriptions.clear();
+            ws.close(1008, 'Session ended');
+            return;
+          }
+          access = { kind: 'studio', user: session.user };
         }
         handleClientMessage(ws, message as ClientMessage, subscriptions, access, production);
       } catch (error) {

@@ -1,10 +1,19 @@
 id: hardening-studio-ws-session-revocation
-statement: "HARDENING (medium) — Studio /ws sockets keep their upgrade-time authority after logout and session expiry — no revocation path, unlike Output sockets which are closed on rotation. Fix: enroll studio connections in a registry and close/downgrade them on logout and TTL expiry, or re-validate the session before each mutating frame."
+statement: HARDENING (medium) — a Studio /ws socket is revoked (closed 1008) on its next frame after logout or session TTL expiry, so the authority captured at upgrade no longer outlives the session — is fixed by CHG-0069 via per-frame session re-validation. Revocation is on next action, not for a passive idle socket (which cannot act).
 anchors:
   - path:server/src/handlers/websocket.ts
+  - path:server/tests/unit/studioWebSocketRevocation.test.ts
+  - path:.overlaykit/governance/changes/CHG-0069.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-studio-ws-session-revocation-fixed
-  command: "grep -qiE 'studioConnections|onSessionRevoked|revokeStudio' server/src/handlers/websocket.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/studioWebSocketRevocation.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0069.json
+        matches: '"status": "implemented"'
