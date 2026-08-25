@@ -19,9 +19,19 @@ interface DeviceCredentialSummary {
   revokedAt: number | null;
 }
 
-// A lifecycle detail DERIVED from the credential's own metadata — no separate event log. It shows
-// provenance and last-activity, not a per-event history (generation counts all changes; a single
-// updatedAt loses per-rotation timestamps).
+// One recorded lifecycle event from the server's append-only log (ADR-0041). Metadata only — no
+// token or secret. The per-row summary above is derived from current state; this is the recorded
+// history of what actually happened.
+interface DeviceCredentialEvent {
+  sequence: number;
+  credentialId: string;
+  showId: string;
+  kind: 'issued' | 'rotated' | 'revoked';
+  actor: string;
+  generation: number;
+  at: number;
+}
+
 function moment(ms: number): string {
   return new Date(ms).toLocaleString();
 }
@@ -37,15 +47,45 @@ const error = ref('');
 const issued = ref<{ token: string; credentialId: string } | null>(null);
 const disclosureKind = ref<'issued' | 'rotated'>('issued');
 const credentials = ref<DeviceCredentialSummary[]>([]);
+const events = ref<DeviceCredentialEvent[]>([]);
 const listError = ref('');
+const eventsError = ref('');
 const revoking = ref('');
 const rotating = ref('');
 
 onMounted(async () => {
   shows.value = await api<Show[]>('/api/shows');
   if (shows.value.length) selectedShow.value = shows.value[0].id;
-  await loadCredentials();
+  await refresh();
 });
+
+// Reload both the current-state list and the recorded event log; each owns its error state so
+// neither can throw and corrupt an issue/rotate/revoke result awaited after a mutation.
+async function refresh(): Promise<void> {
+  await Promise.all([loadCredentials(), loadEvents()]);
+}
+
+// AC-016 (audit): the recorded lifecycle history for the Show, newest activity last, straight from
+// the server's append-only log.
+async function loadEvents(): Promise<void> {
+  if (!selectedShow.value) {
+    events.value = [];
+    eventsError.value = '';
+    return;
+  }
+  try {
+    const data = await api<{ events: DeviceCredentialEvent[] }>(
+      `/api/shows/${encodeURIComponent(selectedShow.value)}/integrations/device-credentials/events`
+    );
+    events.value = data.events;
+    eventsError.value = '';
+  } catch (caught) {
+    // Surface the failure rather than letting the activity log silently vanish — a disappearing
+    // audit trail must never look like lost history.
+    events.value = [];
+    eventsError.value = caught instanceof Error ? caught.message : 'Could not load the activity log';
+  }
+}
 
 // AC-016 (manage): the owner sees the device tokens already issued for the Show. The response is
 // metadata only — no token is ever retrievable after issue.
@@ -86,7 +126,7 @@ async function issueToken(): Promise<void> {
     );
     disclosureKind.value = 'issued';
     issued.value = { token: result.token, credentialId: result.credential.credentialId };
-    await loadCredentials();
+    await refresh();
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Could not issue device token';
   } finally {
@@ -109,7 +149,7 @@ async function rotate(credential: DeviceCredentialSummary): Promise<void> {
     );
     disclosureKind.value = 'rotated';
     issued.value = { token: result.token, credentialId: result.credential.credentialId };
-    await loadCredentials();
+    await refresh();
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Could not rotate device token';
   } finally {
@@ -128,7 +168,7 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
       `/api/shows/${encodeURIComponent(selectedShow.value)}/integrations/device-credentials/${encodeURIComponent(credential.credentialId)}`,
       { method: 'DELETE' }
     );
-    await loadCredentials();
+    await refresh();
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Could not revoke device token';
   } finally {
@@ -143,7 +183,7 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
 
     <section class="inline-form" aria-label="Issue device token">
       <div class="form-grid">
-        <label><span>Show</span><select v-model="selectedShow" @change="loadCredentials"><option v-for="s in shows" :key="s.id" :value="s.id">{{ s.name }}</option></select></label>
+        <label><span>Show</span><select v-model="selectedShow" @change="refresh"><option v-for="s in shows" :key="s.id" :value="s.id">{{ s.name }}</option></select></label>
         <label><span>Label</span><input v-model="label" maxlength="80" placeholder="Stream Deck" /></label><label><span>Control id</span><input v-model="controlId" maxlength="120" placeholder="visibility.toggle" /></label>
       </div>
       <div class="scope-row">
@@ -188,6 +228,21 @@ async function revoke(credential: DeviceCredentialSummary): Promise<void> {
       </ul>
     </section>
 
-    <div class="evidence-note"><Cable :size="17" /><p>A device token executes only its selected actions for its Show; revoke it here to deny it immediately.</p></div>
+    <p v-if="eventsError" class="form-error" role="alert">{{ eventsError }}</p>
+
+    <section v-if="events.length" class="event-log" aria-label="Credential activity log">
+      <h2>Activity log</h2>
+      <ol>
+        <li v-for="event in events" :key="event.sequence" class="event-row" :data-testid="`event-${event.sequence}`">
+          <span class="event-kind" data-testid="event-kind">{{ event.kind }}</span>
+          <span class="event-credential">{{ event.credentialId }}</span>
+          <span class="event-gen">gen {{ event.generation }}</span>
+          <span class="event-actor">by {{ event.actor }}</span>
+          <span class="event-at">{{ moment(event.at) }}</span>
+        </li>
+      </ol>
+    </section>
+
+    <div class="evidence-note"><Cable :size="17" /><p>A device token executes only its selected actions for its Show; revoke it here to deny it immediately. Every issue, rotate and revoke is recorded in the activity log.</p></div>
   </div>
 </template>

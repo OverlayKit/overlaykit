@@ -29,6 +29,9 @@ import { TestStorage } from './support/outputProof';
  *
  * CHG-0064 / AC-016 (manage): each credential shows a lifecycle audit detail DERIVED from its own
  * metadata (issuer, issue/last-activity time, generation, revocation) — reflecting state changes.
+ *
+ * CHG-0066 / AC-016 (audit): the surface renders the server's append-only lifecycle event log as an
+ * activity timeline (issued, rotated, revoked in recorded order).
  */
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -202,6 +205,20 @@ describe.sequential('Studio Integrations issues a scoped device token (browser)'
     const auditText = (await row.getByTestId('credential-audit-device-1').textContent())?.trim() ?? '';
     if (!auditText.includes('Revoked')) {
       throw new Error(`expected the audit detail to record the revocation, got: ${auditText.slice(0, 100)}`);
+    }
+
+    // CHG-0066: the activity log renders the server's recorded lifecycle history in order.
+    const revokeEvent = page!.getByTestId('event-3');
+    await revokeEvent.waitFor({ state: 'visible', timeout: 12000 });
+    const kinds = await page!.getByTestId('event-kind').allTextContents();
+    const trimmedKinds = kinds.map((kind) => kind.trim());
+    if (trimmedKinds.join(',') !== 'issued,rotated,revoked') {
+      throw new Error(`expected activity log issued,rotated,revoked; got: ${trimmedKinds.join(',')}`);
+    }
+    // The non-kind fields are mapped too (generation and actor), not just the kind.
+    const revokeText = (await revokeEvent.textContent())?.replace(/\s+/g, ' ').trim() ?? '';
+    if (!revokeText.includes('gen 3') || !revokeText.includes('by ')) {
+      throw new Error(`expected the revoke event to show gen 3 and an actor, got: ${revokeText}`);
     }
   }, 60_000);
 });
