@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0069",
+  "title": "Revoke an open Studio WebSocket on logout or session expiry",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "medium",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0039"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0069 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the third hardening fix, closing the Studio /ws session-revocation finding. This does not authorize automatic merge of CHG-0069.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found that a Studio /ws connection resolves its authority once at upgrade time and never re-checks it, so logout() and session TTL expiry invalidated only future authentications while an already-open socket kept acting with its cached authority. Output connections were retired on credential rotation, but Studio connections had no equivalent revocation path.",
+      "evidence": "server/src/handlers/websocket.ts prior connection handler; the 2026-08-24 hardening-audit finding hardening-studio-ws-session-revocation.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change captures the session token from the upgrade cookie once and re-validates it with auth.authenticateSession on every Studio frame; on a logged-out or expired session it unsubscribes the connection and closes it with 1008, otherwise it refreshes the connection's user from the current session. The authenticate.output de-escalation branch runs before this check, so an Output-declaring connection is unaffected.",
+      "evidence": "server/src/handlers/websocket.ts sessionToken capture and the studio re-validation before handleClientMessage.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery chose per-frame re-validation over an event-driven revocation registry because session TTL expiry is lazy — no event fires when a session passively expires — so re-validating on each action catches both logout and expiry, and a session can only exercise authority by sending a frame that re-validates.",
+      "evidence": "AuthService.authenticateSession purges and rejects expired sessions on read; there is no expiry event to subscribe to.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Connecting a Studio socket, confirming a frame is processed while the session is valid, then logging out (and separately expiring the session via an injected clock) and asserting the next frame closes the socket with 1008 proves an already-open socket is revoked.",
+      "evidence": "server/tests/unit/studioWebSocketRevocation.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Revocation takes effect on the socket's next frame, not instantaneously — a passive open socket is not proactively closed until it acts — but it cannot perform any authorized action without a frame that re-validates, so no authority survives the session. Output connections stay out of scope (retired on credential rotation, ADR-0039).",
+      "evidence": "The re-validation runs in the message handler; there is no timer that closes an idle socket.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review found the change clean — no defects: re-validation runs before dispatch for every studio frame and never for output frames, the authenticate.output de-escalation runs first, refreshing the user each frame is idempotent (roles are frozen per session), the captured token is always the cookie that authenticated the upgrade, and the double-unsubscribe is idempotent and leak-free. Its one suggestion was applied: the logout test now revokes on a mutating frame (scene_activate), documenting that authority itself is revoked pre-dispatch.",
+      "evidence": "server/src/handlers/websocket.ts and server/tests/unit/studioWebSocketRevocation.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0069: a Studio /ws socket is revoked (closed 1008) on its next frame after logout or session TTL expiry via per-frame session re-validation, so the authority captured at upgrade no longer outlives the session; the authenticate.output de-escalation path is unaffected. Proven for logout and expiry; revocation is on next action.",
+      "evidence": "server/src/handlers/websocket.ts, server/tests/unit/studioWebSocketRevocation.test.ts, the passing full server suite under npm run check, the CHG-0069 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive; no protocol or Studio change and no existing behavior regresses.",
+      "evidence": "git diff of the CHG-0069 branch: server/src/handlers/websocket.ts and server/tests/unit/studioWebSocketRevocation.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A logout revokes an already-open Studio socket on its next frame.",
+      "verification": "A test connects a Studio socket, confirms a ping is answered, calls logout, and asserts the next ping closes the socket with 1008."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A session TTL expiry revokes an already-open Studio socket on its next frame.",
+      "verification": "A test with an injected clock and a short TTL confirms a ping is answered, advances past the TTL, and asserts the next ping closes the socket with 1008."
+    },
+    {
+      "id": "SC-003",
+      "statement": "A valid session still works and no existing behavior regresses.",
+      "verification": "The first ping is answered while the session is valid; the full server suite and the Output de-escalation test pass."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0069 records the Studio /ws revocation finding and its per-frame re-validation fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The /ws handler re-validates the Studio session on every frame and revokes the socket on logout or expiry.",
+      "evidence": "server/src/handlers/websocket.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove revocation on logout and on expiry, and that a valid session still works; the full server suite passes.",
+      "evidence": "server/tests/unit/studioWebSocketRevocation.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
