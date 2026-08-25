@@ -2,12 +2,18 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0074",
   "title": "Close the device-credential authenticate timing side channel",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +49,12 @@
       "kind": "fact",
       "statement": "The dummy verifier is a fixed, non-matching value; the fix removes the store-lookup timing asymmetry but does not make the whole authenticate path constant-time — a malformed or non-prefixed token still returns early, which reveals malformedness rather than credentialId existence.",
       "evidence": "protocol/src/device-credential.ts parseToken early return precedes the store lookup.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0074: device-credential authenticate() always runs the verifier comparison (against a fixed dummy verifier when the credential is absent), so timing cannot distinguish an existing credentialId from an unknown one; proven via a spy codec that matches() runs once for both absent and present credentials.",
+      "evidence": "protocol/src/device-credential.ts, protocol/tests/device-credential.test.ts, the passing protocol and full server suites under npm run check, the CHG-0074 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
