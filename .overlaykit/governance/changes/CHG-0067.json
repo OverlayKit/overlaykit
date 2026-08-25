@@ -2,12 +2,18 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0067",
   "title": "Bound browser WebSocket frame size against an unauthenticated memory DoS",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0039"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0039"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +49,12 @@
       "kind": "fact",
       "statement": "This slice bounds per-frame size only; it does not add a /ws upgrade or connection rate limit (the express-rate-limit middleware covers /api only), which remains a recorded hardening item.",
       "evidence": "server/src/index.ts wsServer upgrade path has no rate limit; the audit's DoS finding also noted the missing throttle.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0067: the browser /ws server bounds inbound frame size (createBrowserWebSocketServer maxPayload = 10 MiB), so an unauthenticated peer can no longer force ~100 MiB frame buffering and JSON.parse; an oversized frame is rejected with close 1009 without delivery. This is the first fix from a 13-finding hardening audit; the twelve remaining findings stay tracked as frontier hardening nodes.",
+      "evidence": "server/src/handlers/websocket.ts, server/src/index.ts, server/tests/unit/browserWebSocketMaxPayload.test.ts, the passing full server suite under npm run check, the CHG-0067 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
