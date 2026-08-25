@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0080",
+  "title": "Build the Control API visibility command from a discovered Companion action",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0080 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale al slice minimo' — the second slice of the REQ-INT-002 Companion adapter, stacked on the unmerged CHG-0079 branch, opening the command-execution half of AC-018. This does not authorize automatic merge of CHG-0080.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-018, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "CHG-0079 left the discovered actions as inert definitions. The minimal increment that makes them actionable is not the larger core catalog extension for Take and triggers, but a pure builder that turns one discovered action plus the operator's toggle into the exact request the device visibility route accepts. That keeps the slice inside the adapter package with no core, protocol, or network dependency.",
+      "evidence": "companion/src/catalog.ts produced only CompanionActionDefinition values; server/src/routes/deviceControl.ts is the command route.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "buildVisibilityCommandRequest(action, input, execution) returns { method: 'POST', path, body } where path is /api/device/shows/:showId/production/:target/components/:componentId/visibility with the Show and component ids percent-encoded (the route validates each identifier as a decoded value), and body is precisely { visible, operationId, expectedRevision } — the exact three fields the route accepts and no others. operationId is the retry-idempotency key and expectedRevision the optimistic-concurrency guard; the adapter does not invent them, a runtime slice supplies them.",
+      "evidence": "companion/src/command.ts against server/src/routes/deviceControl.ts (route path, BODY_FIELDS, validRouteIdentifier).",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Composing the real discovery projection with the builder and asserting the produced request matches the documented route and body exactly — including Preview/Program target routing, percent-encoded identifiers, and precisely the three accepted body keys — proves the adapter can form an authorized, well-formed visibility command for a discovered action.",
+      "evidence": "companion/tests/command.contract.test.ts builds actions via projectAuthorizedControlActionCatalog then projectCompanionActions, and asserts buildVisibilityCommandRequest output.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The slice builds the request only; it does not send it. The HTTP transport (Bearer auth header, dispatch, retry, and interpreting the receipt/command/state response), the AC-018 state-feedback half, the core catalog extension for Take and triggers, and a runnable Companion module remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). The change is additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src/command.ts (no network client); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0080: buildVisibilityCommandRequest turns a discovered Companion action plus the operator toggle into the exact device visibility request — target-routed and percent-encoded path with a body of precisely visible, operationId, and expectedRevision — proven by a contract test that composes the real discovery projection with the builder (AC-018 command half). Sending the request, AC-018 feedback, the Take/trigger catalog extension, and a runnable module remain deferred as .frontier nodes.",
+      "evidence": "companion/src/command.ts and companion/tests/command.contract.test.ts; npm run check, the CHG-0080 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A discovered Companion action plus a visible toggle and an execution context produces the exact device visibility request: correct method, target-routed and percent-encoded path, and the three accepted body fields.",
+      "verification": "companion/tests/command.contract.test.ts asserts method, path, and body against the documented deviceControl.ts route for both Preview and Program targets."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The request body carries precisely visible, operationId, and expectedRevision, matching the route's strict key check.",
+      "verification": "A test asserts the sorted body keys equal exactly those three."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the adapter stays dependency-isolated.",
+      "verification": "npm run check and npm run build pass across all workspaces; companion depends only on @overlaykit/protocol."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0080 records the builder-not-sender scope and the deferred transport/feedback/catalog residuals before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "buildVisibilityCommandRequest produces the documented Control API visibility request from a discovered action.",
+      "evidence": "companion/src/command.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A contract test composes discovery with the builder and proves the request matches the route and body exactly; the full check passes.",
+      "evidence": "companion/tests/command.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
