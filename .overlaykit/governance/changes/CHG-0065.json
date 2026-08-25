@@ -2,12 +2,20 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0065",
   "title": "Persist an append-only device-credential lifecycle event log",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "medium",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032", "ADR-0040", "ADR-0041"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040",
+    "ADR-0041"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -49,6 +57,12 @@
       "kind": "inference",
       "statement": "An adversarial diverse-lens review (secret-leak, authorization, recording-integrity, persistence-correctness, test-adequacy) surfaced ten confirmed findings — including a high-severity phantom 'revoked' event on an idempotent re-revoke, silent dropping of failed appends, prepared-statement caching across a reopened connection, a missing CHECK on the kind column, and several test gaps — all fixed before handoff; five further findings were refuted.",
       "evidence": "The idempotent-revoke guard in ObservableDeviceCredentialLifecycle.revoke, the onBackgroundError wiring and kind CHECK, the reopen-safe statements in SqliteDeviceCredentialEventLog, and the new best-effort, re-revoke, ordering, actor and events-null-fallback tests.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0065: device-credential issue, rotate and revoke append to a local append-only lifecycle event log carrying only metadata (credential, Show, kind, acting owner, generation, timestamp, sequence), owner-only and Show-scoped, ordered by a clock-independent sequence and tamper-resistant via append-only triggers, activating ADR-0041 and proven at the HTTP and storage tiers. An adversarial review's ten confirmed findings — including a phantom revoke event — were fixed. Recording is best-effort after commit and the log is unsigned and local; the UI timeline stays deferred.",
+      "evidence": "server/src/auth/SqliteDeviceCredentialEventLog.ts, server/tests/unit/deviceCredentialEventLog.test.ts, server/tests/unit/deviceCredentialsHttp.test.ts, the passing full server suite under npm run check, the CHG-0065 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
