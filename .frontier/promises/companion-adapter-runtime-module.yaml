@@ -8,6 +8,8 @@ requires:
     - companion-adapter-command-request
     - companion-adapter-command-transport
     - companion-adapter-fetch-transport
+    - companion-adapter-feedback
+    - companion-adapter-feedback-transport
   conditions: []
 fulfilled_when:
   type: command-succeeds
