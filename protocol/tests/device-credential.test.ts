@@ -241,4 +241,41 @@ describe('device credential lifecycle', () => {
       verifier,
     )).rejects.toMatchObject({ code: 'AUDIENCE_FORBIDDEN' });
   });
+
+  it('runs the verifier comparison for an absent credential, closing the timing side channel', async () => {
+    let matchCalls = 0;
+    const spyCodec: DeviceCredentialSecretCodec = {
+      seal: digest,
+      matches: (token, sealedSecret) => {
+        matchCalls += 1;
+        const candidate = Buffer.from(digest(token), 'hex');
+        const stored = Buffer.from(sealedSecret, 'hex');
+        return candidate.length === stored.length && timingSafeEqual(candidate, stored);
+      },
+    };
+    let id = 0;
+    let secret = 0;
+    const store = new MemoryDeviceCredentialStore();
+    const lifecycle = new DeviceCredentialLifecycle(store, {
+      now: () => 1_000,
+      generateCredentialId: () => `device-${++id}`,
+      generateSecret: () => `${String(++secret).padStart(4, '0')}${'s'.repeat(40)}`,
+      secretCodec: spyCodec,
+    });
+
+    const issued = await lifecycle.issue(OWNER, INPUT);
+    const realToken = issued.token;
+    // A well-formed token for a credential that does not exist.
+    const absentToken = realToken.replace('device-1', 'ghost-1');
+
+    // Absent credential: the verifier comparison still runs (no fast path), then returns null.
+    matchCalls = 0;
+    expect(await lifecycle.authenticate(absentToken)).toBeNull();
+    expect(matchCalls).toBe(1);
+
+    // Present credential: the same single comparison, then authenticates — equal work either way.
+    matchCalls = 0;
+    expect(await lifecycle.authenticate(realToken)).not.toBeNull();
+    expect(matchCalls).toBe(1);
+  });
 });

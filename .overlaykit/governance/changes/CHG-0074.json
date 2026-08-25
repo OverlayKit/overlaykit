@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0074",
+  "title": "Close the device-credential authenticate timing side channel",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0032"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0074 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the eighth hardening fix, closing the device-credential authenticate timing side channel. This does not authorize automatic merge of CHG-0074.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found DeviceCredentialLifecycle.authenticate returns null immediately when the credential record is absent, before running the sealed-verifier comparison, so an attacker can distinguish an existing credentialId (slower, the comparison runs) from an unknown one (fast) by timing, revealing which credentialIds exist.",
+      "evidence": "protocol/src/device-credential.ts authenticate prior early return; the 2026-08-24 hardening-audit finding hardening-authenticate-credential-timing.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change always runs the secretCodec.matches comparison — against a fixed dummy verifier of representative length (okdv1$sha256$ plus 43 characters) when the credential is absent or its stored verifier is malformed — and then returns null unless a usable record actually matched. The store lookup no longer creates a fast path.",
+      "evidence": "protocol/src/device-credential.ts DUMMY_SEALED_SECRET and the rewritten authenticate.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery equalized the verifier-comparison branch, which dominates the cost, rather than attempting full constant-time token parsing, because the finding is specifically about credentialId existence — which the store-lookup-then-compare asymmetry revealed.",
+      "evidence": "The comparison (a hash plus a constant-time equal) is the expensive step; the store lookup returns present/absent quickly either way.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Proving with a spy codec that matches() is invoked exactly once for both an absent and a present credential, while the absent case returns null and the present authenticates, closes the timing side channel.",
+      "evidence": "protocol/tests/device-credential.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The dummy verifier is a fixed, non-matching value; the fix removes the store-lookup timing asymmetry but does not make the whole authenticate path constant-time — a malformed or non-prefixed token still returns early, which reveals malformedness rather than credentialId existence.",
+      "evidence": "protocol/src/device-credential.ts parseToken early return precedes the store lookup.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is in the protocol package (device-credential.ts) plus its test; the server consumes the rebuilt protocol dist. No server-source or Studio change, and the server device-credential auth path is behaviorally unchanged for valid tokens.",
+      "evidence": "git diff of the CHG-0074 branch: protocol/src/device-credential.ts and protocol/tests/device-credential.test.ts; the full server suite passes unchanged.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The verifier comparison runs for an absent credential, not only a present one.",
+      "verification": "A spy-codec test asserts matches() is invoked exactly once when authenticating a well-formed token for a non-existent credentialId, and the call returns null."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A present credential still authenticates with the same single comparison.",
+      "verification": "The same test asserts a real token invokes matches() once and returns an authority."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The protocol suite and the full server suite pass; the server device-credential HTTP lifecycle is unchanged."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0074 records the timing-oracle finding and its constant-work fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "authenticate always runs the verifier comparison against the real or a fixed dummy verifier before deciding.",
+      "evidence": "protocol/src/device-credential.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the comparison runs for absent and present credentials; the protocol and server suites pass.",
+      "evidence": "protocol/tests/device-credential.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
