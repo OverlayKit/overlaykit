@@ -56,12 +56,29 @@ function parseCorsOrigin(corsEnv: string | undefined): string[] {
   return corsEnv.split(',').map((origin) => origin.trim()).filter(Boolean);
 }
 
+const nodeEnv: 'development' | 'production' =
+  (parseEnv('NODE_ENV', 'development') as 'development' | 'production') || 'development';
+
+/**
+ * Resolve the effective cookie-Secure mode. Fail safe: in production, 'auto' becomes 'always', so a
+ * misconfigured reverse proxy (TRUST_PROXY unset, so req.secure is false) can never downgrade the
+ * session cookie to non-Secure. Behind a TLS-terminating proxy, set TRUST_PROXY so req.secure is
+ * accurate for everything else; the session cookie is Secure regardless.
+ */
+export function resolveCookieSecure(
+  mode: 'auto' | 'always' | 'never',
+  environment: 'development' | 'production',
+): 'auto' | 'always' | 'never' {
+  if (mode === 'auto' && environment === 'production') return 'always';
+  return mode;
+}
+
 export const config: ServerConfig = {
   host: parseEnv('HOST', '127.0.0.1') || '127.0.0.1',
   wsHost: parseEnv('WS_HOST', parseEnv('HOST', '127.0.0.1')) || '127.0.0.1',
   restPort: parsePort(parseEnv('REST_PORT'), 3000),
   wsPort: parsePort(parseEnv('WS_PORT'), 8080),
-  nodeEnv: (parseEnv('NODE_ENV', 'development') as 'development' | 'production') || 'development',
+  nodeEnv,
   logLevel: (parseEnv('LOG_LEVEL', 'debug') as 'debug' | 'info' | 'warn' | 'error') || 'debug',
   corsOrigin: parseCorsOrigin(parseEnv('CORS_ORIGIN')),
   rateLimitWindowMs: parseInt(parseEnv('RATE_LIMIT_WINDOW_MS', '60000') || '60000', 10),
@@ -69,7 +86,7 @@ export const config: ServerConfig = {
   authRateLimitWindowMs: parseInt(parseEnv('AUTH_RATE_LIMIT_WINDOW_MS', '900000') || '900000', 10),
   authRateLimitMaxRequests: parseInt(parseEnv('AUTH_RATE_LIMIT_MAX_REQUESTS', '10') || '10', 10),
   sessionTtlMs: parseInt(parseEnv('SESSION_TTL_MS', '43200000') || '43200000', 10),
-  cookieSecure: parseCookieSecure(parseEnv('COOKIE_SECURE', 'auto')),
+  cookieSecure: resolveCookieSecure(parseCookieSecure(parseEnv('COOKIE_SECURE', 'auto')), nodeEnv),
   trustProxy: parseTrustProxy(parseEnv('TRUST_PROXY')),
 };
 

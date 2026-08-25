@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0070",
+  "title": "Fail the session cookie safe to Secure in production",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0070 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the fourth hardening fix, closing the cookie-Secure-default finding per the owner's explicit policy choice. This does not authorize automatic merge of CHG-0070.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found the session cookie could be issued without the Secure flag under the default COOKIE_SECURE='auto' when TRUST_PROXY is unset: 'auto' uses req.secure, which is false behind a TLS-terminating proxy that has not been trusted, so a production cookie could be sent over plain HTTP.",
+      "evidence": "server/src/auth/http.ts secureCookie prior behavior; the 2026-08-24 hardening-audit finding hardening-cookie-secure-default.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The owner chose the fail-safe-to-Secure policy (over warn-only or require-explicit): in production, COOKIE_SECURE='auto' resolves to 'always' so the session cookie is always Secure, and deployments behind a TLS-terminating proxy must set TRUST_PROXY and serve HTTPS. The change resolves this at config load via a pure resolveCookieSecure helper and documents TRUST_PROXY and the fail-safe in .env.example.",
+      "evidence": "AskUserQuestion answer on 2026-08-24; server/src/config/environment.ts resolveCookieSecure; server/.env.example.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery resolved the fail-safe at the config layer (auto to always in production) rather than threading a production flag through the cookie helpers, which keeps http.ts a pure request-scoped module and makes the resolution directly testable.",
+      "evidence": "server/src/config/environment.ts resolveCookieSecure is a pure exported function; server/src/auth/http.ts is unchanged.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Asserting resolveCookieSecure('auto','production') is 'always' (and that explicit modes and development 'auto' are unchanged), plus that setSessionCookie with 'always' sets Secure regardless of req.secure, proves the fail-safe.",
+      "evidence": "server/tests/unit/cookieSecure.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The fail-safe makes the cookie Secure, not the transport HTTPS — a plain-HTTP production deployment will break logins because a Secure cookie is not sent over HTTP. This is the intended forcing function: operators set TRUST_PROXY and serve HTTPS, or set COOKIE_SECURE='never' for local non-HTTPS development.",
+      "evidence": "server/.env.example guidance; the SameSite=Strict Secure cookie semantics.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0070: in production, COOKIE_SECURE='auto' resolves to 'always' so the session cookie is always Secure, closing the misconfigured-proxy downgrade; TRUST_PROXY and the fail-safe are documented. This was the owner's explicit policy choice; it forces HTTPS in production.",
+      "evidence": "server/src/config/environment.ts, server/.env.example, server/tests/unit/cookieSecure.test.ts, the passing full server suite under npm run check, the CHG-0070 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only: a config resolution, an .env.example doc, and a test. No protocol or Studio change and no existing behavior regresses (development and test environments keep the raw mode).",
+      "evidence": "git diff of the CHG-0070 branch: server/src/config/environment.ts, server/.env.example and server/tests/unit/cookieSecure.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "In production, COOKIE_SECURE='auto' resolves so the session cookie is always Secure; explicit modes and development 'auto' are unchanged.",
+      "verification": "A test asserts resolveCookieSecure('auto','production') is 'always', ('auto','development') is 'auto', and 'always'/'never' are returned unchanged."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The resolved mode produces a Secure cookie regardless of the request's TLS state.",
+      "verification": "A test asserts setSessionCookie with 'always' sets secure true even when req.secure is false, while 'auto' follows req.secure and 'never' is never Secure."
+    },
+    {
+      "id": "SC-003",
+      "statement": "TRUST_PROXY and the fail-safe are documented and no existing behavior regresses.",
+      "verification": "server/.env.example documents TRUST_PROXY and the production fail-safe; the full server suite passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0070 records the finding, the owner's fail-safe-to-Secure policy decision, and the fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The config resolves 'auto' to 'always' in production and .env.example documents TRUST_PROXY and the fail-safe.",
+      "evidence": "server/src/config/environment.ts and server/.env.example."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the resolution and the resulting cookie Secure flag; the full server suite passes.",
+      "evidence": "server/tests/unit/cookieSecure.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

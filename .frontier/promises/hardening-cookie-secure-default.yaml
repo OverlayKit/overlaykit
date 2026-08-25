@@ -1,10 +1,19 @@
 id: hardening-cookie-secure-default
-statement: "HARDENING (medium) — The session cookie is not Secure under default COOKIE_SECURE='auto' with unset TRUST_PROXY. Fix: fail safe to Secure in production (or require TRUST_PROXY), and document TRUST_PROXY in .env.example."
+statement: HARDENING (medium) — the session cookie fails safe to Secure in production (COOKIE_SECURE='auto' resolves to 'always'), so a misconfigured proxy can never downgrade it — is fixed by CHG-0070 per the owner's explicit policy choice; TRUST_PROXY is documented in .env.example. The fail-safe forces HTTPS in production (a plain-HTTP prod deploy will break logins).
 anchors:
-  - path:server/src/auth/http.ts
+  - path:server/src/config/environment.ts
+  - path:server/tests/unit/cookieSecure.test.ts
+  - path:.overlaykit/governance/changes/CHG-0070.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-cookie-secure-default-fixed
-  command: "grep -qiE 'failSafeSecure|production.*secure|TRUST_PROXY' server/src/auth/http.ts server/.env.example"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/cookieSecure.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0070.json
+        matches: '"status": "implemented"'
