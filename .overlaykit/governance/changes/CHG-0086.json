@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0086",
+  "title": "Build the SDK-free core of the Companion module",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0086 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale companion-adapter-runtime-module' with the human electing the SDK-free-core-first approach — the eighth slice of the REQ-INT-002 Companion adapter, building the vendor-neutral module core toward the runnable module. This does not authorize automatic merge of CHG-0086.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010, the 2026-08-25 user directive, and the human's AskUserQuestion choice of the SDK-free core.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The runnable Bitfocus Companion module needs the @companion-module/base SDK and can only be fully verified against real controller hardware, neither of which is committed or available here; its feedbacks also need live observations from the still-deferred feedback transport. The human elected to build the SDK-free core first: the module logic that is verifiable now without the dependency, hardware, or live feedback. REQ-INT-002 keeps hardware-specific behavior out of the core, which this honors — the SDK enters only a later thin wrapper.",
+      "evidence": "SPEC-0001 REQ-INT-002 (hardware-specific behavior does not enter the core); the deferred companion-adapter-feedback-transport node; the human's approach choice.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The core provides COMPANION_CONFIG_FIELDS (the baseUrl, token, and showId textinput fields a Companion instance needs), parseModuleConfig (trims and requires all three, reporting every missing field at once rather than a partial config), and buildCompanionActionDefinitions(actions, run) which maps discovered actions to a record keyed by actionId of { name, options, callback }, where a button press runs the injected command for that action with the visible option coerced to a boolean. It imports no @companion-module/base and holds no runtime state; the operationId, expected revision, and adapter live behind the run seam a later InstanceBase wrapper supplies.",
+      "evidence": "companion/src/module.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Asserting the three config fields, that parseModuleConfig trims and reports all missing fields, and that each action definition is keyed by actionId with the action's name and options and a callback that runs the command for its own action with a strictly-coerced visible option, proves the module core assembles a Companion module's config and actions correctly without the SDK.",
+      "evidence": "companion/tests/module.contract.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review verified the core against the real types and found no defects: parseModuleConfig evaluates every field independently and reports all missing ones in a stable order with sound non-string coercion, the action callbacks each close over their own action (a per-iteration binding, not the shared-last-value trap), visible === true coerces every non-true value to false, and the actionId keying is the required Companion setActionDefinitions shape whose uniqueness is the catalog's contract, not this function's to enforce.",
+      "evidence": "the CHG-0086 focused review of companion/src/module.ts against companion/src/types.ts and companion/src/command.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This is the module core only, not the runnable module: the @companion-module/base InstanceBase wrapper (registering these fields and actions and supplying the run seam), live feedbacks, packaging, and hardware verification remain deferred (frontier node companion-adapter-runtime-module), as do the live delta subscription and the Take/trigger catalog extension. Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed, and no new dependency added.",
+      "evidence": "companion/src/module.ts (no @companion-module/base import); companion/package.json dependencies unchanged; the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0086: the SDK-free module core provides the connection config fields and validation and the action-definition builder (a press running the injected command for its own action with a strictly-coerced visible option), with no @companion-module/base import and no runtime state behind the run seam — proven by a contract test and a focused adversarial review that found no defects. The InstanceBase SDK wrapper, live feedbacks, packaging, and hardware verification remain deferred as the runnable-module node.",
+      "evidence": "companion/src/module.ts and companion/tests/module.contract.test.ts; the CHG-0086 focused review; npm run check, the CHG-0086 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The core declares the connection config fields and validates raw config, reporting all missing fields at once.",
+      "verification": "companion/tests/module.contract.test.ts asserts the three fields and parseModuleConfig's trim and all-missing behavior."
+    },
+    {
+      "id": "SC-002",
+      "statement": "buildCompanionActionDefinitions maps each discovered action to a keyed definition whose callback runs the command for that action with a strictly-coerced visible option.",
+      "verification": "Tests assert the keyed definitions and that a callback invokes the injected run with the correct action and { visible }."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The core adds no dependency and no existing behavior regresses.",
+      "verification": "companion/package.json dependencies are unchanged; npm run check and npm run build pass across all workspaces."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0086 records the SDK-free-core scope, the run seam, and the deferred SDK-wrapper/feedback/hardware residuals before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "module.ts provides the config fields, config parse, and action-definition builder with no @companion-module/base import.",
+      "evidence": "companion/src/module.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove the config and action-definition core; the full check passes.",
+      "evidence": "companion/tests/module.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
