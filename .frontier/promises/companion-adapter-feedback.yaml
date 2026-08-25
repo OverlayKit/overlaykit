@@ -1,5 +1,5 @@
 id: companion-adapter-feedback
-statement: "REQ-INT-002 / AC-018 — the Companion adapter receives live state feedback from the Control API so a button reflects Studio or other-device changes, and executes commands against explicit Preview or Program targets. Deferred: requires a signed WebSocket bootstrap and delta client (or an HTTP feedback endpoint) beyond the CHG-0079 headless catalog projection."
+statement: "REQ-INT-002 / AC-018 feedback half — the Companion adapter receives live state feedback from the Control API so a button reflects Studio or other-device changes. The command half is companion-adapter-command-request. Deferred: requires a signed WebSocket bootstrap and delta client (or an HTTP feedback endpoint) beyond the CHG-0079 and CHG-0080 headless catalog and command projections."
 anchors:
   - path:companion/src
 requires:

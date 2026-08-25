@@ -1,0 +1,20 @@
+id: companion-adapter-command-request
+statement: "REQ-INT-002 / AC-018 command half — the @overlaykit/companion adapter turns a discovered action plus the operator toggle into the exact device visibility request (POST /api/device/shows/:showId/production/:target/components/:componentId/visibility with body of precisely visible, operationId, expectedRevision). Delivered by CHG-0080. Sending the request (Bearer auth, transport, retry, response) is deferred to companion-adapter-runtime-module."
+anchors:
+  - path:companion/src/command.ts
+  - path:companion/tests/command.contract.test.ts
+requires:
+  promises:
+    - companion-catalog-visibility-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/command.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0080.json
+        matches: '"status": "implemented"'
