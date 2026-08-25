@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-profile/v2",
   "name": "overlaykit-oss",
-  "version": "2.36.0",
+  "version": "2.37.0",
   "decisionIds": [
     "ADR-0003",
     "ADR-0004",
@@ -39,9 +39,12 @@
     "ADR-0037",
     "ADR-0038",
     "ADR-0039",
-    "ADR-0040"
+    "ADR-0040",
+    "ADR-0041"
   ],
-  "specificationIds": ["SPEC-0001"],
+  "specificationIds": [
+    "SPEC-0001"
+  ],
   "gates": [],
   "artifacts": [],
   "actors": [
@@ -49,25 +52,40 @@
       "kind": "human",
       "id": "@rodrigoteamx",
       "principal": null,
-      "roles": ["owner", "maintainer", "reviewer"]
+      "roles": [
+        "owner",
+        "maintainer",
+        "reviewer"
+      ]
     },
     {
       "kind": "agent",
       "id": "codex",
       "principal": "@rodrigoteamx",
-      "roles": ["author", "investigator", "producer"]
+      "roles": [
+        "author",
+        "investigator",
+        "producer"
+      ]
     },
     {
       "kind": "agent",
       "id": "claude-code",
       "principal": "@rodrigoteamx",
-      "roles": ["author", "investigator", "producer"]
+      "roles": [
+        "author",
+        "investigator",
+        "producer"
+      ]
     },
     {
       "kind": "ci",
       "id": "github-actions",
       "principal": "@rodrigoteamx",
-      "roles": ["evidence-producer", "gate-runner"]
+      "roles": [
+        "evidence-producer",
+        "gate-runner"
+      ]
     }
   ],
   "assumptions": [
@@ -105,8 +123,12 @@
           "required_signatures",
           "required_status_checks"
         ],
-        "requiredStatusChecks": ["validate"],
-        "allowedMergeMethods": ["merge"],
+        "requiredStatusChecks": [
+          "validate"
+        ],
+        "allowedMergeMethods": [
+          "merge"
+        ],
         "requireReviewThreadResolution": true,
         "dismissStaleReviewsOnPush": false,
         "requireCodeOwnerReview": false,
