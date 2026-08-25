@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0085",
   "title": "Compose the Companion adapter pieces into one instantiable object",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "The facade is pure composition of already-reviewed, already-tested pieces with no new I/O, parsing, or branching beyond the ok/failure passthrough (type-checked to match DiscoverResult), so the tests and type-checker cover it without a separate adversarial review. The live delta subscription, the runnable Companion module (InstanceBase, connection config, packaging, the module SDK), and the Take/trigger catalog extension remain deferred (.frontier nodes). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src/adapter.ts (delegation only); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0085: createCompanionAdapter composes discover (fetch then project) and execute (build then dispatch) with the base URL, token, and transport held once and the underlying typed results surfaced unchanged, proven by a contract test over an injected transport. The live delta subscription, the runnable module (InstanceBase, config, packaging, the module SDK), and the Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/adapter.ts and companion/tests/adapter.contract.test.ts; npm run check, the CHG-0085 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
