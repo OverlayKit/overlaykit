@@ -1,10 +1,19 @@
 id: hardening-element-nesting-bound
-statement: "HARDENING (medium) — Unbounded element-tree nesting can stack-overflow schema validation and recursive helpers (any route/WS accepting an ElementNode tree). Fix: bound depth and node count before/inside validation and add maxItems to the schema."
+statement: HARDENING (medium) — a deeply-nested or huge ElementNode tree is rejected by an iterative depth/node-count guard (MAX_ELEMENT_DEPTH 64, MAX_ELEMENT_NODES 20000) before the recursive Ajv validator, so it cannot overflow the stack on the element/scene routes and WS handlers — is fixed by CHG-0071.
 anchors:
-  - path:server/src/validation/schemas/element.schema.json
+  - path:server/src/validation/validator.ts
+  - path:server/tests/unit/elementNestingBound.test.ts
+  - path:.overlaykit/governance/changes/CHG-0071.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-element-nesting-bound-fixed
-  command: "grep -qiE 'maxItems|MAX_ELEMENT_DEPTH|maxDepth' server/src/validation/schemas/element.schema.json server/src/validation/validator.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/elementNestingBound.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0071.json
+        matches: '"status": "implemented"'

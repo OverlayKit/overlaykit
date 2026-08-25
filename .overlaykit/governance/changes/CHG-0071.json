@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0071",
+  "title": "Bound element-tree depth and node count against a stack-overflow DoS",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0071 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the fifth hardening fix, closing the element-nesting stack-overflow finding. This does not authorize automatic merge of CHG-0071.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found that the element schema is recursive (children references the element schema), so the compiled Ajv validator recurses on validation; an unbounded, deeply-nested ElementNode tree could overflow the call stack on any path that validates one — POST /api/elements, POST /api/scenes, POST /api/scenes/activate and the WS component_deploy and scene_activate handlers.",
+      "evidence": "server/src/validation/schemas/element.schema.json recursive children definition; the 2026-08-24 hardening-audit finding hardening-element-nesting-bound.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds an iterative (explicit-stack) pre-check, boundElementTree, that rejects a tree exceeding MAX_ELEMENT_DEPTH (64 levels) or MAX_ELEMENT_NODES (20000 nodes), run before the Ajv validator in validateElementNode and validateSceneNode. It follows both element children and scene elements arrays, short-circuits at the depth limit, and never recurses itself.",
+      "evidence": "server/src/validation/validator.ts boundElementTree and its use in validateElementNode and validateSceneNode.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery required the guard itself to be iterative — a recursive guard would overflow on the same malicious input — and to run before the Ajv validator, so the recursive validator (and the downstream recursive render and clone helpers) never see an over-deep tree.",
+      "evidence": "boundElementTree uses an explicit stack and runs as the first statement of validateElementNode/validateSceneNode.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Rejecting an element nested past 64 levels, a 100000-deep tree without throwing, a tree exceeding 20000 nodes, and a scene whose elements nest too deep, while a valid shallow element still passes, proves the bound closes the stack-overflow DoS.",
+      "evidence": "server/tests/unit/elementNestingBound.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The 64-level depth and 20000-node limits are generous for real scenes (which are shallow with far fewer elements); the guard covers the element and scene validation entry points, and downstream recursive render or clone helpers are protected because an over-deep tree is rejected before reaching them.",
+      "evidence": "The full server suite of real scene and element fixtures passes unchanged under the new bound.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: a validation pre-check and a test. No protocol or Studio change and no existing behavior regresses.",
+      "evidence": "git diff of the CHG-0071 branch: server/src/validation/validator.ts and server/tests/unit/elementNestingBound.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A tree nested past the depth limit or exceeding the node-count limit is rejected before the recursive validator runs.",
+      "verification": "Tests assert validateElementNode rejects a 69-deep element and a 20001-node tree with a bounded reason, and validateSceneNode rejects a scene whose elements nest too deep."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A very deep tree is rejected without overflowing the stack.",
+      "verification": "A test validates a 100000-deep element and asserts it does not throw and returns a non-null bounded error."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Valid shallow trees still pass and no existing behavior regresses.",
+      "verification": "A test asserts a valid shallow element validates to null; the full server suite passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0071 records the element-nesting DoS finding and its iterative-bound fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "An iterative depth and node-count guard runs before the Ajv validator on the element and scene validation paths.",
+      "evidence": "server/src/validation/validator.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Tests prove rejection past the limits, no stack overflow on a very deep tree, and that valid trees pass; the full server suite passes.",
+      "evidence": "server/tests/unit/elementNestingBound.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
