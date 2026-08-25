@@ -14,6 +14,11 @@ const MAX_CREDENTIAL_ID_LENGTH = 160;
 const MAX_LABEL_LENGTH = 80;
 const MAX_SECRET_LENGTH = 512;
 const MAX_SEALED_SECRET_LENGTH = 4_096;
+// A fixed, non-matching verifier of representative length. authenticate() runs the verifier
+// comparison against this when the credential is absent or its stored verifier is malformed, so the
+// present and absent branches take equivalent work and cannot reveal which credentialIds exist via
+// a timing side channel.
+const DUMMY_SEALED_SECRET = `okdv1$sha256$${'A'.repeat(43)}`;
 
 export type DeviceCredentialScope = typeof DEVICE_CREDENTIAL_SCOPES[number];
 
@@ -398,15 +403,19 @@ export class DeviceCredentialLifecycle {
     const parsed = parseToken(token);
     if (!parsed || typeof token !== 'string') return null;
     const record = await this.store.get(parsed.credentialId);
-    if (!record || record.sealedSecret.length > MAX_SEALED_SECRET_LENGTH) return null;
+    // Always run the verifier comparison — against a fixed dummy when the credential is absent or its
+    // stored verifier is malformed — so timing cannot distinguish a real credentialId from an unknown
+    // one (the comparison, not the store lookup, dominates the cost).
+    const usableRecord = record && record.sealedSecret.length <= MAX_SEALED_SECRET_LENGTH;
+    const sealed = usableRecord ? record!.sealedSecret : DUMMY_SEALED_SECRET;
     let matches = false;
     try {
-      matches = await this.options.secretCodec.matches(token, record.sealedSecret);
+      matches = await this.options.secretCodec.matches(token, sealed);
     } catch {
       matches = false;
     }
-    if (!matches) return null;
-    return effectiveDeviceCredentialAuthority(record, this.options.now());
+    if (!usableRecord || !matches) return null;
+    return effectiveDeviceCredentialAuthority(record!, this.options.now());
   }
 
   async resolveAuthority(credentialId: string): Promise<DeviceCredentialAuthority | null> {
