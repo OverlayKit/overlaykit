@@ -2,12 +2,17 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0075",
   "title": "Close the login email timing side channel",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
-  "decisions": ["ADR-0003", "ADR-0004"],
-  "specifications": ["SPEC-0001"],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
   "claims": [
     {
       "kind": "fact",
@@ -43,6 +48,12 @@
       "kind": "fact",
       "statement": "The decoy uses the real scrypt parameters; the empty-password early return in verifyPassword still skips the derivation, but that reflects the caller's own empty input rather than the owner's email, so it is not an email oracle.",
       "evidence": "server/src/auth/AuthService.ts verifyPassword returns false for an empty password before deriving.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0075: login always runs a scrypt derivation (against a fixed decoy verifier when the email does not match the owner), so login timing cannot reveal the owner's email; proven via a derivation hook that a derivation runs once on the non-matching-email, wrong-password, and correct paths.",
+      "evidence": "server/src/auth/AuthService.ts, server/tests/unit/loginTiming.test.ts, the passing full server suite under npm run check, the CHG-0075 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
       "blocking": false
     },
     {
