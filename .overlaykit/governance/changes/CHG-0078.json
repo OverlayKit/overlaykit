@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0078",
   "title": "Stop leaking internal error strings from scene activation",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "The change is server-only and additive to a single catch block. No protocol or Studio change, and the success path, the 400 validation paths, and the two sibling handlers are untouched. The audit backlog is now cleared: this was the thirteenth and final confirmed finding; the only remaining hardening frontier node is the deferred durable-idempotency residual hardening-production-idempotency-persisted.",
       "evidence": "git diff of the CHG-0078 branch: server/src/routes/scenes.ts and server/tests/unit/sceneActivateErrorLeak.test.ts; the frontier board after CHG-0077 (41 of 43 fulfilled).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0078: POST /api/scenes/activate now returns a message-only 500 body like its two siblings, with the internal error kept in the server log only, and a test proves the raw error string never reaches the client. This clears the thirteen-finding hardening audit; the sole open frontier node is the deferred durable-idempotency residual hardening-production-idempotency-persisted.",
+      "evidence": "server/src/routes/scenes.ts and server/tests/unit/sceneActivateErrorLeak.test.ts; the passing full server suite under npm run check, the CHG-0078 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
