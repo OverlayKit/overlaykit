@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0066",
+  "title": "Surface the device-credential event log as an activity timeline",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0032",
+    "ADR-0040",
+    "ADR-0041"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0066 under human principal @rodrigoteamx, on the 2026-08-24 directive to build the next frontier node after CHG-0065 ('dale al merge y a lo que sigue'). This does not authorize automatic merge of CHG-0066.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0065 persisted and served an append-only device-credential lifecycle event log but did not surface it; the Integrations surface showed only a derived per-credential summary.",
+      "evidence": "server/src/routes/deviceCredentials.ts events route; the prior studio/src/views/IntegrationsView.vue rendered no event timeline.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is UI-only: IntegrationsView fetches the events route and renders an activity log timeline (kind, credential, generation, actor, timestamp) ordered by the recorded sequence, refreshing after each mutation and on Show change. No server or protocol change.",
+      "evidence": "studio/src/views/IntegrationsView.vue loadEvents/refresh and the event-log section; server/tests/e2e/studioIntegrations.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the work: the timeline is a thin read of the server's recorded log (the source of truth), so the slice proves the browser round-trip — issue, rotate and revoke and the recorded events appearing in order — rather than re-proving the log.",
+      "evidence": "Governed-discovery reorder check on 2026-08-24; the events route and its append-only proofs from CHG-0065.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Driving issue, rotate and revoke and asserting the activity log renders issued, rotated and revoked in recorded order proves the timeline surfaces the recorded history. server/tests/e2e/studioIntegrations.test.ts is the falsification mechanism.",
+      "evidence": "server/tests/e2e/studioIntegrations.test.ts reads the event-kind cells in order after the lifecycle.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The UI does not re-prove the log's append-only integrity, secret-freeness or ordering guarantees — those stay proven at the storage and HTTP tiers (CHG-0065, ADR-0041). The timeline reads metadata only.",
+      "evidence": "server/tests/unit/deviceCredentialEventLog.test.ts and server/tests/unit/deviceCredentialsHttp.test.ts hold those proofs; the view renders only the event projection.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review found the timeline slice functionally clean — no correctness or security defects (error isolation holds, no secret reaches the DOM, field names match the server projection, ordering and keys are sound) — with two suggestions applied: the activity log now surfaces a distinct eventsError instead of silently vanishing on a failed fetch, and the browser test asserts non-kind fields (generation and actor) so a field-mapping regression is caught.",
+      "evidence": "studio/src/views/IntegrationsView.vue eventsError handling and server/tests/e2e/studioIntegrations.test.ts non-kind assertions.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Filtering, pagination and export of the activity log, and a per-credential timeline grouping, remain deferred to a successor.",
+      "evidence": "studio/src/views/IntegrationsView.vue renders a flat, unpaginated Show-level activity log.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "No server or protocol code changes; the change is the Studio view and a browser-test assertion on the existing lifecycle.",
+      "evidence": "git diff of the CHG-0066 branch: studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts only.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The Integrations surface renders the recorded lifecycle events for the Show as a timeline in recorded order.",
+      "verification": "The browser test drives issue, rotate and revoke and asserts the activity log shows issued, rotated and revoked in recorded order."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The timeline refreshes after each mutation and reads only server-recorded metadata.",
+      "verification": "The events populate after issue, rotate and revoke via refresh(); the rendered fields are kind, credential, generation, actor and timestamp, with no secret."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the surface type-checks.",
+      "verification": "The full server suite passes and the Studio type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0066 records the timeline slice — the fields surfaced, that it reads the server log, and the deferred filtering — before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "IntegrationsView fetches and renders the event log as an activity timeline; a browser test proves the recorded order is surfaced.",
+      "evidence": "studio/src/views/IntegrationsView.vue and server/tests/e2e/studioIntegrations.test.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "The browser test and the full server suite pass.",
+      "evidence": "npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
