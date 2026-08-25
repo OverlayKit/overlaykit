@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0081",
   "title": "Dispatch a Companion visibility command to the Control API",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "This is a headless executor with an injected transport, not a runnable Companion module: no InstanceBase, no button callbacks, no connection configuration, no fetch-backed transport, and no retry or backoff. A fetch-backed transport, the Companion module packaging, the AC-018 state-feedback half, and the Take/trigger catalog extension remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src/transport.ts (transport is a parameter, no network client); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0081: executeVisibilityCommand dispatches a built visibility command with the device Bearer credential and maps the server envelope to a typed result, proven by a contract test over an injected transport (AC-018 command dispatch). The fetch-backed transport, AC-018 feedback, Take/trigger catalog extension, and a runnable module remain deferred as .frontier nodes.",
+      "evidence": "companion/src/transport.ts and companion/tests/transport.contract.test.ts; npm run check, the CHG-0081 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
