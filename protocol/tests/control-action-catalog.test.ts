@@ -192,3 +192,48 @@ describe('authorized control action catalog', () => {
     }));
   });
 });
+
+describe('Show-level Take action (scope-gated sibling channel)', () => {
+  it('omits showActions entirely for an authority without the production:take scope', () => {
+    const catalog = projectAuthorizedControlActionCatalog(INVENTORY, authority());
+    expect('showActions' in catalog).toBe(false);
+    expect(catalog.showActions).toBeUndefined();
+  });
+
+  it('surfaces one Show-level Take action when the authority carries production:take', () => {
+    const catalog = projectAuthorizedControlActionCatalog(
+      INVENTORY,
+      authority({ scopes: ['feedback:read', 'component.visibility:write', 'production:take'] }),
+    );
+    expect(catalog.showActions).toEqual([
+      {
+        actionId: 'production.take/show-1',
+        kind: 'production.take',
+        showId: 'show-1',
+        label: 'Take Preview to Program',
+      },
+    ]);
+  });
+
+  it('grants Take on the scope alone, independent of targets and controlIds', () => {
+    const catalog = projectAuthorizedControlActionCatalog(
+      INVENTORY,
+      authority({ scopes: ['production:take'], targets: [], controlIds: [] }),
+    );
+    // No visibility scope/targets/controls, yet Take is present and no visibility action leaks.
+    expect(catalog.actions).toEqual([]);
+    expect(catalog.showActions?.map((action) => action.kind)).toEqual(['production.take']);
+  });
+
+  it('leaves the visibility actions and schemaVersion identical whether or not Take is granted', () => {
+    const withoutTake = projectAuthorizedControlActionCatalog(INVENTORY, authority());
+    const withTake = projectAuthorizedControlActionCatalog(
+      INVENTORY,
+      authority({ scopes: ['feedback:read', 'component.visibility:write', 'production:take'] }),
+    );
+    // The visibility actions array — the only part read by the signed-frame and feedback paths — is
+    // byte-for-byte identical, so the Take channel cannot move the signed-frame preimage.
+    expect(withTake.actions).toEqual(withoutTake.actions);
+    expect(withTake.schemaVersion).toBe(CONTROL_ACTION_CATALOG_VERSION);
+  });
+});

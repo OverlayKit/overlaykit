@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0087",
+  "title": "Discover a Show-level Take action over HTTP without touching the signed-frame trust model",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0015", "ADR-0016", "ADR-0020"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0087 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale companion-catalog-take-trigger-actions' — the first slice of the Take extension (AC-017), delivering Take discovery over HTTP. This does not authorize automatic merge of CHG-0087.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-017, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A design-first workflow (five subsystem readers, two design proposals, synthesis) surfaced that the AuthorizedControlActionCatalog is embedded and hashed in the signed device-control-frame trust model, and that two consumers (control-visibility-feedback and device-control-frame) throw on or assume only visibility action kinds. Adding Take to catalog.actions would ripple through that security-critical, ~15-ADR device protocol. The human chose the separate-sibling-channel approach for slice 1 over a heterogeneous union.",
+      "evidence": "the CHG-0087 design workflow; protocol/src/device-control-frame.ts and control-visibility-feedback.ts visibility-only consumption; the human's AskUserQuestion choice of Approach B.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change keeps catalog.actions monomorphic (visibility only) and adds an OPTIONAL showActions sibling to AuthorizedControlActionCatalog carrying a single Show-level ShowTakeActionDescriptor (kind 'production.take', no subject/component/input), emitted by projectAuthorizedControlActionCatalog only when the authority carries the 'production:take' scope and spread only when non-empty — so a catalog for any non-take authority is byte-identical to before. The server GET /device/shows/:showId/actions surfaces it automatically; DeviceBootstrapSnapshotIssuer.catalogHash was narrowed to hash {schemaVersion, showId, actions} so the signed catalogGeneration can never move because of showActions. No schemaVersion bump.",
+      "evidence": "protocol/src/control-action-catalog.ts (PRODUCTION_TAKE_ACTION_KIND, ShowTakeActionDescriptor, showActions, canTake, scope-gated emission); server/src/services/DeviceBootstrapSnapshotIssuer.ts narrowed catalogHash.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "The signed device-control-frame trust model is provably invariant to the Take channel: the frame catalog preimage (device-control-frame deviceControlCatalogHash / catalogDocument) and the visibility-feedback projection read catalog.actions only, so showActions is structurally excluded from every signed hash, signature, and observation. Every existing protocol and server test passed with ZERO edits, confirming the byte-additive property at the projector, and the narrowed catalogHash is byte-identical to the whole-catalog stringify for every visibility-only catalog.",
+      "evidence": "protocol suite (82 passed) and server suite (398 passed, 1 skipped) with no existing test changed; the additive omitted-when-empty spread in control-action-catalog.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "An adversarial review workflow (invariance, correctness, test-adequacy lenses with per-finding verification) found no correctness or leak defects, and two real test-adequacy gaps: the invariance was not locked at either signing boundary (the protocol frame builder was never fed a catalog carrying showActions, and the server issuer was never exercised with a production:take scope). Both were closed with locks: a device-control-frame test asserting a frame built from a catalog WITH showActions is deep-equal (including catalogHash) to one without, and a server issuer test where a take-scoped and a visibility-only device sharing one catalog-generation authority mint byte-identical signed bootstrap frames. The server lock was mutation-verified: reverting catalogHash to the whole-catalog stringify makes it fail while all other tests still pass.",
+      "evidence": "the CHG-0087 review workflow (two confirmed test-adequacy findings); protocol/tests/device-control-frame.test.ts and server/tests/unit/deviceBootstrapSnapshotIssuer.test.ts new lock tests; the recorded mutation check.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This is discovery only: a take credential discovers a Take action in the HTTP catalog. There is no Take execution endpoint yet, and Take does NOT appear in the signed bootstrap/delta frames (an HTTP-vs-WS discovery gap accepted for this slice). Deferred: device Take execution (a command reconciling the Show-wide production:take scope with the per-(target,controlId) authorize model, wired to ProductionService.take), adapter/module consumption of showActions, and frame-level Take plus trigger actions (a coordinated version bump). Additive to protocol and server; no Studio change and no adapter change in this slice.",
+      "evidence": "server/src/routes/deviceControl.ts (no Take POST); the frontier nodes for the deferred Take execution and follow-ons.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0087: a production:take credential discovers a single Show-level Take action over HTTP via the scope-gated showActions sibling, catalog.actions stays monomorphic, and the signed device-control-frame trust model is provably invariant — locked by a protocol frame test and a mutation-verified server signing-boundary test, with every existing test passing unchanged. Take execution, adapter/module consumption, and frame-level Take plus Scene/trigger actions remain deferred as frontier nodes.",
+      "evidence": "protocol/src/control-action-catalog.ts and server/src/services/DeviceBootstrapSnapshotIssuer.ts; the CHG-0087 design and review workflows; npm run check (protocol 82, server 398/1-skipped), the CHG-0087 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A device token with the production:take scope discovers exactly one Show-level Take action in the authorized catalog over HTTP; a visibility-only token's catalog is unchanged.",
+      "verification": "protocol/tests/control-action-catalog.test.ts and server/tests/unit/deviceControlHttp.test.ts assert showActions presence iff the scope is present and its absence (key omitted) otherwise."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The Take channel is structurally excluded from the signed device-control-frame trust model.",
+      "verification": "The frame builder and issuer lock tests assert a catalog carrying showActions yields a byte-identical signed frame and catalogGeneration; the server lock is mutation-verified against a whole-catalog hash."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full protocol and server suites pass with no existing test edited; the change is byte-additive."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0087 records the design-first finding, the sibling-channel approach, the signed-frame invariance, and the deferred execution/frame follow-ons before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The projector emits a scope-gated showActions sibling and the issuer hash is narrowed so showActions cannot move a signed generation.",
+      "evidence": "protocol/src/control-action-catalog.ts and server/src/services/DeviceBootstrapSnapshotIssuer.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Discovery, invariance, and byte-additivity are locked by tests, including mutation-verified signing-boundary invariance; the full protocol and server suites pass.",
+      "evidence": "protocol and server test suites and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

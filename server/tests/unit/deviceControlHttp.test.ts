@@ -157,7 +157,7 @@ describe('device bearer production control boundary', () => {
       showId: string;
       targets: Array<'preview' | 'program'>;
       controlIds: string[];
-      scopes: Array<'feedback:read' | 'component.visibility:write'>;
+      scopes: Array<'feedback:read' | 'component.visibility:write' | 'production:take'>;
       expiresAt: number;
     }> = {}
   ) {
@@ -460,6 +460,30 @@ describe('device bearer production control boundary', () => {
       .send(command('missing-show'))
       .expect(404);
     expect(production.getState('show-1').preview.revision).toBe(1);
+  });
+
+  it('surfaces a Show-level Take action in the catalog only for a production:take credential', async () => {
+    const taker = await issue({ scopes: ['component.visibility:write', 'production:take'] });
+    const takeResponse = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${taker.token}`)
+      .expect(200);
+    expect(takeResponse.body.data.showActions).toEqual([
+      {
+        actionId: 'production.take/show-1',
+        kind: 'production.take',
+        showId: 'show-1',
+        label: 'Take Preview to Program',
+      },
+    ]);
+
+    // A visibility-only credential's catalog is unchanged — no showActions key at all.
+    const visibilityOnly = await issue();
+    const plainResponse = await request(app)
+      .get(catalogEndpoint())
+      .set('Authorization', `Bearer ${visibilityOnly.token}`)
+      .expect(200);
+    expect(plainResponse.body.data).not.toHaveProperty('showActions');
   });
 
   it('publishes only the exact current inventory and device authority intersection', async () => {

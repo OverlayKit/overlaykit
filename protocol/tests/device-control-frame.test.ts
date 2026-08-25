@@ -789,4 +789,30 @@ describe('device control frames', () => {
       admitDeviceControlFrame(nonCanonical, signature, authority(), verifier(keys.publicKey))
     ).rejects.toMatchObject({ code: 'INVALID_ENVELOPE' });
   });
+
+  it('excludes an optional showActions catalog sibling from the built frame (Take channel invariance)', async () => {
+    const base = input(
+      [action('scoreboard', 'Scoreboard')],
+      [observation('scoreboard', 'active', 1, 1_000)],
+      1,
+      1_000
+    );
+    const withTakeSibling: DeviceControlFrameInput = {
+      ...base,
+      catalog: {
+        ...base.catalog,
+        showActions: [
+          { actionId: 'production.take/show-1', kind: 'production.take', showId: 'show-1', label: 'Take Preview to Program' },
+        ],
+      },
+    };
+
+    const plain = await buildDeviceControlBootstrapFrame(base);
+    const withSibling = await buildDeviceControlBootstrapFrame(withTakeSibling);
+
+    // A showActions sibling is structurally excluded from the signed frame: the two frames — catalogHash,
+    // addedActions, and every field — are deep-equal, and the Take action never appears in the frame.
+    expect(withSibling).toEqual(plain);
+    expect(JSON.stringify(withSibling)).not.toContain('production.take');
+  });
 });

@@ -208,7 +208,17 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
 }
 
 function catalogHash(catalog: AuthorizedControlActionCatalog): string {
-  return createHash('sha256').update(JSON.stringify(catalog)).digest('hex');
+  // Hash only the frame-relevant projection. This is byte-identical to the whole-catalog stringify for
+  // every visibility-only catalog (same keys, order, and values), so existing generation tokens are
+  // unchanged; it also guarantees the optional showActions sibling can never move the signed
+  // catalogGeneration a device receives — the take channel stays outside the signed-frame binding.
+  return createHash('sha256')
+    .update(JSON.stringify({
+      schemaVersion: catalog.schemaVersion,
+      showId: catalog.showId,
+      actions: catalog.actions,
+    }))
+    .digest('hex');
 }
 
 function assertProductionState(state: ProductionState, showId: string): void {
