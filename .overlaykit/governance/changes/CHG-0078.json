@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0078",
+  "title": "Stop leaking internal error strings from scene activation",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0078 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale al merge y a lo que sigue' — the last of the thirteen hardening-audit findings, clearing the audit backlog. This does not authorize automatic merge of CHG-0078.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found the POST /api/scenes/activate handler returned the raw internal error to the client as details: String(error) in its 500 body, exposing an internal failure string (e.g. a database path in an Error message) to any caller. The two sibling 500 handlers in the same router — POST /api/scenes and POST /api/scenes/:sceneId/activate — already returned a message-only body, so this handler was the lone outlier; a grep for 'details: String(error)' across server/src matched only this one site.",
+      "evidence": "server/src/routes/scenes.ts prior /scenes/activate catch block versus the /scenes and /scenes/:sceneId/activate catch blocks; the 2026-08-25 hardening-audit finding hardening-scene-activate-error-leak.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change drops the details field from the 500 body so the handler returns only { code: INTERNAL_ERROR, message: 'Failed to activate scene' }, matching its two siblings. The raw error is unchanged in the server log (logger.error 'Error activating scene via API', { error: String(error) }), so operators keep the diagnostic while the client no longer receives it.",
+      "evidence": "server/src/routes/scenes.ts /scenes/activate catch block: the retained logger.error and the message-only res.status(500) body.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Forcing the activation service to throw and asserting the 500 response body carries no details field and no raw error text — while the failure is still named to the client as INTERNAL_ERROR — closes the information-leak finding.",
+      "evidence": "server/tests/unit/sceneActivateErrorLeak.test.ts is the falsification mechanism: it mocks activateSceneOnChannel to throw a recognizable secret string and asserts it never reaches the body.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive to a single catch block. No protocol or Studio change, and the success path, the 400 validation paths, and the two sibling handlers are untouched. The audit backlog is now cleared: this was the thirteenth and final confirmed finding; the only remaining hardening frontier node is the deferred durable-idempotency residual hardening-production-idempotency-persisted.",
+      "evidence": "git diff of the CHG-0078 branch: server/src/routes/scenes.ts and server/tests/unit/sceneActivateErrorLeak.test.ts; the frontier board after CHG-0077 (41 of 43 fulfilled).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0078: POST /api/scenes/activate now returns a message-only 500 body like its two siblings, with the internal error kept in the server log only, and a test proves the raw error string never reaches the client. This clears the thirteen-finding hardening audit; the sole open frontier node is the deferred durable-idempotency residual hardening-production-idempotency-persisted.",
+      "evidence": "server/src/routes/scenes.ts and server/tests/unit/sceneActivateErrorLeak.test.ts; the passing full server suite under npm run check, the CHG-0078 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "A 500 from POST /api/scenes/activate names the failure without leaking the internal error string.",
+      "verification": "A test that makes the activation service throw asserts the 500 body has code INTERNAL_ERROR and message but no details field and no raw error text."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The internal error is still available to operators.",
+      "verification": "The handler still calls logger.error with the stringified error before responding."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0078 records the leak, the lone-outlier scope, and the log-only retention before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The /scenes/activate 500 body is message-only, matching its two siblings, with the error kept in the server log.",
+      "evidence": "server/src/routes/scenes.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the internal error string never reaches the client body; the full server suite passes.",
+      "evidence": "server/tests/unit/sceneActivateErrorLeak.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
