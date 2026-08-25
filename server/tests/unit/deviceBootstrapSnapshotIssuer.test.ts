@@ -594,4 +594,34 @@ describe('DeviceBootstrapSnapshotIssuer', () => {
       code: 'DEVICE_BOOTSTRAP_CLOCK_INVALID',
     });
   });
+
+  it('mints a byte-identical signed bootstrap for a take-scoped device (Take channel signing invariance)', async () => {
+    const production = new ProductionService(new ChannelManager(), { allowEphemeral: true });
+    production.loadPreview('show-1', scene());
+    const now = (production.getSnapshot('show-1', 'preview').updatedAt as number) + 1;
+
+    const context = await harness({ production, now: () => now });
+    const visibilityPreview = await context.issuer.create('preview');
+
+    // A take-scoped device over identical production state, sharing the SAME catalog-generation authority
+    // and signer as the visibility device.
+    const takeIssuer = await createDeviceBootstrapSnapshotIssuer({
+      authority: authority({ scopes: ['feedback:read', 'component.visibility:write', 'production:take'] }),
+      production: context.productionPort,
+      actionCatalog: await createDeviceActionCatalogRuntime(),
+      catalogGenerations: context.catalogGenerations,
+      sequences: new MemorySequenceStore([]),
+      signing: context.signing,
+      now: () => now,
+    });
+    const takePreview = await takeIssuer.create('preview');
+
+    // The narrowed catalogHash makes the take catalog hash identically to the visibility catalog, so the
+    // shared generation authority returns the same generation and the signed preimage bytes are identical.
+    // A whole-catalog hash (which the guard forbids) would bump the generation and diverge these bytes.
+    expect(Buffer.from(takePreview.bytes).equals(Buffer.from(visibilityPreview.bytes))).toBe(true);
+    const decoded = JSON.parse(new TextDecoder().decode(takePreview.bytes));
+    expect(decoded).not.toHaveProperty('showActions');
+    expect(JSON.stringify(decoded)).not.toContain('production.take');
+  });
 });

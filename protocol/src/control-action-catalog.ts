@@ -4,8 +4,13 @@ import type { ProductionBus } from './production.js';
 
 export const CONTROL_ACTION_CATALOG_VERSION = 'overlaykit-control-action-catalog/v1' as const;
 export const COMPONENT_VISIBILITY_ACTION_KIND = 'component.visibility' as const;
+export const PRODUCTION_TAKE_ACTION_KIND = 'production.take' as const;
 
 const COMPONENT_VISIBILITY_SCOPE = 'component.visibility:write' as const;
+// The dotted PRODUCTION_TAKE_ACTION_KIND is the wire action kind; the colon PRODUCTION_TAKE_SCOPE is
+// the device-credential scope that authorizes it (DEVICE_CREDENTIAL_SCOPES). They are deliberately
+// distinct strings — do not conflate.
+const PRODUCTION_TAKE_SCOPE = 'production:take' as const;
 const MAX_SHOW_ID_LENGTH = 200;
 const MAX_COMPONENT_ID_LENGTH = 100;
 const MAX_LABEL_LENGTH = 160;
@@ -40,10 +45,26 @@ export interface ComponentVisibilityActionDescriptor {
   readonly input: BooleanVisibilityInputDefinition;
 }
 
+/**
+ * A Show-level action authorized by a device scope rather than a component. Take has no target bus,
+ * componentId, or controlId, so it is deliberately NOT a ControlFeedbackSubject and carries no input
+ * in this discovery-only form (an execution input is added once the endpoint exists). It is surfaced
+ * as an optional sibling of `actions`, never as a member of the monomorphic visibility `actions`
+ * array, so the signed device-control-frame and visibility-feedback paths — which read `actions`
+ * only — are structurally unaffected.
+ */
+export interface ShowTakeActionDescriptor {
+  readonly actionId: string;
+  readonly kind: typeof PRODUCTION_TAKE_ACTION_KIND;
+  readonly showId: string;
+  readonly label: string;
+}
+
 export interface AuthorizedControlActionCatalog {
   readonly schemaVersion: typeof CONTROL_ACTION_CATALOG_VERSION;
   readonly showId: string;
   readonly actions: ReadonlyArray<ComponentVisibilityActionDescriptor>;
+  readonly showActions?: ReadonlyArray<ShowTakeActionDescriptor>;
 }
 
 export type ControlActionCatalogErrorCode =
@@ -100,6 +121,7 @@ function normalizedAuthority(authority: DeviceCredentialAuthority): {
   targets: Set<ProductionBus>;
   controlIds: Set<string>;
   canWriteVisibility: boolean;
+  canTake: boolean;
 } {
   if (
     !authority
@@ -118,6 +140,8 @@ function normalizedAuthority(authority: DeviceCredentialAuthority): {
     targets: new Set(authority.targets),
     controlIds: new Set(authority.controlIds),
     canWriteVisibility: authority.scopes.includes(COMPONENT_VISIBILITY_SCOPE),
+    // Take is Show-level: gated on the scope alone, never on targets/controlIds (it has neither).
+    canTake: authority.scopes.includes(PRODUCTION_TAKE_SCOPE),
   };
 }
 
@@ -217,9 +241,22 @@ export function projectAuthorizedControlActionCatalog(
       },
     }));
 
+  // A single Show-level Take action when the authority carries the take scope. Emitted as the optional
+  // showActions sibling and spread only when non-empty, so a catalog for any non-take authority is
+  // byte-identical to before this change.
+  const showActions: ShowTakeActionDescriptor[] = normalized.canTake
+    ? [{
+      actionId: `${PRODUCTION_TAKE_ACTION_KIND}/${encodeURIComponent(showId)}`,
+      kind: PRODUCTION_TAKE_ACTION_KIND,
+      showId,
+      label: 'Take Preview to Program',
+    }]
+    : [];
+
   return {
     schemaVersion: CONTROL_ACTION_CATALOG_VERSION,
     showId,
     actions,
+    ...(showActions.length > 0 ? { showActions } : {}),
   };
 }

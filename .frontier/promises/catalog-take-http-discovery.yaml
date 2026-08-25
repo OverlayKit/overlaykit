@@ -1,0 +1,20 @@
+id: catalog-take-http-discovery
+statement: "REQ-INT-002 / AC-017 — a device token carrying the production:take scope discovers a single Show-level Take action in the authorized catalog over HTTP (GET /device/shows/:showId/actions), via an optional scope-gated showActions sibling on AuthorizedControlActionCatalog. catalog.actions stays monomorphic and the signed device-control-frame trust model is provably invariant (showActions is structurally excluded from every signed hash/preimage/observation; the issuer catalogHash is narrowed to {schemaVersion, showId, actions}, mutation-verified). Delivered by CHG-0087 via the design-first, separate-sibling-channel approach. Take is HTTP-catalog-only here: it is not yet in signed frames and has no execution endpoint."
+anchors:
+  - path:protocol/src/control-action-catalog.ts
+  - path:server/src/services/DeviceBootstrapSnapshotIssuer.ts
+requires:
+  promises:
+    - companion-catalog-visibility-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: protocol/src/control-action-catalog.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0087.json
+        matches: '"status": "implemented"'
