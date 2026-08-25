@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0079",
   "title": "Project the authorized Control API catalog into Companion actions",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,12 @@
       "kind": "fact",
       "statement": "The change is additive: a new workspace registered in the root workspaces array, in both licensing packageRoots lists (so the package is Apache-2.0 governed like its siblings), and in package-lock.json. No server, protocol, or Studio source changed; the adapter consumes only the already-exported protocol contract. The full monorepo build and check (licensing, lint, type-check, test) pass with the new package.",
       "evidence": "package.json workspaces; scripts/verify-licensing.mjs and scripts/verify-licensing.test.mjs packageRoots; package-lock.json companion entry; npm run build and npm run check.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0079: the new @overlaykit/companion package projects the authorized Control API catalog into Companion action definitions for the component-visibility subset, proven against the real protocol projector with no Elgato or hardware dependency (AC-017 discovery). The visibility-only catalog scope and the missing shared fixture were surfaced as findings, and the Take/trigger extension, AC-018 feedback, and a runnable module were left deferred as .frontier nodes.",
+      "evidence": "companion/src and companion/tests; the passing full server suite and npm run check, the CHG-0079 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
