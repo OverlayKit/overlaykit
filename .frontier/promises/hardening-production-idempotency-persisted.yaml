@@ -1,0 +1,13 @@
+id: hardening-production-idempotency-persisted
+statement: A successor makes browser take and preview-controls idempotency durable across process restart and beyond the bounded in-memory window (the model ADR-0030 requires for device commands), e.g. a persisted (show_id, operation_id) record. Deferred — the in-memory fingerprint idempotency from CHG-0077 covers the common retry; this closes only the narrow evicted/restart replay.
+anchors:
+  - path:server/src/services/ProductionService.ts
+  - path:server/src/services/SqliteProductionStateStore.ts
+requires:
+  promises:
+    - hardening-take-idempotency-durable
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: production-idempotency-persisted
+  command: "grep -qiE 'operation_id.*UNIQUE|take_operations|persistOperationId' server/src/services/SqliteProductionStateStore.ts"
