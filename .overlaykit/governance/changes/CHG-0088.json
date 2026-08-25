@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0088",
   "title": "Execute a device-authorized Take over a scope-only Show-level route",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "Additive: a new device route and a descriptor input field. No Studio change, no adapter change, and no signed-frame or visibility change — Take still does not appear in signed frames. Frame-level Take, adapter/module consumption of the Take action, durable/signed Take execution, and Scene/trigger actions remain deferred.",
       "evidence": "git diff of the CHG-0088 branch: server/src/routes/deviceControl.ts and protocol/src/control-action-catalog.ts and their tests; the deferred frontier nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0088: a production:take device credential promotes Preview to Program over a scope-only Show-level route, security-reviewed with no authorization bypass and two non-bypass defects fixed (the denial challenge now names production:take; a non-integer revision is a clean 400). The durable/signed device command journal for Take — with its audit record and restart-durable idempotency — and adapter/module consumption, Scene, and trigger actions remain deferred as frontier nodes.",
+      "evidence": "server/src/routes/deviceControl.ts and server/tests/unit/deviceControlHttp.test.ts; the CHG-0088 security review; npm run check (protocol 82, server 401/1-skipped), the CHG-0088 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
