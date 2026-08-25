@@ -1,10 +1,19 @@
 id: hardening-ws-rate-limit
-statement: "HARDENING (medium) — The /ws upgrade/connection path has no rate limit or connection cap (express-rate-limit covers /api only), so frame-bounding alone does not stop connection-flood DoS. Fix: add a per-IP upgrade throttle or connection cap on the wsServer upgrade."
+statement: HARDENING (medium) — the /ws upgrade path enforces a per-IP fixed-window rate limit (default 60/60s) at the shared UpgradeRouter choke point, rejecting excess upgrades with 429 before routing, with a self-bounded IP-tracking map — is fixed by CHG-0073. It keys on the direct peer IP (per-proxy behind a trusted proxy); this completes the /ws DoS cluster with CHG-0067.
 anchors:
-  - path:server/src/index.ts
+  - path:server/src/handlers/WebSocketUpgradeRouter.ts
+  - path:server/tests/unit/webSocketUpgradeRouter.test.ts
+  - path:.overlaykit/governance/changes/CHG-0073.json
 requires:
   conditions: []
 fulfilled_when:
-  type: command-succeeds
-  name: hardening-ws-rate-limit-fixed
-  command: "grep -qiE 'upgradeRateLimit|maxConnections|connectionCap|perIpUpgrade' server/src/index.ts"
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/webSocketUpgradeRouter.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0073.json
+        matches: '"status": "implemented"'

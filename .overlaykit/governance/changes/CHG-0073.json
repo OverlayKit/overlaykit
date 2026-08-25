@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0073",
+  "title": "Throttle WebSocket upgrades per IP",
+  "status": "implemented",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0039"
+  ],
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0073 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y a lo que sigue' — the seventh hardening fix, completing the DoS cluster by rate-limiting the WebSocket upgrade. This does not authorize automatic merge of CHG-0073.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The hardening audit found the /ws upgrade path has no rate limit — the express-rate-limit middleware covers /api only, and the WebSocket upgrade runs on a separate server — so an unauthenticated peer could open connections as fast as it can dial, exhausting connection and memory resources even with the per-frame bound from CHG-0067 in place.",
+      "evidence": "server/src/index.ts wsServer upgrade path; the 2026-08-24 hardening-audit finding hardening-ws-rate-limit.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change adds a per-IP fixed-window throttle in WebSocketUpgradeRouter.handleUpgrade — the single upgrade choke point for both the browser and device paths — rejecting an over-limit upgrade with 429 (WEBSOCKET_RATE_LIMITED) before routing it. Defaults are 60 upgrades per 60 seconds per IP; the IP-tracking map is pruned of expired windows when it grows, so it cannot itself leak.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts rateLimited and the handleUpgrade guard.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery placed the limit at the shared UpgradeRouter choke point rather than the boot handler, so it covers both browser and device upgrades and is testable through the router's existing harness, and made the IP-tracking map self-bounded to avoid trading one leak for another.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts rateLimited prunes expired windows; the router is the single upgrade entry point.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Proving that a fourth upgrade from one IP within the window is rejected with 429 and never reaches the browser server, that a different IP has its own allowance, and that the window resets after windowMs, closes the connection-flood DoS.",
+      "evidence": "server/tests/unit/webSocketUpgradeRouter.test.ts is the falsification mechanism.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The limit keys on the direct peer's remoteAddress, so behind a trusted reverse proxy all connections share one IP and the limit is per-proxy; trusting X-Forwarded-For for the raw socket and making the limits environment-configurable are deferred. Together with the per-frame bound (CHG-0067), this closes the /ws denial-of-service surface for the direct-connection threat.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts uses request.socket.remoteAddress; the fixed defaults are compiled in.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0073: the /ws upgrade path enforces a per-IP fixed-window rate limit (default 60/60s) at the shared UpgradeRouter, rejecting excess upgrades with 429 before routing, with a self-bounded IP map; with the CHG-0067 frame bound this closes the /ws DoS surface for the direct-connection threat.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts, server/tests/unit/webSocketUpgradeRouter.test.ts, the passing full server suite under npm run check, the CHG-0073 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-24.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: a per-IP throttle in the upgrade router and a test. No protocol or Studio change and no existing behavior regresses.",
+      "evidence": "git diff of the CHG-0073 branch: server/src/handlers/WebSocketUpgradeRouter.ts and server/tests/unit/webSocketUpgradeRouter.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "An over-limit upgrade from one IP within the window is rejected with 429 before routing.",
+      "verification": "A test with a cap of 3 sends four upgrades from one IP and asserts the fourth returns 429 and never reaches the browser server."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Limits are per IP and reset after the window.",
+      "verification": "A test asserts a different IP has its own allowance and that after the window elapses the first IP is accepted again."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The existing upgrade-router routing, 404 and 503 tests pass, the full server suite passes, and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0073 records the missing-rate-limit finding and its per-IP throttle fix before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The upgrade router enforces a per-IP fixed-window limit with a self-bounded tracking map, rejecting excess upgrades with 429.",
+      "evidence": "server/src/handlers/WebSocketUpgradeRouter.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the throttle, per-IP independence, and window reset; the full server suite passes.",
+      "evidence": "server/tests/unit/webSocketUpgradeRouter.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
