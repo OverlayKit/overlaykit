@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0082",
   "title": "Back the Companion transport with fetch and harden the executor for real responses",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "This is still not a runnable Companion module: no InstanceBase, button callbacks, connection configuration, or retry/backoff. The Companion module packaging, the AC-018 state-feedback half, and the Take/trigger catalog extension remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src (no InstanceBase or retry); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0082: createFetchTransport backs the transport with a real fetch (proven over an http.Server round-trip), and executeVisibilityCommand — hardened after an adversarial review workflow caught three real defects only a real transport exposes (unguarded JSON.parse, unhandled fetch rejection, malformed 2xx) — now degrades every failure mode to a typed CommandFailure. The runnable Companion module, AC-018 feedback, and Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/transport.ts and companion/tests/fetchTransport.contract.test.ts; the CHG-0082 review workflow result; npm run check, the CHG-0082 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
