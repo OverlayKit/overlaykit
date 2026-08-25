@@ -13,9 +13,9 @@ import type { CompanionActionDefinition } from './types.js';
  * total mapping of that authorized surface into a vendor-neutral definition; it grants nothing and
  * assumes nothing beyond what the catalog already declares.
  *
- * Scope note: the device action catalog models component visibility only. Take, Scene activation, and
- * trigger actions named by AC-017 are not represented in the catalog yet, so they cannot appear here;
- * exposing them requires a core catalog extension tracked separately.
+ * Scope note: catalog.actions models component visibility only. The Show-level Take action rides on
+ * the optional catalog.showActions sibling and is projected by projectCompanionTakeActions; Scene and
+ * trigger actions are not represented yet.
  */
 export function projectCompanionActions(
   catalog: AuthorizedControlActionCatalog,

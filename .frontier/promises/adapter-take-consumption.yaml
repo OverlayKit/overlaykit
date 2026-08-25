@@ -1,0 +1,20 @@
+id: adapter-take-consumption
+statement: "REQ-INT-002 / AC-017 + AC-018 — the Companion adapter consumes the Take action: projectCompanionTakeActions surfaces a Show-level Take from catalog.showActions (kind production.take), and buildTakeCommandRequest constructs the exact device Take request (POST /production/take with body operationId + expectedPreviewRevision, Show id percent-encoded). Pure projection and request, mirroring the reviewed visibility pattern. Delivered by CHG-0089. Dispatching the Take over the transport and registering it in the module/facade are the remainder."
+anchors:
+  - path:companion/src/take.ts
+  - path:companion/tests/take.contract.test.ts
+requires:
+  promises:
+    - catalog-take-http-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/take.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0089.json
+        matches: '"status": "implemented"'
