@@ -1,0 +1,10 @@
+id: hardening-deescalation-subscription-teardown
+statement: "HARDENING (low) — authenticate.output de-escalation does not tear down subscriptions established as a Studio session. Fix: unsubscribeFromAll + clear the subscription set before reassigning access."
+anchors:
+  - path:server/src/handlers/websocket.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-deescalation-subscription-teardown-fixed
+  command: "grep -q 'HARDENED:deescalation-subscription-teardown' server/src/handlers/websocket.ts"

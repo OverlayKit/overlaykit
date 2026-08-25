@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0067",
+  "title": "Bound browser WebSocket frame size against an unauthenticated memory DoS",
+  "status": "approved",
+  "changeClass": "security",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0039"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0067 under human principal @rodrigoteamx, on the 2026-08-24 directive 'dale al merge y la pasada de hardening' — the first fix from a hardening audit. This does not authorize automatic merge of CHG-0067.",
+      "evidence": "AGENTS.md, profile.json actors and the 2026-08-24 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "A hardening audit (six adversarial finders over the device-credential, output/WebSocket, production-command, auth/session/CORS, input-validation, and secrets/resources/DoS surfaces, each finding independently verified) confirmed thirteen findings: one high — the browser /ws server sets no maxPayload so an unauthenticated peer can force ~100 MiB frame buffering plus JSON.parse; five medium — the signing DB file is world-readable during and after a failed init, Studio /ws sockets survive logout and session expiry, the session cookie is not Secure under default COOKIE_SECURE='auto' with unset TRUST_PROXY, unbounded element nesting can stack-overflow validation, and ChannelManager.lastActivity grows without eviction; seven low — timing side channels revealing a credential-id and the owner email, the /ws Origin allowlist skipped when the header is absent, de-escalation not tearing down Studio subscriptions, two production idempotency replay gaps, and scene-activate leaking an internal error string.",
+      "evidence": "The hardening-audit workflow result of 2026-08-24 (13 confirmed, 1 refuted) and the cited source files.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "CHG-0067 fixes only the high finding: the browser /ws server is created through createBrowserWebSocketServer() which sets maxPayload to BROWSER_WS_MAX_PAYLOAD_BYTES (10 MiB, matching the express.json body limit), so ws rejects an over-limit frame with close 1009 before buffering or parsing it — the device gateway already bounds its own frames to 16 KiB. The remaining twelve findings are recorded here and left to successor slices.",
+      "evidence": "server/src/handlers/websocket.ts createBrowserWebSocketServer and server/src/index.ts wiring; server/tests/unit/browserWebSocketMaxPayload.test.ts.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Governed discovery reordered the hardening pass to fix the single high-severity, unauthenticated, pre-auth DoS first as a tight low-risk slice, before the medium and low findings, because it is reachable without any credential and denies service to all clients.",
+      "evidence": "The audit severity ranking and the pre-authentication reachability of the /ws frame handler.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Creating the browser /ws server through a factory that sets a finite maxPayload below the ws default, and proving an over-limit frame is rejected with close 1009 and never delivered, closes the unauthenticated frame-buffering DoS.",
+      "evidence": "server/tests/unit/browserWebSocketMaxPayload.test.ts asserts the factory's bound and that an oversized frame closes 1009 without delivery.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This slice bounds per-frame size only; it does not add a /ws upgrade or connection rate limit (the express-rate-limit middleware covers /api only), which remains a recorded hardening item.",
+      "evidence": "server/src/index.ts wsServer upgrade path has no rate limit; the audit's DoS finding also noted the missing throttle.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The twelve remaining audit findings (signing-file permissions, Studio /ws session revocation, cookie Secure default, element-nesting bound, ChannelManager eviction, two timing side channels, /ws Origin-when-cookie, de-escalation subscription teardown, two production idempotency gaps, and the scene-activate error leak) remain deferred to successor hardening slices.",
+      "evidence": "The hardening-audit result and the frontier hardening-audit-backlog node.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is server-only and additive: a bounded WebSocketServer factory and its wiring, plus a focused test. No protocol or Studio change and no existing behavior regresses.",
+      "evidence": "git diff of the CHG-0067 branch: server/src/handlers/websocket.ts, server/src/index.ts and server/tests/unit/browserWebSocketMaxPayload.test.ts.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The browser /ws server bounds inbound frames to a finite size well below the ws 100 MiB default.",
+      "verification": "A test asserts createBrowserWebSocketServer().options.maxPayload equals the bounded constant, which is at most the 10 MiB REST body limit and below the ws default."
+    },
+    {
+      "id": "SC-002",
+      "statement": "An over-limit inbound frame is rejected and never delivered to the application.",
+      "verification": "A test sends a frame larger than a small configured bound and asserts the peer is closed with code 1009 and no message event fires."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses.",
+      "verification": "The full server suite passes and the server type-check passes."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0067 records the hardening audit result and fixes the high-severity /ws frame DoS before implementation, deferring the remaining findings.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "The browser /ws server is created through a factory that sets a bounded maxPayload, wired into the boot path.",
+      "evidence": "server/src/handlers/websocket.ts and server/src/index.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A test proves the bound is wired and that an oversized frame is rejected; the full server suite passes.",
+      "evidence": "server/tests/unit/browserWebSocketMaxPayload.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, focused and full tests, build, dependency audit and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, npm audit (0 vulnerabilities), ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

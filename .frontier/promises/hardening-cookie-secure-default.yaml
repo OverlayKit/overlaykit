@@ -1,0 +1,10 @@
+id: hardening-cookie-secure-default
+statement: "HARDENING (medium) — The session cookie is not Secure under default COOKIE_SECURE='auto' with unset TRUST_PROXY. Fix: fail safe to Secure in production (or require TRUST_PROXY), and document TRUST_PROXY in .env.example."
+anchors:
+  - path:server/src/auth/http.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-cookie-secure-default-fixed
+  command: "grep -qiE 'failSafeSecure|production.*secure|TRUST_PROXY' server/src/auth/http.ts server/.env.example"

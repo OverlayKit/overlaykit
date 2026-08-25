@@ -1,0 +1,18 @@
+id: hardening-ws-frame-bound-covered
+statement: HARDENING (high) — the browser /ws server bounds inbound frame size (createBrowserWebSocketServer maxPayload), so an unauthenticated peer cannot force ~100 MiB frame buffering plus JSON.parse — is fixed by CHG-0067. A /ws upgrade/connection rate limit remains open (hardening-ws-rate-limit).
+anchors:
+  - path:server/src/handlers/websocket.ts
+  - path:.overlaykit/governance/changes/CHG-0067.json
+requires:
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: server/tests/unit/browserWebSocketMaxPayload.test.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0067.json
+        matches: '"status": "implemented"'

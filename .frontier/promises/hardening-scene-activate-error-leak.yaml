@@ -1,0 +1,10 @@
+id: hardening-scene-activate-error-leak
+statement: "HARDENING (low) — POST scene activation leaks an internal error string to the client via details: String(error). Fix: drop the details field from the 500 body; keep it in the server log only."
+anchors:
+  - path:server/src/routes/scenes.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-scene-activate-error-leak-fixed
+  command: "! grep -q 'details: String(error)' server/src/routes/scenes.ts"
