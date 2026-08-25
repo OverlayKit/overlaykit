@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0083",
   "title": "Project server visibility feedback into Companion button states",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -37,6 +37,12 @@
       "kind": "fact",
       "statement": "This is a pure projection over a snapshot of observations, not a running Companion module: subscribing to the live signed WebSocket bootstrap and delta stream that delivers observations over the wire, and the module packaging, remain deferred (.frontier nodes companion-adapter-runtime-module and companion-adapter-feedback-transport). The Take/trigger catalog extension also remains deferred. Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
       "evidence": "companion/src/feedback.ts (pure function over an observations array); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0083: projectCompanionFeedback maps authoritative server visibility observations onto each discovered action's Companion button state by reusing the protocol's feedback projector, so a button and a Studio control agree on the same server truth, and — after an adversarial review hardened it — stays total under a malformed observation and matches strictly by Show, target, and control. The live signed-WS delta subscription that delivers observations, the runnable module, and the Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/feedback.ts and companion/tests/feedback.contract.test.ts; the CHG-0083 review workflow result; npm run check, the CHG-0083 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
