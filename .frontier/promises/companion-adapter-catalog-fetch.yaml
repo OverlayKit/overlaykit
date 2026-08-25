@@ -1,0 +1,20 @@
+id: companion-adapter-catalog-fetch
+statement: "REQ-INT-002 / AC-017 over HTTP — fetchAuthorizedCatalog issues GET /api/device/shows/:showId/actions with the device Bearer credential and returns the authorized catalog as a typed CatalogResult (degrading network, non-JSON, and error responses to typed failures), which composes with projectCompanionActions. This makes discovery symmetric with the command path over real HTTP. Delivered by CHG-0084. It fetches a point-in-time snapshot (ADR-0016); subscribing to catalog deltas is part of the runnable module."
+anchors:
+  - path:companion/src/discovery.ts
+  - path:companion/tests/catalogFetch.contract.test.ts
+requires:
+  promises:
+    - companion-catalog-visibility-discovery
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/discovery.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0084.json
+        matches: '"status": "implemented"'

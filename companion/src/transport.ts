@@ -7,7 +7,8 @@ export interface ControlApiHttpRequest {
   readonly method: string;
   readonly url: string;
   readonly headers: Readonly<Record<string, string>>;
-  readonly body: string;
+  // Absent for a body-less request such as the catalog GET; present for a command POST.
+  readonly body?: string;
 }
 
 export interface ControlApiHttpResponse {
@@ -26,7 +27,7 @@ export type ControlApiTransport = (
 export interface FetchLike {
   (
     url: string,
-    init: { method: string; headers: Record<string, string>; body: string },
+    init: { method: string; headers: Record<string, string>; body?: string },
   ): Promise<{ readonly status: number; text(): Promise<string> }>;
 }
 
