@@ -5,6 +5,7 @@ anchors:
 requires:
   promises:
     - companion-catalog-visibility-discovery
+    - companion-adapter-command-request
   conditions: []
 fulfilled_when:
   type: command-succeeds
