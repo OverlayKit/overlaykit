@@ -1,0 +1,10 @@
+id: hardening-ws-origin-when-cookie
+statement: "HARDENING (low) — The /ws Origin allowlist is skipped when the Origin header is absent, so a raw client with a session cookie bypasses it. Fix: require a present, allowlisted Origin when a session cookie is on the upgrade (Output/OBS clients carry no cookie)."
+anchors:
+  - path:server/src/handlers/websocket.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-ws-origin-when-cookie-fixed
+  command: "grep -q 'HARDENED:ws-origin-when-cookie' server/src/handlers/websocket.ts"

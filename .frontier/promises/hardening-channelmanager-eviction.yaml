@@ -1,0 +1,10 @@
+id: hardening-channelmanager-eviction
+statement: "HARDENING (medium) — ChannelManager.lastActivity grows without eviction (keyed by channel, never deleted). Fix: delete the entry when subscribers reach zero, or use a TTL/LRU-bounded store."
+anchors:
+  - path:server/src/services/ChannelManager.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-channelmanager-eviction-fixed
+  command: "grep -q 'lastActivity.delete' server/src/services/ChannelManager.ts"

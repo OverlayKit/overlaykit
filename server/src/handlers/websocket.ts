@@ -1,4 +1,4 @@
-import { WebSocket, Server as WSServer } from 'ws';
+import { WebSocket, WebSocketServer, type Server as WSServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { channelManager } from '../services/ChannelManager';
 import { channelKey, DEFAULT_TENANT_ID } from '../tenancy';
@@ -21,6 +21,19 @@ function routeKey(channelId: string): string {
 
 export const OUTPUT_AUTHENTICATION_TIMEOUT_MS = 5_000;
 const MAX_OUTPUT_TOKEN_LENGTH = 128;
+
+// Bound inbound browser /ws frames to the same ceiling as the REST body limit (express.json 10mb),
+// so an unauthenticated peer cannot force the ws default (~100 MiB) buffering + JSON.parse per
+// frame. The device gateway bounds its own frames separately (DEVICE_MAX_INBOUND_MESSAGE_BYTES).
+export const BROWSER_WS_MAX_PAYLOAD_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Create the browser /ws server with a bounded frame size. Callers own the noServer upgrade routing;
+ * this exists so the payload bound is wired in one place and can be proven in tests.
+ */
+export function createBrowserWebSocketServer(): WSServer {
+  return new WebSocketServer({ noServer: true, maxPayload: BROWSER_WS_MAX_PAYLOAD_BYTES });
+}
 
 export interface WebSocketHandlerOptions {
   outputAuthenticationTimeoutMs?: number;

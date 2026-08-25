@@ -1,0 +1,10 @@
+id: hardening-element-nesting-bound
+statement: "HARDENING (medium) — Unbounded element-tree nesting can stack-overflow schema validation and recursive helpers (any route/WS accepting an ElementNode tree). Fix: bound depth and node count before/inside validation and add maxItems to the schema."
+anchors:
+  - path:server/src/validation/schemas/element.schema.json
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-element-nesting-bound-fixed
+  command: "grep -qiE 'maxItems|MAX_ELEMENT_DEPTH|maxDepth' server/src/validation/schemas/element.schema.json server/src/validation/validator.ts"

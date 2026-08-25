@@ -5,9 +5,8 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
 import { storage, type Storage } from './storage';
-import { WebSocketServer } from 'ws';
 import { config, validateConfig } from './config/environment';
-import { setupWebSocketHandler } from './handlers/websocket';
+import { createBrowserWebSocketServer, setupWebSocketHandler } from './handlers/websocket';
 import {
   DEVICE_TRANSPORT_CLOSE_TIMEOUT_MS,
   DeviceWebSocketGateway,
@@ -348,7 +347,7 @@ async function startServer(): Promise<void> {
 
     const restServer = createServer(runtime.app);
     const wsServer = createServer();
-    const wss = new WebSocketServer({ noServer: true });
+    const wss = createBrowserWebSocketServer();
     setupWebSocketHandler(wss, runtime.auth, config.corsOrigin, runtime.production);
     const upgradeRouter = new WebSocketUpgradeRouter(wss, runtime.deviceGateway);
     wsServer.on('upgrade', (request, socket, head) => {

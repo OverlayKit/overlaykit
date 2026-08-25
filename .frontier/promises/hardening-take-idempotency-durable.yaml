@@ -1,0 +1,10 @@
+id: hardening-take-idempotency-durable
+statement: "HARDENING (low) — Take idempotency relies on an evictable in-memory map, so a replayed operationId can double-promote Preview onto Program. Fix: add a durable UNIQUE (show_id, operation_id) backstop that returns an idempotent hit."
+anchors:
+  - path:server/src/services/ProductionService.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-take-idempotency-durable-fixed
+  command: "grep -qiE 'UNIQUE.*operation_id|take_operations|operation_id.*UNIQUE' server/src/services/ProductionService.ts server/src/services/SqliteProductionStateStore.ts"

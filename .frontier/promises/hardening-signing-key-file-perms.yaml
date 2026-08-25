@@ -1,0 +1,10 @@
+id: hardening-signing-key-file-perms
+statement: "HARDENING (medium) — The device signing DB file (Ed25519 private key + sealed verifiers) is world-readable during and after a failed init: chmod 0o600 is applied last and the 0o700 dir mode is ignored for a pre-existing DATA_DIR. Fix: chmod the file right after open and chmod the existing dir, per the File* stores' pattern."
+anchors:
+  - path:server/src/auth/SqliteDeviceCredentialStore.ts
+requires:
+  conditions: []
+fulfilled_when:
+  type: command-succeeds
+  name: hardening-signing-key-file-perms-fixed
+  command: "grep -q 'chmod(path.dirname' server/src/auth/SqliteDeviceCredentialStore.ts"
