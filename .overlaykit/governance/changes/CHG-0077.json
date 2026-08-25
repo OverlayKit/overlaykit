@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0077",
   "title": "Detect divergent operationId reuse in Take and Preview controls",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "security",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -55,6 +55,12 @@
       "kind": "inference",
       "statement": "A focused adversarial review of the first fingerprint implementation caught one real regression: canonicalProductionJson throws (it does not return) on non-serializable raw values (Infinity from 1e999, undefined from omitted keys), so fingerprinting the controls intent before validation turned input that previously produced a clean 400 into a 500. The fix wraps the fingerprint computation in try/catch and maps the throw to INVALID_CONTROL_VALUES (400); the review confirmed take's conflict check, the order-independent fingerprint, the eviction bound, and snapshot ordering were otherwise correct. The visibility path never had this defect because it validates before fingerprinting with plain JSON.stringify.",
       "evidence": "server/src/services/ProductionService.ts applyPreviewControls try/catch around canonicalProductionJson; server/tests/unit/productionService.test.ts malformed-values assertions (op-inf, op-missing) asserting code INVALID_CONTROL_VALUES status 400.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0077: take and applyPreviewControls now fingerprint the operation like the already-correct visibility path — a divergent operationId reuse conflicts (409) instead of silently re-promoting or returning success without applying, and the review-caught malformed-values regression maps to a clean 400 rather than a 500. The idempotency remains in-memory and bounded, with durable cross-restart persistence deferred to hardening-production-idempotency-persisted.",
+      "evidence": "server/src/services/ProductionService.ts take and applyPreviewControls; server/tests/unit/productionService.test.ts; the passing full server suite under npm run check, the CHG-0077 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
