@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0087",
   "title": "Discover a Show-level Take action over HTTP without touching the signed-frame trust model",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,12 @@
       "kind": "fact",
       "statement": "This is discovery only: a take credential discovers a Take action in the HTTP catalog. There is no Take execution endpoint yet, and Take does NOT appear in the signed bootstrap/delta frames (an HTTP-vs-WS discovery gap accepted for this slice). Deferred: device Take execution (a command reconciling the Show-wide production:take scope with the per-(target,controlId) authorize model, wired to ProductionService.take), adapter/module consumption of showActions, and frame-level Take plus trigger actions (a coordinated version bump). Additive to protocol and server; no Studio change and no adapter change in this slice.",
       "evidence": "server/src/routes/deviceControl.ts (no Take POST); the frontier nodes for the deferred Take execution and follow-ons.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0087: a production:take credential discovers a single Show-level Take action over HTTP via the scope-gated showActions sibling, catalog.actions stays monomorphic, and the signed device-control-frame trust model is provably invariant — locked by a protocol frame test and a mutation-verified server signing-boundary test, with every existing test passing unchanged. Take execution, adapter/module consumption, and frame-level Take plus Scene/trigger actions remain deferred as frontier nodes.",
+      "evidence": "protocol/src/control-action-catalog.ts and server/src/services/DeviceBootstrapSnapshotIssuer.ts; the CHG-0087 design and review workflows; npm run check (protocol 82, server 398/1-skipped), the CHG-0087 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
