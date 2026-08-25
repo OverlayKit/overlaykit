@@ -2,7 +2,7 @@
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0086",
   "title": "Build the SDK-free core of the Companion module",
-  "status": "approved",
+  "status": "implemented",
   "changeClass": "product",
   "risk": "low",
   "owner": "@rodrigoteamx",
@@ -43,6 +43,12 @@
       "kind": "fact",
       "statement": "This is the module core only, not the runnable module: the @companion-module/base InstanceBase wrapper (registering these fields and actions and supplying the run seam), live feedbacks, packaging, and hardware verification remain deferred (frontier node companion-adapter-runtime-module), as do the live delta subscription and the Take/trigger catalog extension. Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed, and no new dependency added.",
       "evidence": "companion/src/module.ts (no @companion-module/base import); companion/package.json dependencies unchanged; the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0086: the SDK-free module core provides the connection config fields and validation and the action-definition builder (a press running the injected command for its own action with a strictly-coerced visible option), with no @companion-module/base import and no runtime state behind the run seam — proven by a contract test and a focused adversarial review that found no defects. The InstanceBase SDK wrapper, live feedbacks, packaging, and hardware verification remain deferred as the runnable-module node.",
+      "evidence": "companion/src/module.ts and companion/tests/module.contract.test.ts; the CHG-0086 focused review; npm run check, the CHG-0086 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
       "blocking": false
     }
   ],
