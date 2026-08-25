@@ -6,6 +6,7 @@ requires:
   promises:
     - companion-catalog-visibility-discovery
     - companion-adapter-command-request
+    - companion-adapter-command-transport
   conditions: []
 fulfilled_when:
   type: command-succeeds

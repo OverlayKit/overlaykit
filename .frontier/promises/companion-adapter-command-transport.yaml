@@ -1,0 +1,20 @@
+id: companion-adapter-command-transport
+statement: "REQ-INT-002 / AC-018 command dispatch — executeVisibilityCommand sends a built visibility request to the Control API with the device Bearer credential and maps the response envelope to a typed outcome (success carries the ProductionCommandOutcome; an error or non-2xx becomes a typed failure). The transport is injected, so this is dispatch-and-interpret, not a runnable module. Delivered by CHG-0081. A fetch-backed transport and retry are part of companion-adapter-runtime-module."
+anchors:
+  - path:companion/src/transport.ts
+  - path:companion/tests/transport.contract.test.ts
+requires:
+  promises:
+    - companion-adapter-command-request
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/transport.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0081.json
+        matches: '"status": "implemented"'

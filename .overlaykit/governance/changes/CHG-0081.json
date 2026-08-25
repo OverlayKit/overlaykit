@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0081",
+  "title": "Dispatch a Companion visibility command to the Control API",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0005"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0081 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale al merge y a lo que sigue' after CHG-0079 and CHG-0080 merged — the third slice of the REQ-INT-002 Companion adapter, completing the command-dispatch step of AC-018. This does not authorize automatic merge of CHG-0081.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-018, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "CHG-0080 built the request but did not send it. The minimal increment to make a command take effect is not the full runnable Companion module (connection config, button callbacks, packaging), but a thin executor that dispatches the built request and interprets the response. Injecting the transport keeps the executor free of any particular HTTP client and testable without a live server.",
+      "evidence": "companion/src/command.ts produced only a ControlApiRequest; server/src/routes/deviceControl.ts is the command endpoint.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "executeVisibilityCommand(transport, baseUrl, token, request) sends the built request as method+url (baseUrl+path) with Authorization: Bearer <token> and Content-Type application/json and the JSON body, then translates the server envelope: a 2xx { data: { command } } becomes { ok: true, outcome } carrying the ProductionCommandOutcome, and an { error: { code, message } } body or any non-2xx status becomes { ok: false, status, code, message }. The device Bearer credential is the only auth the route accepts; the executor dispatches and interprets but does not retry.",
+      "evidence": "companion/src/transport.ts against server/src/routes/deviceControl.ts (Bearer auth, { data } success and { error } failure envelopes).",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Injecting a transport that records the outgoing call and returns a canned Control API response proves the executor forms the correct authorized HTTP request (method, url, Bearer header, JSON body) and maps a success envelope to the command outcome and an error envelope to a typed failure — the AC-018 command-dispatch contract — without needing a live server.",
+      "evidence": "companion/tests/transport.contract.test.ts composes the builder with executeVisibilityCommand over an injected transport and asserts both the sent request and the parsed result.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "This is a headless executor with an injected transport, not a runnable Companion module: no InstanceBase, no button callbacks, no connection configuration, no fetch-backed transport, and no retry or backoff. A fetch-backed transport, the Companion module packaging, the AC-018 state-feedback half, and the Take/trigger catalog extension remain deferred (.frontier nodes companion-adapter-runtime-module, companion-adapter-feedback, companion-catalog-take-trigger-actions). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src/transport.ts (transport is a parameter, no network client); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0081: executeVisibilityCommand dispatches a built visibility command with the device Bearer credential and maps the server envelope to a typed result, proven by a contract test over an injected transport (AC-018 command dispatch). The fetch-backed transport, AC-018 feedback, Take/trigger catalog extension, and a runnable module remain deferred as .frontier nodes.",
+      "evidence": "companion/src/transport.ts and companion/tests/transport.contract.test.ts; npm run check, the CHG-0081 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The executor sends the built request to the Control API with the device Bearer credential and returns the command outcome on success.",
+      "verification": "companion/tests/transport.contract.test.ts asserts the outgoing method, url, Authorization header, and body, and that a 2xx { data: { command } } yields { ok: true, outcome }."
+    },
+    {
+      "id": "SC-002",
+      "statement": "A Control API error is surfaced as a typed failure, not a thrown or swallowed error.",
+      "verification": "A test asserts a 409 { error: { code, message } } yields { ok: false, status: 409, code, message }."
+    },
+    {
+      "id": "SC-003",
+      "statement": "No existing behavior regresses and the adapter stays dependency-isolated.",
+      "verification": "npm run check and npm run build pass across all workspaces; companion depends only on @overlaykit/protocol."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0081 records the executor-not-module scope and the deferred fetch/module/feedback/catalog residuals before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "executeVisibilityCommand dispatches the built request with Bearer auth and maps the response envelope to a typed result.",
+      "evidence": "companion/src/transport.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A contract test proves the sent request and the success and failure mappings over an injected transport; the full check passes.",
+      "evidence": "companion/tests/transport.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
