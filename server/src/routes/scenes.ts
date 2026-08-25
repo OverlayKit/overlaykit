@@ -102,12 +102,13 @@ router.post('/scenes/activate', (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    // Keep the internal error in the server log only; the client body must not leak it (matches the
+    // other 500 handlers in this router). hardening-scene-activate-error-leak.
     logger.error('Error activating scene via API', { error: String(error) });
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to activate scene',
-        details: String(error)
       },
     });
   }
