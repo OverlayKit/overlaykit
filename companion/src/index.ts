@@ -1,5 +1,7 @@
 export type { CompanionActionDefinition, CompanionActionOption } from './types.js';
 export { projectCompanionActions } from './catalog.js';
+export type { CompanionAdapter, CompanionAdapterConfig, DiscoverResult } from './adapter.js';
+export { createCompanionAdapter } from './adapter.js';
 export type { CatalogResult } from './discovery.js';
 export { fetchAuthorizedCatalog } from './discovery.js';
 export type { CommandExecution, ControlApiRequest, VisibilityCommandInput } from './command.js';

@@ -11,6 +11,7 @@ requires:
     - companion-adapter-fetch-transport
     - companion-adapter-feedback
     - companion-adapter-feedback-transport
+    - companion-adapter-facade
   conditions: []
 fulfilled_when:
   type: command-succeeds

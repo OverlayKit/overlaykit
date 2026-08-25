@@ -1,0 +1,21 @@
+id: companion-adapter-facade
+statement: "REQ-INT-002 — createCompanionAdapter(config) composes the adapter's pieces into the object a Companion module instantiates: discover (fetchAuthorizedCatalog then projectCompanionActions) and execute (buildVisibilityCommandRequest then executeVisibilityCommand), holding the base URL, device token, and transport once and surfacing the underlying typed results unchanged. Delivered by CHG-0085. Feedback stays the standalone projectCompanionFeedback; the runnable module wiring an InstanceBase to this facade is companion-adapter-runtime-module."
+anchors:
+  - path:companion/src/adapter.ts
+  - path:companion/tests/adapter.contract.test.ts
+requires:
+  promises:
+    - companion-adapter-catalog-fetch
+    - companion-adapter-command-transport
+  conditions: []
+fulfilled_when:
+  all_of:
+    subject:
+      ref: null
+    clauses:
+      - type: path-exists
+        path: companion/src/adapter.ts
+      - type: file-contains
+        ref: origin/main
+        path: .overlaykit/governance/changes/CHG-0085.json
+        matches: '"status": "implemented"'
