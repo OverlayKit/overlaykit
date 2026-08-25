@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0084",
+  "title": "Fetch the authorized action catalog over HTTP for Companion discovery",
+  "status": "implemented",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0015", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0084 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale merge y a lo que sigue' (ultracode on) — the sixth slice of the REQ-INT-002 Companion adapter, completing discovery over HTTP so it is symmetric with the command path. This does not authorize automatic merge of CHG-0084.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-017, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Building the adapter surfaced a real gap: CHG-0079 projected a catalog into Companion actions but nothing fetched the catalog from the server, so discovery had no HTTP path while commands did. fetchAuthorizedCatalog closes it — the discovery analog of the command fetch transport — and is a prerequisite for a runnable module.",
+      "evidence": "companion/src/catalog.ts (projection only); the absence of any catalog GET before this slice.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "fetchAuthorizedCatalog(transport, baseUrl, token, showId) issues GET /api/device/shows/:showId/actions (Show id percent-encoded) with Authorization: Bearer <token> and no body, parses the { data: catalog } envelope into { ok: true, catalog }, and degrades every failure mode — a network rejection (status 0, NETWORK_ERROR), a non-JSON body (MALFORMED_RESPONSE), and an { error } envelope or non-2xx — to a typed CatalogResult, reusing the hardened response pattern from executeVisibilityCommand. The returned catalog composes with projectCompanionActions. To carry a body-less GET, ControlApiHttpRequest.body and the FetchLike init body became optional; createFetchTransport passes it through and the command POST path is unchanged.",
+      "evidence": "companion/src/discovery.ts against server/src/routes/deviceControl.ts GET route (res.json({ data: catalog }) and respondCatalogError error envelopes); companion/src/transport.ts optional body.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "A real-HTTP round-trip that fetches a catalog built by the protocol's own projector from a local server and then projects it to actions, plus typed-failure assertions for authorization failure, a non-JSON body, a network rejection, and percent-encoding, proves the adapter can discover actions from the Control API over HTTP.",
+      "evidence": "companion/tests/catalogFetch.contract.test.ts round-trips createFetchTransport(fetch) against a node:http server and asserts the GET request, the projected actions, and each typed failure.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A focused adversarial review verified the slice against the real route and types and found no defects: the optional-body change is safe and directly exercised over the real fetch (undici rejects a GET body only when present, not when undefined), the command POST path is untouched, the GET path and envelopes match the route mounted before enforceBrowserOrigin, and the success guard cannot misfire because an AuthorizedControlActionCatalog is always a truthy object. A malformed 2xx yields an ok:false result carrying status 200, intentionally identical to executeVisibilityCommand.",
+      "evidence": "the CHG-0084 focused review of companion/src/discovery.ts and companion/src/transport.ts against server/src/routes/deviceControl.ts and server/src/index.ts mount order.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The catalog is an authenticated point-in-time snapshot (ADR-0016); this slice does not subscribe to catalog deltas or run a module. The live signed-WS delta subscription, the runnable Companion module, and the Take/trigger catalog extension remain deferred (.frontier nodes). Additive to the @overlaykit/companion package; no server, protocol, or Studio source changed.",
+      "evidence": "companion/src/discovery.ts (a single GET, no subscription); the .frontier companion nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Human review accepted CHG-0084: fetchAuthorizedCatalog issues the catalog GET with the device Bearer credential, parses the { data: catalog } envelope, and degrades network, non-JSON, and error responses to a typed CatalogResult that composes with projectCompanionActions — proven by a real-HTTP round-trip and a focused adversarial review that found no defects, including the optional-body transport change. The live delta subscription, the runnable module, and the Take/trigger catalog extension remain deferred as .frontier nodes.",
+      "evidence": "companion/src/discovery.ts and companion/tests/catalogFetch.contract.test.ts; the CHG-0084 focused review; npm run check, the CHG-0084 pull-request Constitution run (8 jobs green), and human acceptance on 2026-08-25.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The adapter fetches the authorized catalog for a Show over HTTP with the device Bearer credential and can project it into Companion actions.",
+      "verification": "companion/tests/catalogFetch.contract.test.ts round-trips the GET over a real server and asserts the projected actions."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Every failure mode — authorization failure, non-JSON body, and network rejection — becomes a typed CatalogResult, and the Show id is percent-encoded in the path.",
+      "verification": "Tests assert the 403 error shape, MALFORMED_RESPONSE, NETWORK_ERROR, and the encoded path."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The optional-body transport change does not regress the command POST path and the adapter stays dependency-isolated.",
+      "verification": "The existing transport and fetch-transport tests still pass; npm run check and npm run build pass across all workspaces."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0084 records the discovery-over-HTTP gap, the optional-body transport change, and the deferred residuals before implementation of the record.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "fetchAuthorizedCatalog issues the catalog GET with Bearer auth and degrades every failure to a typed CatalogResult.",
+      "evidence": "companion/src/discovery.ts."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A real-HTTP round-trip and failure-path tests prove discovery over HTTP; the full check passes.",
+      "evidence": "companion/tests/catalogFetch.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}

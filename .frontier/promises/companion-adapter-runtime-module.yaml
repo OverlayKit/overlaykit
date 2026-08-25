@@ -5,6 +5,7 @@ anchors:
 requires:
   promises:
     - companion-catalog-visibility-discovery
+    - companion-adapter-catalog-fetch
     - companion-adapter-command-request
     - companion-adapter-command-transport
     - companion-adapter-fetch-transport
