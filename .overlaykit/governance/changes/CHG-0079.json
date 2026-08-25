@@ -1,0 +1,88 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0079",
+  "title": "Project the authorized Control API catalog into Companion actions",
+  "status": "approved",
+  "changeClass": "product",
+  "risk": "low",
+  "owner": "@rodrigoteamx",
+  "decisions": ["ADR-0003", "ADR-0004", "ADR-0015", "ADR-0016"],
+  "specifications": ["SPEC-0001"],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude Code (claude-code) is the source-producing agent for CHG-0079 under human principal @rodrigoteamx, on the 2026-08-25 directive 'dale al merge y a lo que sigue' after the hardening audit closed — the first slice of REQ-INT-002 (a Bitfocus Companion adapter over the Control API), opening the AC-017 action-discovery path. This does not authorize automatic merge of CHG-0079.",
+      "evidence": "AGENTS.md, profile.json actors, SPEC-0001 REQ-INT-002 / US-010 AC-017, and the 2026-08-25 user directive.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A governed-discovery pass mapped the device Control API before any adapter code and reordered the naive first move (scaffold a full Companion module). Two findings drove the reorder: the device action catalog models component.visibility only — the Take, Scene, and trigger actions AC-017 names are not represented, despite the cue:execute and production:take scopes existing in the credential enum; and no shared catalog fixture exists (Studio does not consume the device catalog at all), so REQ-INT-002's verification premise ('adapter contract tests run against the same catalog fixtures as Studio') had nothing to run against. The refuting first slice therefore became: prove the adapter can discover the authorized visibility catalog against the real projector, not build a runtime module against an unproven surface.",
+      "evidence": "protocol/src/control-action-catalog.ts (COMPONENT_VISIBILITY_ACTION_KIND is the sole kind); server/src/services/DeviceActionCatalogRuntime.ts; the absence of any shared catalog fixture and of catalog consumption in studio/**.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The slice adds a new isolated workspace package @overlaykit/companion with a pure, total projection projectCompanionActions(catalog) that maps the AuthorizedControlActionCatalog into vendor-neutral Companion action definitions — actionId, operator label, Preview/Program target, componentId, controlId, and a single visible toggle. The package depends only on the exported @overlaykit/protocol surface and imports no Elgato or Companion SDK, keeping hardware-specific behavior out of the core runtime and out of the adapter contract (REQ-INT-002).",
+      "evidence": "companion/src/catalog.ts, companion/src/types.ts, companion/src/index.ts; companion/package.json (dependency @overlaykit/protocol only).",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Building the catalog with the protocol package's own projectAuthorizedControlActionCatalog projector (the exact projection the server exposes to a device) and asserting the adapter surfaces every authorized visibility action in catalog order, only what the token is authorized for, and nothing without the visibility scope, proves AC-017 action discovery for the visibility subset against the authentic authorized-catalog contract — not a hand-faked shape.",
+      "evidence": "companion/tests/catalog.contract.test.ts drives projectAuthorizedControlActionCatalog from @overlaykit/protocol, then asserts projectCompanionActions output.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The slice proves AC-017 for component visibility only. Full AC-017 (listing Take and trigger actions) requires a core catalog extension — new descriptors, command messages, and server execution for Take/cue — and is a deferred residual (frontier node companion-catalog-take-trigger-actions). AC-018 live bidirectional feedback and an actual installable/runnable Companion module (with real controller hardware) are also deferred (frontier nodes companion-adapter-feedback and companion-adapter-runtime-module). This slice is a headless projection with a contract test, not a running module.",
+      "evidence": "SPEC-0001 AC-017 / AC-018 name Take and feedback; the visibility-only catalog in protocol/src/control-action-catalog.ts; the new .frontier deferred nodes.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The change is additive: a new workspace registered in the root workspaces array, in both licensing packageRoots lists (so the package is Apache-2.0 governed like its siblings), and in package-lock.json. No server, protocol, or Studio source changed; the adapter consumes only the already-exported protocol contract. The full monorepo build and check (licensing, lint, type-check, test) pass with the new package.",
+      "evidence": "package.json workspaces; scripts/verify-licensing.mjs and scripts/verify-licensing.test.mjs packageRoots; package-lock.json companion entry; npm run build and npm run check.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "The adapter projects every authorized visibility action from the Control API catalog into a Companion action definition, in catalog order, carrying the Show/target/component/control routing and a visible toggle.",
+      "verification": "companion/tests/catalog.contract.test.ts asserts the projected actionIds, names, order, routing coordinates, and options against a catalog produced by the real protocol projector."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Discovery honors least privilege: only actions the device token is authorized for appear, and none appear without the visibility write scope.",
+      "verification": "Tests assert a Preview-and-scoreboard-only token yields exactly that action, and an empty-scope token yields no actions."
+    },
+    {
+      "id": "SC-003",
+      "statement": "The adapter has no Elgato or hardware SDK dependency and the monorepo integrates it cleanly.",
+      "verification": "companion/package.json depends only on @overlaykit/protocol; npm run build and npm run check pass across all workspaces including companion."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "CHG-0079 records the discovery findings (visibility-only catalog; no shared fixture) and the deferred residuals before implementation.",
+      "evidence": "Schema-valid record and deterministic governance compilation."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A new isolated @overlaykit/companion package projects the authorized catalog into Companion actions with no core or Elgato dependency.",
+      "evidence": "companion/src and companion/package.json."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "A contract test against the real protocol catalog projector proves AC-017 discovery for the visibility subset; the full check passes.",
+      "evidence": "companion/tests/catalog.contract.test.ts and npm run check."
+    },
+    {
+      "id": "DOD-004",
+      "statement": "Governance, licensing, lint, type-check, tests, build, dependency and diff checks pass before handoff.",
+      "evidence": "npm run governance:check, npm run check, npm run build, ESLint, type-check and git diff --check; the accept commit is verified by its own pull-request Constitution run before merge."
+    }
+  ]
+}
