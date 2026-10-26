@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0092",
+  "status": "proposed",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "title": "Give the isolated local Companion runtime an opaque loopback path to OBS with a pinned obs-studio module",
+  "changeClass": "architecture",
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0018",
+    "ADR-0033",
+    "ADR-0035",
+    "ADR-0037",
+    "ADR-0038",
+    "ADR-0039"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Claude (Anthropic) implements under @rodrigoteamx, the human principal. On 2026-10-25 Rodrigo explicitly decided in conversation that local Companion should control OBS, as a governed change and not a shortcut. CHG-0091 expressly excluded OBS live mutations, so this change records the missing authority. Rodrigo, not the agent, executes the cutover (stop and install the release, restart overlaykit-companion-local), configures the obs-studio connection in the Companion UI with the obs-websocket password and moves this change to approved. The agent prepares the change, code, verified release and cutover/rollback instructions only.",
+      "evidence": "Conversation 2026-10-25 with Rodrigo; pedal-satellite design spec 2026-10-25 section 5 (Parte A).",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Verified 2026-10-25: OBS 33.0.0 runs as Flatpak com.obsproject.Studio with obs-websocket enabled on 127.0.0.1:4455 and auth_required=true. Companion v4.3.3 image does not bundle an obs-studio module, and its container runs on an --internal Docker network with no outbound access, so the module cannot be downloaded at runtime. Current Companion connections are only elgato-stream-deck and overlaykit-server.",
+      "evidence": "Host inspection of OBS Flatpak and obs-websocket configuration, Companion 4.3.3 image and internal network, and Companion connection list on 2026-10-25; ops/companion-runtime (CHG-0091).",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A second opaque Unix-socket relay obs.sock, following the https.sock pattern (host runner listens at $XDG_RUNTIME_DIR/overlaykit-companion-local/obs.sock mode 0600 and forwards to 127.0.0.1:4455; child.cjs listens inside the container on 127.0.0.1:4455 and forwards to /bridge/obs.sock), preserves isolation: no host networking, no published ports, no payload parsing or logging, at most 64 clients, 5000 ms connect timeout, refusal of a pre-existing socket, and only port 4455 exposed. The obs-websocket password stays only in the private Companion profile, never in the repo, release or receipts.",
+      "evidence": "CHG-0091 relay() pattern in ops/companion-runtime and CHG0091SC002 isolation preflight; to be shown by SC-001 tests.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Staging an official obs-studio Companion module, pinned by exact version and hash, into the content-addressed release alongside the OverlayKit module, with license and provenance recorded like the rest of the release, satisfies the offline container constraint without weakening release verification. A new upgrade.mjs can switch an existing installation to a new verified release, changing only the release reference while preserving installationId, attachDevice, ports, state, profile and credentials, and restore the previous configuration exactly by running it with the earlier release.",
+      "evidence": "CHG-0091 content-addressed release and installation.json model; to be shown by SC-002 and SC-003 tests.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Compatibility of the pinned obs-studio module with Companion 4.3.3 and a real authenticated connection to OBS 33.0.0 through the relay are not yet verified. They are checked during the cutover executed by Rodrigo, with rollback available; no compatibility is claimed before then.",
+      "evidence": "SC-005 acceptance evidence at cutover.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Host runner opens obs.sock (mode 0600) to 127.0.0.1:4455 and child.cjs listens on 127.0.0.1:4455 inside the container forwarding to /bridge/obs.sock, as an opaque relay with the same limits as https.sock. A pre-existing obs.sock is refused, and OBS being closed ends only that connection without stopping the container or the https.sock relay.",
+      "verification": "Unit and integration tests of relay, existing-socket-refused and OBS-closed cases; socket mode and namespace inspection."
+    },
+    {
+      "id": "SC-002",
+      "statement": "The official obs-studio module is pinned by exact version and hash and staged in the content-addressed release with license and provenance, verified by the same manifest and tamper checks as the other release contents. The obs-websocket password is absent from repo, release and receipts.",
+      "verification": "Release manifest, tamper and no-overwrite probes; module hash check; secret scan of release and receipts."
+    },
+    {
+      "id": "SC-003",
+      "statement": "upgrade.mjs switches an existing installation to a new verified release preserving installationId, attachDevice, ports, state, profile and credentials, rejects an unverified or identical release without modifying installation.json or the unit, and running it with the previous release restores the previous configuration exactly.",
+      "verification": "Upgrade, rejection and rollback tests comparing installation.json and unit before and after."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Required governance, quality and build checks pass, with no Git publication, no accepted-law edits and no stop, restart or reinstall of overlaykit-companion-local.service by the agent.",
+      "verification": "npm run governance:check; npm run check; npm run build."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Acceptance evidence from the cutover executed by Rodrigo with one HID owner and rollback available: the obs-studio connection reports connected in Companion and a test button runs a harmless action such as reading state or changing the Preview scene. Staged versus installed state is reported honestly.",
+      "verification": "Cutover receipt, Companion connection status and the test-button result recorded by Rodrigo."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "The human authority, identity and evidence boundaries precede implementation, and the change is approved by Rodrigo before the work is declared done.",
+      "evidence": "CHG-0092 with status approved set by Rodrigo; CHG-0091 exclusion recorded."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Reviewable verified release candidate, step-by-step cutover and rollback instructions exist; actual activation and the unknown compatibility result are reported honestly after Rodrigo executes the cutover.",
+      "evidence": "Source and tests, release manifest, cutover instructions and cutover receipt."
+    }
+  ]
+}
