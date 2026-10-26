@@ -1,0 +1,22 @@
+{
+  "before": "Move the rehearsal container to host networking and inherit a public CA environment variable.",
+  "question": "Can the unchanged Companion SDK worker use the human-owned signed Show authority through private verified TLS while retaining one HID owner and persistent restart behavior?",
+  "overstatement": "A standalone Node22 TLS probe or rescan acknowledgement proves configured Companion and hardware production readiness.",
+  "minimalRefutation": "Inspect pinned child environment/listeners, exercise isolated app startup/restart, then admit real Owner authority before any HID cutover.",
+  "observables": [
+    "Upstream source constants and environment allowlist",
+    "Successful isolated opaque TLS transport and child CA launch",
+    "Real signed admission with exactly one Program binding",
+    "Content-addressed candidate plus tamper and private-profile checks",
+    "Actual API2 worker good status, physical feedback and restart receipts"
+  ],
+  "deferred": [
+    "New USB retry policy",
+    "OS-wide CA installation",
+    "LAN/public exposure",
+    "OBS live mutation",
+    "Git publication",
+    "OS reboot acceptance"
+  ],
+  "reorderCheck": "Changed: isolated transport and child CA trust were refuted/fixed and real authority validated before moving any hardware ownership."
+}

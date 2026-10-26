@@ -1,0 +1,37 @@
+CHG-0091 — local Companion controller, Codex under @rodrigoteamx.
+
+Stage with Node24: node ops/companion-runtime/stage.mjs
+Prepare an absolute reviewed release: node ops/companion-runtime/install.mjs RELEASE
+Preparation uses fresh private profile, masks sysfs, mounts no HID and listens only
+on localhost38036/36624. It is not enabled at login yet. Configure the actual module
+using the human-issued private device-token and separately captured trust-bundle.
+No production command is needed to verify signed module readiness/feedback.
+
+Before cutover: record/verify rehearsal container identity and configuration, save
+its admin service definition and rollback command, verify production module ready
+and all three bindings. Stop the prepared service, then ONLY the owned rehearsal
+container/admin forward. Confirm no HID holder. Atomically change private config to
+attachDevice=true/adminPort38035/satellitePort36623, start and enable this service.
+The installed USB recovery helper/policy remains unchanged and uses localhost38035.
+
+Mutable data: ~/.local/state/overlaykit-companion-local/companion
+Private config/credentials: ~/.config/overlaykit-companion-local/
+Immutable release: ~/.local/share/overlaykit-companion-local/releases/<sha256>
+Runtime-only opaque TLS socket: /run/user/<uid>/overlaykit-companion-local/https.sock
+No network ports are published by Docker; only explicit host loopback forwards.
+The dedicated internal Docker network isolates Satellite and Bonjour listeners.
+Public CA is copied into the release. The Node22 wrapper configures child trust
+without disabling TLS checks, patching Companion, or installing a host-wide CA.
+
+Startup requires the unique approved MK2 serial present and no existing HID owner.
+Absent/ambiguous/changed hardware fails closed; no broader device mapping is made.
+If boot/start occurred without the device, connect it then restart/reset-failed
+the service. Reconnection while the app remains running uses the existing bounded
+one-rescan-per-USB-epoch service. No OS reboot guarantee or new retry policy is made.
+
+Status: systemctl --user status overlaykit-companion-local
+Restart: systemctl --user restart overlaykit-companion-local
+Stop: systemctl --user disable --now overlaykit-companion-local
+Stopping preserves all profile/server data and credentials. Roll back only after
+the owned production container is stopped; never run two HID owners. No automatic
+profile reset, data migration, OBS operation, Git publication or acceptance occurs.

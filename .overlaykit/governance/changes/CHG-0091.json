@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "id": "CHG-0091",
+  "status": "approved",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "title": "Package and activate the isolated local Companion runtime with human-issued Show authority",
+  "changeClass": "architecture",
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0018",
+    "ADR-0033",
+    "ADR-0035",
+    "ADR-0037",
+    "ADR-0038",
+    "ADR-0039"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex implements under @rodrigoteamx. Human selected this Linux, personally created Owner and TestProd, authored the root visibility control, Took it to Program, issued a least-privilege device credential and separately copied the Owner trust bundle for local Companion configuration. This authorizes bounded local runner preparation and controlled cutover under CHG0090SC005, not evidence acceptance, accepted-law changes, new USB retries, OBS live mutations or publication.",
+      "evidence": "Current conversation and artifacts/local-companion-2026-10-24/device-admission-receipt.json; CHG0090SC005.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Existing SDK runtime under Node22.22.2 admitted the real credential using independently captured Ed25519 trust over verified TLS, exposed exactly the TestProd Program root visibility binding and reported ACTIVE without sending any visibility command.",
+      "evidence": "device-admission-receipt.json; private credentials are not in this contract.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Pinned Companion4.3.3 binds Satellite listeners globally inside its namespace and filters the CA environment from child processes. Disposable internal-network/opaque-Unix-TLS-bridge and explicit Node22 CA startup wrapper passed startup, restart and child-runtime inspection without HID mounts or disabling TLS verification.",
+      "evidence": "artifacts/local-production-2026-10-23/companion-deployment-preflight.json and companion-isolation-preflight-receipt.json; upstream06a7406709d6a858039333a8988047296ef3aa4a.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A hashed runner/Node/module/public-CA release plus private fresh Companion profile can move the controller to human-owned production authority while preserving one HID owner and existing USB rescan policy.",
+      "evidence": "Successful transport/child-runtime preflight and signed real-device admission; activation still requires app-worker and hardware evidence.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "The unique approved MK2 serial and hidraw mapping remain available and unchanged across the controlled start. Startup must refuse absent, ambiguous, changed or concurrently owned hardware rather than broaden device access.",
+      "evidence": "Required metadata identity checks and single-owner cutover receipts.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Actual configured Companion API2 worker, physical buttons and real output/OBS acceptance are not yet verified. They remain mandatory before claiming the whole goal achieved; no OS reboot proof is inferred.",
+      "evidence": "Goal acceptance boundary and ADR0038.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Stage exact Node24 coordinator, pinned official Node22 worker binary/license, unchanged verified module distribution, source runner and immutable public CA in a verified content-addressed release. Keep bearer/profile mutable data private outside checkout.",
+      "verification": "Manifest/tamper/no-overwrite probes; module and runtime hashes."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Run unchanged Companion image on an owned internal network without published ports, capability escalation or host networking. Expose admin/satellite only on host loopback, forward TLS opaquely and preserve certificate/hostname verification in actual worker.",
+      "verification": "Socket, Docker namespace, TLS and actual worker/bootstrap inspection."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Prepare configuration and buttons without HID ownership, then stop only identified owned rehearsal resources before attaching the exact unique MK2. Preserve rehearsal rollback and the installed one-rescan-per-epoch helper unchanged.",
+      "verification": "Single-owner metadata/container receipts, staged app-worker readiness and controlled cutover."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Persist profile and enable a user service whose ordinary restart retains configuration and fresh server-signed feedback. Never reset server authority or credentials, use worker signals as USB recovery, or claim hardware success from rescan acknowledgement.",
+      "verification": "Restart/current feedback receipts; unchanged USB release/config/ledger policy."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Required governance, quality and build checks pass. Distinguish staged/installed state, actual human button feedback and remaining consumer acceptance; no Git publication or accepted-law edits.",
+      "verification": "npm run governance:check; npm run check; npm run build; scoped actual acceptance evidence."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "The identity, authority, minimal question and evidence boundaries precede implementation.",
+      "evidence": "CHG0091 and ops/companion-runtime/discovery.json."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Reviewable hashed candidate, private installation receipts and rollback exist; actual activation and remaining human/consumer work are reported honestly.",
+      "evidence": "Source/tests, installed service/release receipts and bounded handoff report."
+    }
+  ]
+}
