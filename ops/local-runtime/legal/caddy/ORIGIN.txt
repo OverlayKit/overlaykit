@@ -1,0 +1,7 @@
+Caddy v2.11.7, unmodified official Linux binary.
+Source and copyright notices: https://github.com/caddyserver/caddy/tree/v2.11.7
+License: https://github.com/caddyserver/caddy/blob/v2.11.7/LICENSE
+Official image: caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+The binary is copied as bytes without Linux file capabilities for unprivileged
+high-port operation. Its SHA-256 is included in release.json. Embedded Go module
+versions/checksums and build settings are preserved in build-info.txt.

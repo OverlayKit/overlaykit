@@ -1,0 +1,59 @@
+OverlayKit local runtime — CHG-0089 / CHG-0090
+
+Agent: Codex. Human principal: @rodrigoteamx.
+This host-only candidate is separate from the Companion USB rehearsal.
+
+Use Node24 and the reviewed lockfile. Required checks:
+  npm ci --engine-strict
+  npm audit --omit=dev
+  npm run governance:check
+  npm run check
+  npm run build
+  node --test ops/local-runtime/runtime.test.mjs
+
+Stage (rebuilds browser assets with explicit local production origins):
+  node ops/local-runtime/stage.mjs
+Install a reviewed absolute release directory (refuses existing installation/data):
+  node ops/local-runtime/install.mjs /absolute/release/directory
+
+Studio: https://localhost:18443
+Editor: https://localhost:18444
+Output: https://localhost:18445
+Panel: https://localhost:18446
+OBS local HTTP Output alias: http://127.0.0.1:18447
+The OBS alias has no interactive API. Preserve the entire generated Output path,
+query and #output fragment when changing ONLY its origin. Treat the URL as secret.
+No automatic OBS launch or live-scene edit is performed.
+
+Private mutable data: ~/.local/state/overlaykit-local/
+Exact installation receipt: ~/.config/overlaykit-local/installation.json
+Content-addressed release: ~/.local/share/overlaykit-local/releases/<sha256>/
+Server uses its own Node24 executable and only the locked runtime dependency closure.
+The protocol remains a packed ESM package. Browser artifacts contain no source maps.
+Caddy is extracted from a pinned official image, copied without file capabilities
+and run directly as this user, with loopback listeners and no access or WebSocket
+payload logging. Docker is used only during staging. Its local CA is NOT installed
+in the operating system.
+Local CA: ~/.local/state/overlaykit-local/proxy-data/caddy/pki/authorities/local/root.crt
+Use a separately inspected certificate exception or explicit trust decision in the
+chosen browser. Do not disable TLS verification globally. The first Owner must be
+created by the human in Studio; this installer does not create production credentials.
+
+Status / restart:
+  systemctl --user status overlaykit-local-server overlaykit-local-proxy
+  systemctl --user restart overlaykit-local-server
+  journalctl --user -u overlaykit-local-server -u overlaykit-local-proxy
+The existing user linger setting determines operation after logout. Enabling services
+does not by itself prove recovery after an OS reboot; that requires a separate test.
+Owner credentials, Show data and server identity persist. Interactive sessions are
+currently held in memory, so sign in again after restarting the server.
+
+Rollback (preserves all production data, CA and release):
+  systemctl --user disable --now overlaykit-local-proxy overlaykit-local-server
+No automatic uninstall, database reset or downgrade/migration is performed. A new
+release needs review and an explicit upgrade path; rerunning install refuses rather
+than replacing an established authority. Backups of the data and CA contain secrets.
+
+Companion cutover requires the real Owner to issue a fresh least-privilege device
+credential and obtain its separate server trust bundle. The USB recovery policy is
+unchanged. Do not run two Companion instances against the same physical Stream Deck.

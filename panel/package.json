@@ -14,7 +14,7 @@
   "dependencies": {
     "@overlaykit/protocol": "0.1.0",
     "@overlaykit/ui": "0.1.0",
-    "vue": "^3.3.6"
+    "vue": "3.5.44"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.7",

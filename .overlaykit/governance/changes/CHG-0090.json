@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "status": "approved",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "id": "CHG-0090",
+  "title": "Install an isolated persistent loopback-only local OverlayKit runtime",
+  "changeClass": "architecture",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0013",
+    "ADR-0018",
+    "ADR-0027",
+    "ADR-0029",
+    "ADR-0033",
+    "ADR-0035",
+    "ADR-0037",
+    "ADR-0038",
+    "ADR-0039",
+    "ADR-0040"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex is the implementing agent under @rodrigoteamx. The human selected \"En este mismo Linux\" after the proposal to move from rehearsal to a persistent local production server. This approves bounded implementation and local installation, not acceptance of evidence, public exposure, OBS live-scene mutation, OS-wide trust changes or publication.",
+      "evidence": "Current model-visible conversation, AGENTS.md and active SPEC-0001 US001/002/008/009/010.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Port8080 is already owned by another service. The default project data/ and server/data directories and dedicated ~/.local/{share,state}/overlaykit-local and ~/.config/overlaykit-local do not exist. The machine has a cached official Caddy2.11.7 image and OBS Flatpak.",
+      "evidence": "Read-only socket/path inventory, cached Caddy version and image inspect, flatpak list. These facts do not prove that no data exists elsewhere.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "The documented secure deployment keeps backend listeners on loopback, uses HTTPS for secure interactive sessions and preserves fragment-only Output credentials plus same-origin WebSocket routing. The existing real-OBS proof is a separate bounded loopback-HTTP sample.",
+      "evidence": "README.md, server/.env.example, docs/deployment/secure-output-proxy.md, ADR0037/0038/0039.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "A content-addressed server/frontend release, private fresh data root, persistent user services and a separately pinned proxy can provide a reproducible local deployment without relying on agent terminals or modifying other applications.",
+      "evidence": "Existing build outputs, single-SQLite authority, deployment guide and ops/local-runtime/discovery.json.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Node24.16.0 and cached Caddy image sha256:f77f856a30f0004200b36b322d61da17fade31e24875699d77fb968399b9eb77 can run the staged release on this Linux host. HTTPS localhost Studio/editor/panel/output and an explicitly localhost-only HTTP Output alias can be verified independently; no public TLS or OBS-TLS claim is made.",
+      "evidence": "Pinned runtime version/image receipt and required deployment probes.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "The human Owner account and real Show/content must be provisioned through the protected Studio; browser trust for the new local certificate and actual OBS configuration are not yet established. The implementation must stop before claiming real production acceptance or mutating an operator live scene.",
+      "evidence": "SPEC0001 first-run Owner and Output criteria; ADR0038 consumer constraints.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Stage a standalone exact runtime dependency closure and compiled server/frontends in a hashed release. Startup verifies identities; ordinary source edits/builds do not mutate a deployed release. Retain Apache-2.0 and third-party legal metadata.",
+      "verification": "Release manifest and dependency/source hashes; pack/source-boundary and integrity refusal probes."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Use fresh private production data outside the checkout, preserve all existing data, and compose only one server owner for its SQLite/signing authority. Restarts retain established identity and production state; failures never delete/reset/replace authority.",
+      "verification": "Ownership/path refusal tests, real-server restart probes and no-overwrite inspection."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Bind backend/proxy services only to loopback on unoccupied ports; keep the existing8080 application intact. Serve interactive surfaces through HTTPS with Secure sessions, exact origins and protected first-run setup. No OS-wide trust installation is automatic.",
+      "verification": "Socket/TLS/CORS/cookie/first-run probes, actual browser review and service configuration."
+    },
+    {
+      "id": "SC-004",
+      "statement": "Output credentials remain fragment-only and are sent only after WS opens; no operational proxy frame/payload capture. A separate HTTP Output alias is permitted only on loopback and cannot expose interactive API access; it is not LAN/Internet or OBS-TLS evidence.",
+      "verification": "Proxy routing and request-target tests, actual Output authentication and read-only scope checks."
+    },
+    {
+      "id": "SC-005",
+      "statement": "Prepare persistent local services and rollback before any controller cutover. Bind Companion only after the real Owner issues a least-privilege device credential and separately obtained trust bundle. Preserve the tested USB one-rescan policy.",
+      "verification": "Service/release receipts, fresh credential/bootstrap/readiness verification and controlled local cutover record."
+    },
+    {
+      "id": "SC-006",
+      "statement": "All enforced checks pass. No accepted ADR/SPEC change, automatic OBS launch/live Program switch, public exposure, Git publication or production acceptance is inferred from installation.",
+      "verification": "npm run governance:check; npm run check; npm run build; deployment tests; diff and scope inspection."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "The approved local scope, exact deployment question, actor and claim boundaries precede implementation.",
+      "evidence": "CHG-0090 and ops/local-runtime/discovery.json."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "A verified local installation and protected first-run Studio are available with explicit certificate fingerprints, startup behavior, data locations and rollback.",
+      "evidence": "Installed services, release/proxy manifests, TLS and persistence receipts, operating instructions."
+    },
+    {
+      "id": "DOD-003",
+      "statement": "Human-owned setup and remaining operator/OBS steps are distinguished from automated checks; completion is never claimed while required handoff gates or human setup remain absent.",
+      "evidence": "Bounded final deployment report and observed user setup/configuration outcomes."
+    }
+  ]
+}
