@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { chmod, lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
 import { systemdQuote as q } from '../local-runtime/runtime.mjs';
@@ -78,3 +78,15 @@ export function relay(target, clients = new Set(), maximum = 64) {
   });
 }
 export function listen(server, ...args) { return new Promise((resolve, reject) => { server.once('error', reject); server.listen(...args, resolve); }); }
+// Opens the opaque Unix-socket relays. Each server is pushed to `servers` right after listen resolves
+// (before chmod) so the caller's finally can always close it, also when a later step throws.
+export async function openSocketRelays(runtime, clients, servers, { chmod: change = chmod, specs = [['https.sock', 18443], ['obs.sock', OBS_PORT]] } = {}) {
+  for (const [name, port] of specs) {
+    const socket = path.join(runtime, name);
+    try { await lstat(socket); throw new Error('existing-socket-refused'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    const unixRelay = relay({ host: '127.0.0.1', port }, clients);
+    await listen(unixRelay, socket);
+    servers.push(unixRelay);
+    await change(socket, 0o600);
+  }
+}

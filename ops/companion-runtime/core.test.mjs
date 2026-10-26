@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, chmod, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, chmod, symlink, rm, stat, lstat } from 'node:fs/promises';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { settings, owned, IMAGE, NAME, SERIAL, privateJson, unitText, upgradedInstallation } from './core.mjs';
+import { settings, owned, IMAGE, NAME, SERIAL, privateJson, unitText, upgradedInstallation, relay, listen, openSocketRelays } from './core.mjs';
 const c = { schema: 1, installationId: 'a'.repeat(36), release: '/private/releases/' + 'a'.repeat(64), state: '/private/state', serial: SERIAL, attachDevice: false, adminPort: 38036, satellitePort: 36624 };
 test('only explicit private-mode ports are accepted', () => {
   assert.equal(settings(c), c);
@@ -59,4 +60,63 @@ test('upgradedInstallation refuses the same release and invalid releases', () =>
 });
 test('upgrade then rollback restores the original installation', () => {
   assert.deepEqual(upgradedInstallation(upgradedInstallation(production, other), production.release), production);
+});
+
+async function closedPort() {
+  const probe = net.createServer();
+  await new Promise(r => probe.listen(0, '127.0.0.1', r));
+  const { port } = probe.address();
+  await new Promise(r => probe.close(r));
+  return port;
+}
+const closeAll = servers => Promise.all(servers.map(s => new Promise(r => s.close(r))));
+test('relay to a closed target closes the client quickly, keeps listening and drains clients', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ok-relay-closed-'));
+  const clients = new Set();
+  const server = relay({ host: '127.0.0.1', port: await closedPort() }, clients);
+  try {
+    const sock = path.join(dir, 'obs.sock');
+    await listen(server, sock);
+    for (let i = 0; i < 3; i++) {
+      const started = Date.now();
+      const client = net.connect(sock);
+      client.on('error', () => {});
+      await new Promise(r => client.once('close', r));
+      assert.ok(Date.now() - started < 5000);
+      assert.equal(server.listening, true);
+    }
+    await new Promise(r => setTimeout(r, 50));
+    assert.equal(clients.size, 0);
+  } finally { await closeAll([server]); await rm(dir, { recursive: true, force: true }); }
+});
+test('openSocketRelays opens both sockets with mode 0600', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ok-sockets-'));
+  const servers = [];
+  try {
+    await openSocketRelays(dir, new Set(), servers);
+    assert.equal(servers.length, 2);
+    for (const name of ['https.sock', 'obs.sock']) assert.equal((await stat(path.join(dir, name))).mode & 0o777, 0o600);
+  } finally { await closeAll(servers); await rm(dir, { recursive: true, force: true }); }
+});
+test('openSocketRelays refuses a pre-existing socket and closes the ones already opened', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ok-sockets-'));
+  const servers = [];
+  try {
+    await writeFile(path.join(dir, 'obs.sock'), '');
+    await assert.rejects(openSocketRelays(dir, new Set(), servers), /existing-socket-refused/);
+    assert.equal(servers.length, 1);
+    await closeAll(servers);
+    assert.equal(servers[0].listening, false);
+    await assert.rejects(lstat(path.join(dir, 'https.sock')), { code: 'ENOENT' });
+  } finally { await closeAll([]); await rm(dir, { recursive: true, force: true }); }
+});
+test('openSocketRelays registers a server before chmod so a chmod failure leaves it closable', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ok-sockets-'));
+  const servers = [];
+  try {
+    await assert.rejects(openSocketRelays(dir, new Set(), servers, { chmod: async () => { throw new Error('chmod-failed'); } }), /chmod-failed/);
+    assert.equal(servers.length, 1);
+    assert.equal(servers[0].listening, true);
+    await closeAll(servers);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
