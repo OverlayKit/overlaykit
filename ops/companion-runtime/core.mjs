@@ -4,6 +4,7 @@ import path from 'node:path';
 import net from 'node:net';
 export const IMAGE = 'ghcr.io/bitfocus/companion/companion:v4.3.3@sha256:2ff41215ab2ed77b5ec3dd74c5e6ec3b01354f57a7ca301b16017444d395544e';
 export const NAME = 'overlaykit-companion-local';
+export const OBS_PORT = 4455;
 export const SERIAL = 'A00SA5492OQMLF';
 export function docker(args) { return execFileSync('/usr/bin/docker', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }); }
 export async function privateJson(file) {
