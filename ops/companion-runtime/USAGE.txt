@@ -35,3 +35,43 @@ Stop: systemctl --user disable --now overlaykit-companion-local
 Stopping preserves all profile/server data and credentials. Roll back only after
 the owned production container is stopped; never run two HID owners. No automatic
 profile reset, data migration, OBS operation, Git publication or acceptance occurs.
+
+OBS access (CHG-0092) — operator cutover. Run by Rodrigo; Claude never stops/starts.
+
+Before:
+- CHG-0092 is `approved` by Rodrigo.
+- artifacts/companion-obs-module/ holds the pinned obs-studio tgz (git-ignored).
+  Missing or different hash: stage fails closed.
+- OBS: Tools > WebSocket Server Settings: enabled, port 4455, password at hand.
+  The password is typed only in the Companion UI; never in the repo or release.
+- Record the current release for rollback:
+    grep '"release"' ~/.config/overlaykit-companion-local/installation.json
+
+Cutover (repo root, Node24 from the current release):
+1. Stage (no service change; prints the new release path):
+    node ops/companion-runtime/stage.mjs
+2. Stop:
+    systemctl --user stop overlaykit-companion-local
+3. Switch (verifies, copies release if new, rewrites installation.json + unit,
+   daemon-reload; prints {"previousRelease":...,"release":...}):
+    node ops/companion-runtime/upgrade.mjs <release path from step 1>
+   On failure it prints `upgrade failed: ...`, exits 1, changes nothing live.
+4. Start:
+    systemctl --user start overlaykit-companion-local
+5. Check:
+    systemctl --user status overlaykit-companion-local
+   Stream Deck must still work (same device checks as above).
+6. Open http://127.0.0.1:38035 and add connection obs-studio:
+   host 127.0.0.1, port 4455, OBS password. Status must show OK/connected.
+7. Add a harmless test button: feedback "recording active" (or switch the
+   Preview scene). Confirm it reacts to OBS.
+
+Rollback: stop > switch back > start.
+    systemctl --user stop overlaykit-companion-local
+    node ops/companion-runtime/upgrade.mjs <previous release path>
+    systemctl --user start overlaykit-companion-local
+The obs-studio connection then shows as unavailable on the old release.
+Config/data are kept; only the release changes.
+
+After: tell Claude the outcome. Claude records the acceptance evidence (SC-005)
+under artifacts/ and proposes CHG-0092 to `implemented` in a follow-up.
