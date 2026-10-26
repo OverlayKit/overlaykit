@@ -65,7 +65,7 @@
     "proof:output-transport": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts",
     "proof:obs-acceptance": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/obsProgramCompositing.test.ts",
     "test:local-runtime": "node --test ops/local-runtime/runtime.test.mjs",
-    "test:companion-runtime": "node --test ops/companion-runtime/core.test.mjs ops/companion-runtime/bridge.test.mjs"
+    "test:companion-runtime": "node --test ops/companion-runtime/core.test.mjs ops/companion-runtime/bridge.test.mjs ops/companion-runtime/upgrade.test.mjs"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5",
