@@ -33,6 +33,16 @@ try {
   // The verified distribution is unchanged; no fake SDK metadata is introduced.
   execFileSync('/usr/bin/tar', ['-xzf', archive, '--strip-components=1', '-C', path.join(moduleDirectory, 'pkg')]);
   await writeFile(path.join(moduleDirectory, 'DEBUG-PACKAGED'), '');
+  const obs = JSON.parse(await readFile(path.join(source, 'ops/companion-runtime/obs-module.json'), 'utf8'));
+  const obsArchive = await readFile(path.join(source, 'artifacts/companion-obs-module', obs.archive));
+  if (sha256(obsArchive) !== obs.sha256) throw new Error('Unreviewed OBS module package');
+  const obsLicense = await readFile(path.join(source, 'ops/companion-runtime', obs.licenseFile));
+  if (sha256(obsLicense) !== obs.licenseSha256) throw new Error('Unreviewed OBS module license');
+  const obsDirectory = path.join(temporary, 'modules/obs-studio');
+  await mkdir(path.join(obsDirectory, 'pkg'), { recursive: true });
+  execFileSync('/usr/bin/tar', ['-xzf', path.join(source, 'artifacts/companion-obs-module', obs.archive), '--strip-components=1', '-C', path.join(obsDirectory, 'pkg')]);
+  await writeFile(path.join(obsDirectory, 'DEBUG-PACKAGED'), '');
+  await writeFile(path.join(obsDirectory, 'LICENSE'), obsLicense);
   await mkdir(path.join(temporary, 'ca'));
   await cp(path.join(installation.state, 'proxy-data/caddy/pki/authorities/local/root.crt'), path.join(temporary, 'ca/root.crt'));
   await cp(path.join(source, 'ops/companion-runtime'), path.join(temporary, 'ops/companion-runtime'), { recursive: true });
@@ -40,7 +50,7 @@ try {
   await cp(path.join(source, 'ops/local-runtime/runtime.mjs'), path.join(temporary, 'ops/local-runtime/runtime.mjs'));
   await chmod(path.join(temporary, 'ops/companion-runtime/node22.sh'), 0o755);
   for (const name of ['LICENSE', 'NOTICE']) await cp(path.join(source, name), path.join(temporary, name));
-  await writeFile(path.join(temporary, 'provenance.json'), JSON.stringify({ image: IMAGE, moduleArchiveSha256: archiveHash, node22Sha256: expectedNode22, caSha256: sha256(await readFile(path.join(temporary, 'ca/root.crt'))), serverReleaseId: installation.releaseId, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), planHash: JSON.parse(await readFile(path.join(source, '.overlaykit/governance/plan.json'))).planHash }, null, 2) + '\n');
+  await writeFile(path.join(temporary, 'provenance.json'), JSON.stringify({ image: IMAGE, moduleArchiveSha256: archiveHash, obsModuleArchiveSha256: obs.sha256, obsModuleCommit: obs.commit, node22Sha256: expectedNode22, caSha256: sha256(await readFile(path.join(temporary, 'ca/root.crt'))), serverReleaseId: installation.releaseId, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim(), planHash: JSON.parse(await readFile(path.join(source, '.overlaykit/governance/plan.json'))).planHash }, null, 2) + '\n');
   const files = await inventory(temporary);
   const id = sha256(JSON.stringify(files));
   await writeFile(path.join(temporary, 'release.json'), JSON.stringify({ schema: 1, id, files }, null, 2) + '\n');

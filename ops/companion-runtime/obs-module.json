@@ -1,0 +1,11 @@
+{
+  "tag": "v3.15.3",
+  "commit": "64a9f074fc8f6ee4eefd86e6e7e9396e76b44050",
+  "repository": "https://github.com/bitfocus/companion-module-obs-studio",
+  "archive": "obs-studio-3.15.3.tgz",
+  "sha256": "21f8cb286ea0c795aae856a708b4ec2d0c759ce87cd056a3d0edbc09a136a3d7",
+  "license": "MIT",
+  "licenseFile": "obs-studio-LICENSE",
+  "licenseSha256": "3587143e1146850de310477697ada35cf38175efd04065b2462617005a733b75",
+  "compatibility": "runtime node22; module API @companion-module/base ~1.12.1, accepted by Companion 4.3.3 (supports module API >=1.12 ranges, current 1.14.0 and 2.0.0)"
+}
