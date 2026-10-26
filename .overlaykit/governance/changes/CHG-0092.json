@@ -28,13 +28,13 @@
     },
     {
       "kind": "fact",
-      "statement": "Verified 2026-10-25: OBS 33.0.0 runs as Flatpak com.obsproject.Studio with obs-websocket enabled on 127.0.0.1:4455 and auth_required=true. Companion v4.3.3 image does not bundle an obs-studio module, and its container runs on an --internal Docker network with no outbound access, so the module cannot be downloaded at runtime. Current Companion connections are only elgato-stream-deck and overlaykit-server.",
+      "statement": "Verified 2026-10-25: OBS 33.0.0 runs as Flatpak com.obsproject.Studio with obs-websocket enabled on port 4455 with auth_required=true, reachable at 127.0.0.1 (the bind address was not verified). Companion v4.3.3 image does not bundle an obs-studio module, and its container runs on an --internal Docker network with no outbound access, so the module cannot be downloaded at runtime. Current Companion connections are only elgato-stream-deck and overlaykit-server.",
       "evidence": "Host inspection of OBS Flatpak and obs-websocket configuration, Companion 4.3.3 image and internal network, and Companion connection list on 2026-10-25; ops/companion-runtime (CHG-0091).",
       "blocking": false
     },
     {
       "kind": "inference",
-      "statement": "A second opaque Unix-socket relay obs.sock, following the https.sock pattern (host runner listens at $XDG_RUNTIME_DIR/overlaykit-companion-local/obs.sock mode 0600 and forwards to 127.0.0.1:4455; child.cjs listens inside the container on 127.0.0.1:4455 and forwards to /bridge/obs.sock), preserves isolation: no host networking, no published ports, no payload parsing or logging, at most 64 clients, 5000 ms connect timeout, refusal of a pre-existing socket, and only port 4455 exposed. The obs-websocket password stays only in the private Companion profile, never in the repo, release or receipts.",
+      "statement": "A second opaque Unix-socket relay obs.sock, following the https.sock pattern (host runner listens at $XDG_RUNTIME_DIR/overlaykit-companion-local/obs.sock mode 0600 and forwards to 127.0.0.1:4455; child.cjs listens inside the container on 127.0.0.1:4455 and forwards to /bridge/obs.sock), preserves isolation: no host networking, no published ports, no payload parsing or logging, at most 64 tracked sockets (client and upstream sockets each count, so about 32 concurrent connections) as implemented, with the cap shared by all relays of one process: the host runner and the in-container bridge each keep their own, 5000 ms connect timeout, refusal of a pre-existing socket, and only port 4455 exposed. The obs-websocket password stays only in the private Companion profile, never in the repo, release or receipts.",
       "evidence": "CHG-0091 relay() pattern in ops/companion-runtime and CHG0091SC002 isolation preflight; to be shown by SC-001 tests.",
       "blocking": false
     },
