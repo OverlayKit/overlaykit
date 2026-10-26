@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { chmod, lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
+import { systemdQuote as q } from '../local-runtime/runtime.mjs';
 export const IMAGE = 'ghcr.io/bitfocus/companion/companion:v4.3.3@sha256:2ff41215ab2ed77b5ec3dd74c5e6ec3b01354f57a7ca301b16017444d395544e';
 export const NAME = 'overlaykit-companion-local';
+export const OBS_PORT = 4455;
 export const SERIAL = 'A00SA5492OQMLF';
 export function docker(args) { return execFileSync('/usr/bin/docker', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }); }
 export async function privateJson(file) {
@@ -20,6 +22,15 @@ export function settings(c) {
   if (c.attachDevice && (c.adminPort !== 38035 || c.satellitePort !== 36623)) throw new Error('invalid-production-ports');
   if (!c.attachDevice && (c.adminPort !== 38036 || c.satellitePort !== 36624)) throw new Error('invalid-preparation-ports');
   return c;
+}
+export function upgradedInstallation(current, release) {
+  settings(current);
+  const next = settings({ ...current, release });
+  if (path.basename(release) === path.basename(current.release)) throw new Error('same-release-refused');
+  return next;
+}
+export function unitText({ node, ops, state, configFile }) {
+  return `[Unit]\nDescription=OverlayKit local Companion controller\nWants=overlaykit-local-server.service overlaykit-local-proxy.service\nAfter=overlaykit-local-server.service overlaykit-local-proxy.service\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\nType=simple\nRuntimeDirectory=overlaykit-companion-local\nRuntimeDirectoryMode=0700\nWorkingDirectory=${state.replaceAll('%', '%%')}\nEnvironment=XDG_RUNTIME_DIR=%t\nUnsetEnvironment=NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS\nExecStartPre=${q(node)} ${q(path.join(ops, 'verify.mjs'))}\nExecStart=/usr/bin/flock --exclusive --nonblock --no-fork ${q(path.join(state, 'owner.lock'))} ${q(node)} ${q(path.join(ops, 'run.mjs'))} ${q(configFile)}\nExecStopPost=${q(node)} ${q(path.join(ops, 'cleanup.mjs'))} ${q(configFile)}\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=40\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nProtectHome=read-only\nUMask=0077\nReadWritePaths=${q(state)} %t/overlaykit-companion-local\n\n[Install]\nWantedBy=default.target\n`;
 }
 export function owned(container, c) {
   return container?.Name === '/' + NAME && container.Config?.Image === IMAGE && container.Config?.Labels?.['com.overlaykit.installation'] === c.installationId && container.Config?.Labels?.['com.overlaykit.release'] === path.basename(c.release);
@@ -67,3 +78,15 @@ export function relay(target, clients = new Set(), maximum = 64) {
   });
 }
 export function listen(server, ...args) { return new Promise((resolve, reject) => { server.once('error', reject); server.listen(...args, resolve); }); }
+// Opens the opaque Unix-socket relays. Each server is pushed to `servers` right after listen resolves
+// (before chmod) so the caller's finally can always close it, also when a later step throws.
+export async function openSocketRelays(runtime, clients, servers, { chmod: change = chmod, specs = [['https.sock', 18443], ['obs.sock', OBS_PORT]] } = {}) {
+  for (const [name, port] of specs) {
+    const socket = path.join(runtime, name);
+    try { await lstat(socket); throw new Error('existing-socket-refused'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    const unixRelay = relay({ host: '127.0.0.1', port }, clients);
+    await listen(unixRelay, socket);
+    servers.push(unixRelay);
+    await change(socket, 0o600);
+  }
+}

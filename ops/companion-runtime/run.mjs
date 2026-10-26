@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, readFile, writeFile, lstat, chmod } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import { verify } from '../local-runtime/runtime.mjs';
-import { IMAGE, NAME, SERIAL, docker, privateJson, safeDirectory, settings, inspectOwn, cleanup, device, relay, listen } from './core.mjs';
+import { IMAGE, NAME, SERIAL, docker, privateJson, safeDirectory, settings, inspectOwn, cleanup, device, relay, listen, openSocketRelays } from './core.mjs';
 
 let c;
 let created = false;
@@ -17,13 +17,8 @@ try {
   if (!runtime || !path.isAbsolute(runtime)) throw new Error('runtime-directory-required');
   await safeDirectory(runtime);
   if (inspectOwn(c)) throw new Error('existing-container-refused');
-  const socket = path.join(runtime, 'https.sock');
   // RuntimeDirectory is recreated by systemd for each complete service start.
-  try { await lstat(socket); throw new Error('existing-socket-refused'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-  const tlsRelay = relay({ host: '127.0.0.1', port: 18443 }, clients);
-  await listen(tlsRelay, socket);
-  await chmod(socket, 0o600);
-  servers.push(tlsRelay);
+  await openSocketRelays(runtime, clients, servers);
   let network;
   try { network = JSON.parse(docker(['network', 'inspect', NAME]))[0]; }
   catch (e) { if (e.status !== 1 || !String(e.stderr).includes('not found')) throw new Error('network-inspection-failed'); }
