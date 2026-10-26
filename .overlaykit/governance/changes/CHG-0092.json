@@ -1,7 +1,7 @@
 {
   "schemaVersion": "overlaykit-governance-change/v2",
   "id": "CHG-0092",
-  "status": "proposed",
+  "status": "approved",
   "risk": "high",
   "owner": "@rodrigoteamx",
   "title": "Give the isolated local Companion runtime an opaque loopback path to OBS with a pinned obs-studio module",
@@ -20,6 +20,12 @@
     "ADR-0039"
   ],
   "claims": [
+    {
+      "kind": "fact",
+      "statement": "On 2026-10-25 the human principal @rodrigoteamx explicitly approved CHG-0092 in conversation (\"Sí, apruebo CHG-0092\") after the per-task and whole-branch reviews, and authorized pushing and merging its pull request. Approval does not accept SC-005 cutover evidence, which remains pending his operator cutover.",
+      "evidence": "Current conversation 2026-10-25; PR #93.",
+      "blocking": false
+    },
     {
       "kind": "fact",
       "statement": "Claude (Anthropic) implements under @rodrigoteamx, the human principal. On 2026-10-25 Rodrigo explicitly decided in conversation that local Companion should control OBS, as a governed change and not a shortcut. CHG-0091 expressly excluded OBS live mutations, so this change records the missing authority. Rodrigo, not the agent, executes the cutover (stop and install the release, restart overlaykit-companion-local), configures the obs-studio connection in the Companion UI with the obs-websocket password and moves this change to approved. The agent prepares the change, code, verified release and cutover/rollback instructions only.",
