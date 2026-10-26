@@ -10,9 +10,9 @@ import { NAME, privateJson, safeDirectory, settings, unitText, upgradedInstallat
 const defaultRun = (command, args) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 async function exists(file) { try { await lstat(file); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } }
 
-// Switches the installation to another verified release. Never stops, starts or enables the service.
+// Switches the installation to another verified release. Never stops, starts or enables the service; refuses while it is active.
 // Everything is validated and staged before the two renames that change the live files.
-export async function upgrade({ home = os.homedir(), source, run = defaultRun, warn = message => console.error(message) }) {
+export async function upgrade({ home = os.homedir(), source, run = defaultRun }) {
   const share = path.join(home, '.local/share/overlaykit-companion-local');
   const config = path.join(home, '.config/overlaykit-companion-local');
   const configFile = path.join(config, 'installation.json');
@@ -27,6 +27,9 @@ export async function upgrade({ home = os.homedir(), source, run = defaultRun, w
   const current = settings(await privateJson(configFile));
   const release = path.join(releases, receipt.id);
   const next = upgradedInstallation(current, release);
+  let active = false;
+  try { active = run('systemctl', ['--user', 'is-active', NAME]).trim() === 'active'; } catch { /* inactive */ }
+  if (active) throw new Error('service-active-refused');
 
   await mkdir(unitDirectory, { recursive: true, mode: 0o700 });
   const staging = await mkdtemp(path.join(unitDirectory, '.upgrade-'));
@@ -63,14 +66,11 @@ export async function upgrade({ home = os.homedir(), source, run = defaultRun, w
     await rm(staging, { recursive: true, force: true });
   }
   run('systemctl', ['--user', 'daemon-reload']);
-  let active = false;
-  try { active = run('systemctl', ['--user', 'is-active', NAME]).trim() === 'active'; } catch { /* inactive */ }
-  if (active) warn(`${NAME} is still running the previous release; restart it to apply the change.`);
   return { previousRelease: current.release, release };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.argv[2]) { console.error('upgrade failed: usage: upgrade.mjs <release-dir>'); process.exit(1); }
   try { console.log(JSON.stringify(await upgrade({ source: process.argv[2] }))); }
-  catch (e) { console.error(`upgrade failed: ${e.message}`); process.exitCode = 1; }
+  catch (e) { console.error(`upgrade failed: ${e.message}${e.message === 'service-active-refused' ? ' (stop the service first)' : ''}`); process.exitCode = 1; }
 }

@@ -144,14 +144,19 @@ test('a failing systemd verification leaves installation and unit untouched', as
   } finally { await rm(t.root, { recursive: true, force: true }); }
 });
 
-test('an active service only produces a reminder on stderr', async () => {
+test('an active service is refused before anything is modified', async () => {
   const t = await setup();
   try {
     const second = await makeRelease(t.sources, 'two');
-    const messages = [];
-    const run = (command, args) => args.includes('is-active') ? 'active\n' : '';
-    await upgrade({ home: t.home, source: second, run, warn: m => messages.push(m) });
-    assert.equal(messages.length, 1);
+    const before = await readFile(t.configFile, 'utf8');
+    const calls = [];
+    const run = (command, args) => { calls.push([command, ...args]); return args.includes('is-active') ? 'active\n' : ''; };
+    await assert.rejects(upgrade({ home: t.home, source: second, run }), /service-active-refused/);
+    assert.equal(await readFile(t.configFile, 'utf8'), before);
+    assert.equal(await readFile(t.unit, 'utf8'), t.unitBefore);
+    assert.equal((await readdir(t.releases)).length, 1);
+    assert.deepEqual(await readdir(path.dirname(t.unit)), ['overlaykit-companion-local.service']);
+    assert.ok(!calls.some(c => c.includes('daemon-reload') || c[0] === 'systemd-analyze'));
   } finally { await rm(t.root, { recursive: true, force: true }); }
 });
 
