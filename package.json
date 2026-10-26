@@ -50,7 +50,7 @@
     "test:unit": "npm run test:unit --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present",
     "format": "npm run format --workspaces --if-present",
-    "check": "npm run check:licensing && npm run lint && npm run type-check && npm run test",
+    "check": "npm run check:licensing && npm run lint && npm run type-check && npm run test && npm run test:local-runtime && npm run test:companion-runtime",
     "check:licensing": "node --test scripts/verify-licensing.test.mjs && node scripts/verify-licensing.mjs",
     "governance:compile": "npm run compile --workspace @overlaykit/governance-host",
     "governance:verify": "npm run verify --workspace @overlaykit/governance-host",
@@ -63,7 +63,9 @@
     "proof:visual": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/visualPreviewRendering.test.ts",
     "proof:output-authority": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts",
     "proof:output-transport": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/authenticatedProgramRendering.test.ts",
-    "proof:obs-acceptance": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/obsProgramCompositing.test.ts"
+    "proof:obs-acceptance": "npm exec --workspace @overlaykit/server -- vitest run tests/e2e/obsProgramCompositing.test.ts",
+    "test:local-runtime": "node --test ops/local-runtime/runtime.test.mjs",
+    "test:companion-runtime": "node --test ops/companion-runtime/core.test.mjs"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.52.5",
@@ -71,20 +73,21 @@
   },
   "overrides": {
     "dompurify": "$dompurify",
-    "fast-uri": "3.1.5"
+    "fast-uri": "3.1.9"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
     "concurrently": "^9.1.0",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.17",
     "eslint": "^8.57.1",
     "eslint-plugin-vue": "^9.33.0",
     "monaco-editor": "^0.56.0",
     "prettier": "^3.1.0",
     "typescript": "^5.9.3",
     "vue-eslint-parser": "^9.4.3",
-    "vue-tsc": "^3.3.5"
+    "vue-tsc": "^3.3.5",
+    "vue": "3.5.44"
   }
 }

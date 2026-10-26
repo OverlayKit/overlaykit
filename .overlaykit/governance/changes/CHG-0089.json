@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "overlaykit-governance-change/v2",
+  "status": "approved",
+  "risk": "high",
+  "owner": "@rodrigoteamx",
+  "specifications": [
+    "SPEC-0001"
+  ],
+  "id": "CHG-0089",
+  "title": "Refresh the audited dependency floor before local production installation",
+  "changeClass": "security",
+  "decisions": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0018"
+  ],
+  "claims": [
+    {
+      "kind": "fact",
+      "statement": "Codex acts under human principal @rodrigoteamx. The active user goal is production control through Companion and Stream Deck; the human selected this same Linux host for the real server. This records scoped implementation authorization for necessary compatible dependency remediation before local deployment, not evidence acceptance, accepted-law changes, merge or publication.",
+      "evidence": "Model-visible goal and human reply \"En este mismo Linux\", repository AGENTS.md and compiled plan57fc887cdfead9b9d3ae0c675f2e48cd7a7e0c65d09441fb63d1719155a43861.",
+      "blocking": false
+    },
+    {
+      "kind": "fact",
+      "statement": "Current npm audit --omit=dev reports11 affected packages:2critical,6high and3moderate. DOMPurify3.4.13 is directly pinned and the audit suggests3.4.17; fast-uri3.1.5 is pinned by the root override. The remaining reported fixes are compatible resolver updates.",
+      "evidence": "artifacts/local-production-2026-10-23/audit-before.json and current package manifests/lockfile.",
+      "blocking": false
+    },
+    {
+      "kind": "inference",
+      "statement": "Updating explicit compatible sanitizer/URI pins and resolver-selected vulnerable transitive entries can remove the current runtime audit blockers while preserving app semantics and accepted protocol authority.",
+      "evidence": "Audit fixAvailable data and the existing dependency ranges; semantic preservation must be checked rather than assumed.",
+      "blocking": false
+    },
+    {
+      "kind": "assumption",
+      "statement": "Compatible updates preserve editor sanitization, Studio workflows, server validation, protocol admission and production authority.",
+      "evidence": "Required governance, licensing, lint, type-check, unit/integration/browser tests and builds.",
+      "blocking": false
+    },
+    {
+      "kind": "unknown",
+      "statement": "Registry advisories may change after this audit. This change establishes only a tested current candidate and does not certify lasting security, production operation, actual OBS or physical hardware.",
+      "evidence": "Registry-backed audit and existing bounded evidence rules.",
+      "blocking": false
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "SC-001",
+      "statement": "Only necessary package pins/compatible lockfile entries and this contract/manifest change; accepted ADRs/SPECs, protocol semantics, source behavior and historical evidence remain unchanged.",
+      "verification": "Review complete manifest/lock diff and accepted planHash."
+    },
+    {
+      "id": "SC-002",
+      "statement": "Engine-strict Node24 installation reproduces the candidate lock and current runtime npm audit reports no vulnerabilities.",
+      "verification": "npm ci --engine-strict; npm audit --omit=dev."
+    },
+    {
+      "id": "SC-003",
+      "statement": "Required repository quality and builds pass at final bytes.",
+      "verification": "npm run governance:check; npm run check; npm run build; git diff --check."
+    }
+  ],
+  "definitionOfDone": [
+    {
+      "id": "DOD-001",
+      "statement": "Scoped human-authorized remediation is recorded before dependency mutation.",
+      "evidence": "CHG-0089 and current audit receipt."
+    },
+    {
+      "id": "DOD-002",
+      "statement": "Final audit and required checks are recorded without self-approving broader authority or production acceptance.",
+      "evidence": "Current audit/check/build outputs and inspected diff."
+    }
+  ]
+}
