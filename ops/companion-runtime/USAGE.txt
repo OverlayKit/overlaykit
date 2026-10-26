@@ -42,33 +42,47 @@ Before:
 - CHG-0092 is `approved` by Rodrigo.
 - artifacts/companion-obs-module/ holds the pinned obs-studio tgz (git-ignored).
   Missing or different hash: stage fails closed.
+- Stage needs: Docker with the pinned Companion image,
+  ../companion-module-overlaykit-server/pkg/overlaykit-server-0.1.0.tgz and
+  ~/.config/overlaykit-local/installation.json.
 - OBS: Tools > WebSocket Server Settings: enabled, port 4455, password at hand.
   The password is typed only in the Companion UI; never in the repo or release.
-- Record the current release for rollback:
+- Record the current release for rollback, and set REL (its own Node24):
     grep '"release"' ~/.config/overlaykit-companion-local/installation.json
+    REL=<that release path>
+  Always use "$REL/bin/node24" below; /usr/bin/node is v22, do not use it.
 
-Cutover (repo root, Node24 from the current release):
+Cutover (repo root):
 1. Stage (no service change; prints the new release path):
-    node ops/companion-runtime/stage.mjs
+    "$REL/bin/node24" ops/companion-runtime/stage.mjs
+   Stage failing = nothing changed, nothing to roll back.
+   If it errors because a release with the same id already exists in
+   artifacts/local-companion-2026-10-24/releases, that is harmless: reuse
+   that path.
 2. Stop:
     systemctl --user stop overlaykit-companion-local
 3. Switch (verifies, copies release if new, rewrites installation.json + unit,
    daemon-reload; prints {"previousRelease":...,"release":...}):
-    node ops/companion-runtime/upgrade.mjs <release path from step 1>
-   On failure it prints `upgrade failed: ...`, exits 1, changes nothing live.
+    "$REL/bin/node24" ops/companion-runtime/upgrade.mjs <release path from step 1>
+   On validation failure nothing live changes.
+   `upgrade failed: ...` means the old release is still live: just start
+   the service again (step 4).
 4. Start:
     systemctl --user start overlaykit-companion-local
 5. Check:
     systemctl --user status overlaykit-companion-local
-   Stream Deck must still work (same device checks as above).
+    journalctl --user -u overlaykit-companion-local -n 50 --no-pager
+   Press a Stream Deck key; the Stream Deck responds.
+   If start fails or the Stream Deck is dead: roll back now, then read the log.
 6. Open http://127.0.0.1:38035 and add connection obs-studio:
    host 127.0.0.1, port 4455, OBS password. Status must show OK/connected.
-7. Add a harmless test button: feedback "recording active" (or switch the
-   Preview scene). Confirm it reacts to OBS.
+7. Add a harmless read-only test button: feedback "recording active".
+   Confirm it follows OBS (start/stop a recording).
 
 Rollback: stop > switch back > start.
     systemctl --user stop overlaykit-companion-local
-    node ops/companion-runtime/upgrade.mjs <previous release path>
+    "$REL/bin/node24" ops/companion-runtime/upgrade.mjs <previous release path>
+    systemctl --user reset-failed overlaykit-companion-local   (if start limit hit)
     systemctl --user start overlaykit-companion-local
 The obs-studio connection then shows as unavailable on the old release.
 Config/data are kept; only the release changes.
