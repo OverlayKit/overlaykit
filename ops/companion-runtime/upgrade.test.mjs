@@ -154,3 +154,20 @@ test('an active service only produces a reminder on stderr', async () => {
     assert.equal(messages.length, 1);
   } finally { await rm(t.root, { recursive: true, force: true }); }
 });
+
+test('a failing unit rename restores installation.json atomically and rethrows the original error', async () => {
+  const t = await setup();
+  try {
+    const second = await makeRelease(t.sources, 'two');
+    // A non-empty directory at the unit path makes the final rename fail after installation.json was replaced.
+    await rm(t.unit);
+    await mkdir(t.unit);
+    await writeFile(path.join(t.unit, 'blocker'), 'x');
+    const before = await readFile(t.configFile, 'utf8');
+    await assert.rejects(upgrade({ home: t.home, source: second, run: t.run }), e => { assert.match(e.code, /ENOTEMPTY|EISDIR|EEXIST/); return true; });
+    assert.equal(await readFile(t.configFile, 'utf8'), before);
+    assert.equal(await mode(t.configFile), 0o600);
+    assert.deepEqual(await readdir(path.dirname(t.configFile)), ['installation.json']);
+    assert.deepEqual(await readdir(path.dirname(t.unit)), ['overlaykit-companion-local.service']);
+  } finally { await rm(t.root, { recursive: true, force: true }); }
+});

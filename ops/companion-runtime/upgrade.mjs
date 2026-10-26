@@ -52,7 +52,11 @@ export async function upgrade({ home = os.homedir(), source, run = defaultRun, w
     installed = true;
     await rename(stagedUnit, unit);
   } catch (e) {
-    if (installed) await writeFile(configFile, currentText, { mode: 0o600 });
+    if (installed) {
+      const restore = path.join(config, `.installation.json.${randomUUID()}.restore`);
+      try { await writeFile(restore, currentText, { flag: 'wx', mode: 0o600 }); await rename(restore, configFile); }
+      catch (restoreError) { await rm(restore, { force: true }); console.error(`restore of installation.json failed: ${restoreError.message}`); }
+    }
     throw e;
   } finally {
     await rm(stagedConfig, { force: true });
@@ -66,6 +70,7 @@ export async function upgrade({ home = os.homedir(), source, run = defaultRun, w
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (!process.argv[2]) throw new Error('usage: upgrade.mjs <release-dir>');
-  console.log(JSON.stringify(await upgrade({ source: process.argv[2] })));
+  if (!process.argv[2]) { console.error('upgrade failed: usage: upgrade.mjs <release-dir>'); process.exit(1); }
+  try { console.log(JSON.stringify(await upgrade({ source: process.argv[2] }))); }
+  catch (e) { console.error(`upgrade failed: ${e.message}`); process.exitCode = 1; }
 }
