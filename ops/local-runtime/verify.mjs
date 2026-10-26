@@ -1,0 +1,4 @@
+import { verify } from './runtime.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+await verify(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));

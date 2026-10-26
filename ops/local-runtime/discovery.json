@@ -1,0 +1,24 @@
+{
+  "before": "Keep the rehearsal processes or run dev:core as a persistent production service.",
+  "question": "Can an isolated local installation preserve one durable production authority through restart while serving authenticated Studio over HTTPS and keeping all listeners private?",
+  "overstatement": "USB rehearsal success or a running development server proves a secure production deployment.",
+  "minimalRefutation": "Audit runtime dependencies, stage immutable built assets and an exact server dependency closure, then verify real setup/login, TLS, authority persistence and rollback before redirecting the physical controller.",
+  "observables": [
+    "Current npm audit identifies critical/high runtime dependency blockers",
+    "Exact release and dependency hashes, Node24 and pinned Caddy digest",
+    "Loopback-only listeners on unoccupied ports; existing8080 service preserved",
+    "Secure Owner session and first-run protections in the real Studio",
+    "One persistent SQLite/signing authority survives ordinary service restart",
+    "Separate localhost-only OBS output transport; no frame logging or query credentials",
+    "Physical controller cutover waits for valid new Owner-issued credential and trust"
+  ],
+  "deferred": [
+    "Automatic OBS launch, live Program scene edits or output switches",
+    "OS-wide certificate trust installation",
+    "LAN/Internet exposure or public DNS",
+    "Arbitrary existing data migration",
+    "Extra rescan/retry policy CHG0047 in sibling",
+    "Git publication or release approval"
+  ],
+  "reorderCheck": "Changed: repair audited runtime blockers and validate TLS/data identity before replacing the rehearsal or connecting Companion to the real instance."
+}
